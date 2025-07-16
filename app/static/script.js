@@ -142,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Step-by-step display logic for Single File Conversion
     targetFileSingle.addEventListener('change', () => {
+        processSingleStatus.textContent = ''; // Clear status
         if (targetFileSingle.files.length > 0) {
             referenceTypeSelection.style.display = 'block';
             // Reset radio buttons and hide file inputs when a new target file is selected
@@ -155,10 +156,13 @@ document.addEventListener('DOMContentLoaded', () => {
             presetFileSingleDiv.style.display = 'none';
         }
         checkProcessButtonVisibility(); // Check visibility after target file changes
+        // Hide results section if target file changes
+        singleConversionResults.style.display = 'none';
     });
 
     // Toggle reference/preset file input for single conversion
     function toggleReferenceInput() {
+        processSingleStatus.textContent = ''; // Clear status
         if (radioReference.checked) {
             referenceFileSingleDiv.style.display = 'block';
             referenceFileSingle.setAttribute('required', 'true');
@@ -171,6 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
             presetFileSingle.setAttribute('required', 'true');
         }
         checkProcessButtonVisibility(); // Check visibility after mode changes
+        // Hide results section if mode changes
+        singleConversionResults.style.display = 'none';
     }
     radioReference.addEventListener('change', toggleReferenceInput);
     radioPreset.addEventListener('change', toggleReferenceInput);
@@ -180,8 +186,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Add event listeners to reference/preset file inputs to check button visibility
-    referenceFileSingle.addEventListener('change', checkProcessButtonVisibility);
-    presetFileSingle.addEventListener('change', checkProcessButtonVisibility);
+    referenceFileSingle.addEventListener('change', () => {
+        processSingleStatus.textContent = ''; // Clear status
+        checkProcessButtonVisibility();
+        singleConversionResults.style.display = 'none'; // Hide results if reference file changes
+    });
+    presetFileSingle.addEventListener('change', () => {
+        processSingleStatus.textContent = ''; // Clear status
+        checkProcessButtonVisibility();
+        singleConversionResults.style.display = 'none'; // Hide results if preset file changes
+    });
 
     // Initial check on page load
     checkProcessButtonVisibility();
@@ -360,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData,
             });
-            const data = await response.json();
+            const data = response.json();
             if (response.ok) {
                 // Generate suggested filename for blended output
                 const suggestedBlendedFilename = `${originalFileName}_out_${referenceName}-blend${blendPercentage}.wav`;
@@ -489,7 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData,
             });
-            const data = await response.json();
+            const data = response.json();
             if (response.ok) {
                 showStatus(processBatchStatus, `Batch processing started. Job ID: ${data.batch_id}`);
                 batchProgress.style.display = 'block';
