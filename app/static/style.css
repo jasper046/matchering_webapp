@@ -16,8 +16,44 @@ h1, h2 {
 }
 
 .logo-img {
-    height: 40px; /* Adjust as needed */
+    height: 60px; /* Increased by 50% from 40px */
     margin-right: 10px;
+}
+
+.navbar-brand {
+    font-size: 1.5rem; /* Increased by 25% from Bootstrap's default 1.2rem */
+}
+
+.navbar-header-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    width: 100%;
+    position: relative;
+}
+
+.navbar-title {
+    text-align: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px; /* Match logo height */
+}
+
+.matchering-link {
+    color: #007bff !important; /* Bootstrap primary blue */
+    text-decoration: none;
+    padding: 0 8px; /* Add spacing around the link */
+    transition: color 0.2s ease;
+}
+
+.matchering-link:hover {
+    color: #0056b3 !important; /* Darker blue on hover */
+    text-decoration: underline;
 }
 
 /* Custom styles for status messages to fit dark theme */

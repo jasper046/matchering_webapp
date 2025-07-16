@@ -1,6 +1,10 @@
 # Matchering Web App
 
-This is a web-based application that provides a user-friendly interface for the `matchering` audio mastering library. It allows you to create and blend audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
+This is a web-based application that provides a user-friendly interface for the **[Matchering](https://github.com/sergree/matchering)** audio mastering library by [Sergree](https://github.com/sergree). It allows you to create and blend audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
+
+## About Matchering
+
+Matchering is an open-source audio matching and mastering library that automatically masters your audio tracks by matching them to a reference track. This web interface provides an intuitive way to use the powerful Matchering library without requiring command-line knowledge.
 
 ## Features
 
