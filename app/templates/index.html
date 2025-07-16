@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matchering Web App</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Matchering Web App</h1>
+
+        <section id="create-preset">
+            <h2>Create Preset</h2>
+            <form id="create-preset-form">
+                <input type="file" id="reference-file-preset" name="reference_file" accept="audio/*" required>
+                <button type="submit">Create Preset</button>
+            </form>
+            <div id="create-preset-status"></div>
+        </section>
+
+        <section id="blend-presets">
+            <h2>Blend Presets</h2>
+            <form id="blend-presets-form">
+                <input type="file" id="preset-files" name="preset_files" accept=".pkl" multiple required>
+                <input type="text" id="new-preset-name" name="new_preset_name" placeholder="New Preset Name" required>
+                <button type="submit">Blend Presets</button>
+            </form>
+            <div id="blend-presets-status"></div>
+        </section>
+
+        <section id="process-single">
+            <h2>Single File Conversion</h2>
+            <form id="process-single-form">
+                <input type="file" id="target-file-single" name="target_file" accept="audio/*" required>
+                <label for="reference-type">Use:</label>
+                <select id="reference-type" name="reference_type">
+                    <option value="reference">Reference Track</option>
+                    <option value="preset">Preset File</option>
+                </select>
+                <input type="file" id="reference-file-single" name="reference_file" accept="audio/*">
+                <input type="file" id="preset-file-single" name="preset_file" accept=".pkl" style="display:none;">
+                <button type="submit">Process Single File</button>
+            </form>
+            <div id="process-single-status"></div>
+            <div id="single-conversion-results" style="display:none;">
+                <h3>Interactive Blend</h3>
+                <div class="waveform-container">
+                    <canvas id="original-waveform"></canvas>
+                    <canvas id="processed-waveform"></canvas>
+                </div>
+                <input type="range" id="blend-slider" min="0" max="100" value="50">
+                <audio id="blended-player" controls></audio>
+                <button id="save-blend-button">Save Blended Audio</button>
+                <div id="save-blend-status"></div>
+            </div>
+        </section>
+
+        <section id="process-batch">
+            <h2>Batch Conversion</h2>
+            <form id="process-batch-form">
+                <input type="file" id="batch-preset-file" name="preset_file" accept=".pkl" required>
+                <input type="file" id="batch-target-files" name="target_files" accept="audio/*" multiple required>
+                <button type="submit">Start Batch Conversion</button>
+            </form>
+            <div id="process-batch-status"></div>
+            <div id="batch-progress" style="display:none;">
+                <p>Processed: <span id="processed-count">0</span> / <span id="total-count">0</span></p>
+                <div class="progress-bar-container">
+                    <div class="progress-bar"></div>
+                </div>
+                <div id="batch-output-links"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
