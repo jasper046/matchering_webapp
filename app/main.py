@@ -36,6 +36,7 @@ async def read_root():
 
 @app.post("/api/create_preset")
 async def create_preset(reference_file: UploadFile = File(...)):
+    original_filename_base = os.path.splitext(reference_file.filename)[0]
     file_location = os.path.join(UPLOAD_DIR, reference_file.filename)
     with open(file_location, "wb") as f:
         shutil.copyfileobj(reference_file.file, f)
@@ -45,7 +46,7 @@ async def create_preset(reference_file: UploadFile = File(...)):
 
     try:
         mg.analyze_reference_track(reference=file_location, preset_path=preset_path)
-        return {"message": "Preset created successfully", "preset_path": preset_path}
+        return {"message": "Preset created successfully", "preset_path": preset_path, "suggested_filename": f"{original_filename_base}.pkl"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -161,10 +162,6 @@ async def blend_and_save(
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
         sf.write(blended_path, blended_audio, sr_orig)
 
-        # Clean up original and processed files after blending and saving
-        os.remove(original_path)
-        os.remove(processed_path)
-
         return {"message": "Blended audio saved successfully", "blended_file_path": blended_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -231,7 +228,7 @@ async def get_batch_status(batch_id: str):
     return job
 
 @app.get("/download/{file_type}/{filename}")
-async def download_file(file_type: str, filename: str):
+async def download_file(file_type: str, filename: str, download_name: Optional[str] = None):
     if file_type == "output":
         file_path = os.path.join(OUTPUT_DIR, filename)
     elif file_type == "preset":
@@ -242,4 +239,17 @@ async def download_file(file_type: str, filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found.")
     
-    return FileResponse(path=file_path, filename=filename, media_type="application/octet-stream")
+    return FileResponse(path=file_path, filename=download_name if download_name else filename, media_type="application/octet-stream")
+
+@app.get("/temp_files/{filename}")
+async def get_temp_file(filename: str):
+    # Check if the file is in UPLOAD_DIR or OUTPUT_DIR
+    upload_file_path = os.path.join(UPLOAD_DIR, filename)
+    output_file_path = os.path.join(OUTPUT_DIR, filename)
+
+    if os.path.exists(upload_file_path):
+        return FileResponse(path=upload_file_path, filename=filename)
+    elif os.path.exists(output_file_path):
+        return FileResponse(path=output_file_path, filename=filename)
+    else:
+        raise HTTPException(status_code=404, detail="Temporary file not found.")
