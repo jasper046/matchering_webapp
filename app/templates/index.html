@@ -49,7 +49,7 @@
                             <label class="form-label">Use:</label>
                             <div class="d-flex gap-3">
                                 <div class="form-check form-check-inline">
-                                    <input class="form-check-input visually-hidden" type="radio" name="reference_type" id="radioReference" value="reference" checked>
+                                    <input class="form-check-input visually-hidden" type="radio" name="reference_type" id="radioReference" value="reference">
                                     <label class="form-check-label radio-button-label" for="radioReference">Audio Reference File (.wav, .mp3, .flac, etc.)</label>
                                 </div>
                                 <div class="form-check form-check-inline">
@@ -58,7 +58,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-3" id="reference-file-single-div">
+                        <div class="mb-3" id="reference-file-single-div" style="display:none;">
                             <label for="reference-file-single" class="form-label">Audio Reference File (.wav, .mp3, .flac, etc.)</label>
                             <input type="file" class="form-control" id="reference-file-single" name="reference_file" accept="audio/*">
                         </div>

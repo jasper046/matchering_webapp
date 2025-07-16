@@ -124,8 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
     targetFileSingle.addEventListener('change', () => {
         if (targetFileSingle.files.length > 0) {
             referenceTypeSelection.style.display = 'block';
-            // Ensure initial state of reference/preset file inputs is correct
-            toggleReferenceInput(); 
+            // Reset radio buttons and hide file inputs when a new target file is selected
+            radioReference.checked = false;
+            radioPreset.checked = false;
+            referenceFileSingleDiv.style.display = 'none';
+            presetFileSingleDiv.style.display = 'none';
         } else {
             referenceTypeSelection.style.display = 'none';
             referenceFileSingleDiv.style.display = 'none';
