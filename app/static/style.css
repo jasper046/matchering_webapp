@@ -6,6 +6,10 @@ body {
     color: #f8f9fa; /* Light text for dark mode */
 }
 
+h1, h2 {
+    color: #f8f9fa; /* White color for titles */
+}
+
 .logo-img {
     height: 40px; /* Adjust as needed */
     margin-right: 10px;
@@ -76,4 +80,33 @@ canvas:last-child {
 
 .progress-bar {
     background-color: #0d6efd;
+}
+
+/* Tab styling */
+.nav-tabs .nav-link {
+    color: #f8f9fa; /* Inactive tab labels white */
+    background-color: #343a40; /* Dark background for inactive tabs */
+    border-color: #495057; /* Border color for inactive tabs */
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-right: 2px; /* Small gap between tabs */
+}
+
+.nav-tabs .nav-link.active {
+    color: #f8f9fa; /* Active tab label white */
+    background-color: #212529; /* Dark background for active tab content */
+    border-color: #495057;
+    border-bottom-color: transparent; /* Hide bottom border to blend with content */
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #6c757d; /* Slightly lighter border on hover */
+}
+
+.tab-content {
+    background-color: #212529; /* Match body background for content area */
+    border: 1px solid #495057;
+    border-top: none; /* Remove top border to blend with active tab */
+    padding: 20px;
+    border-radius: 0 0 8px 8px;
 }
