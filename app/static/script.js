@@ -660,6 +660,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalCountSpan = document.getElementById('total-count');
     const progressBar = document.querySelector('.progress-bar');
     const batchOutputLinks = document.getElementById('batch-output-links');
+    const batchBlendRatio = document.getElementById('batch-blend-ratio');
+
+    // Add validation for batch blend ratio input
+    batchBlendRatio.addEventListener('input', function() {
+        // Remove any non-numeric characters except for temporary input states
+        let value = this.value.replace(/[^0-9]/g, '');
+        
+        // Convert to number and clamp between 0-100
+        if (value !== '') {
+            let numValue = parseInt(value);
+            if (numValue < 0) numValue = 0;
+            if (numValue > 100) numValue = 100;
+            this.value = numValue;
+        }
+    });
+
+    // Also validate on blur to handle edge cases
+    batchBlendRatio.addEventListener('blur', function() {
+        if (this.value === '' || isNaN(this.value)) {
+            this.value = 100; // Default to 100 if invalid
+        } else {
+            let numValue = parseInt(this.value);
+            if (numValue < 0) numValue = 0;
+            if (numValue > 100) numValue = 100;
+            this.value = numValue;
+        }
+    });
 
     processBatchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -669,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData();
         formData.append('preset_file', document.getElementById('batch-preset-file').files[0]);
+        formData.append('blend_ratio', batchBlendRatio.value / 100); // Convert to 0-1 range
         const targetFiles = document.getElementById('batch-target-files').files;
         for (let i = 0; i < targetFiles.length; i++) {
             formData.append('target_files', targetFiles[i]);

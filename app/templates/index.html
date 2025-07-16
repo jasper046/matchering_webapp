@@ -145,6 +145,13 @@
                             <input type="file" class="form-control" id="batch-preset-file" name="preset_file" accept=".pkl" required>
                         </div>
                         <div class="mb-3">
+                            <label for="batch-blend-ratio" class="form-label">Blend Ratio (0% = dry/original, 100% = wet/processed)</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="number" class="form-control" id="batch-blend-ratio" min="0" max="100" value="100" style="width: 100px;">
+                                <span class="text-light">%</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
                             <label for="batch-target-files" class="form-label">Audio Source Files (.wav) (1-20)</label>
                             <input type="file" class="form-control" id="batch-target-files" name="target_files" accept=".wav" multiple required>
                         </div>

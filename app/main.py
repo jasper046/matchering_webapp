@@ -170,7 +170,8 @@ async def blend_and_save(
 async def process_batch(
     background_tasks: BackgroundTasks,
     preset_file: UploadFile = File(...),
-    target_files: List[UploadFile] = File(...)
+    target_files: List[UploadFile] = File(...),
+    blend_ratio: float = Form(1.0)
 ):
     if not (1 <= len(target_files) <= 20):
         raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
@@ -193,22 +194,65 @@ async def process_batch(
         _run_batch_processing,
         batch_id,
         preset_temp_path,
-        target_file_paths
+        target_file_paths,
+        blend_ratio
     )
 
     return {"message": "Batch processing started", "batch_id": batch_id}
 
-async def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str]):
+def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float):
     try:
         for i, target_path in enumerate(target_paths):
-            output_filename = f"batch_processed_{uuid.uuid4()}.wav"
-            output_path = os.path.join(OUTPUT_DIR, output_filename)
+            if blend_ratio == 1.0:
+                # Full processing (100% wet)
+                output_filename = f"batch_processed_{uuid.uuid4()}.wav"
+                output_path = os.path.join(OUTPUT_DIR, output_filename)
+                
+                mg.process_with_preset(
+                    target=target_path,
+                    preset_path=preset_path,
+                    results=[mg.pcm24(output_path)]
+                )
+            else:
+                # Blended processing
+                processed_filename = f"batch_temp_{uuid.uuid4()}.wav"
+                processed_path = os.path.join(OUTPUT_DIR, processed_filename)
+                
+                # Process the file first
+                mg.process_with_preset(
+                    target=target_path,
+                    preset_path=preset_path,
+                    results=[mg.pcm24(processed_path)]
+                )
+                
+                # Then blend original and processed
+                original_audio, sr_orig = sf.read(target_path)
+                processed_audio, sr_proc = sf.read(processed_path)
+                
+                # Ensure both arrays have the same number of channels
+                if original_audio.ndim == 1:
+                    original_audio = np.expand_dims(original_audio, axis=1)
+                if processed_audio.ndim == 1:
+                    processed_audio = np.expand_dims(processed_audio, axis=1)
+                
+                # Pad the shorter audio with zeros to match the length of the longer one
+                max_len = max(len(original_audio), len(processed_audio))
+                if len(original_audio) < max_len:
+                    original_audio = np.pad(original_audio, ((0, max_len - len(original_audio)), (0,0)), 'constant')
+                elif len(processed_audio) < max_len:
+                    processed_audio = np.pad(processed_audio, ((0, max_len - len(processed_audio)), (0,0)), 'constant')
+                
+                # Blend the audio
+                blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
+                
+                # Save the blended result
+                output_filename = f"batch_blended_{uuid.uuid4()}.wav"
+                output_path = os.path.join(OUTPUT_DIR, output_filename)
+                sf.write(output_path, blended_audio, sr_orig)
+                
+                # Clean up temporary processed file
+                os.remove(processed_path)
             
-            mg.process_with_preset(
-                target=target_path,
-                preset_path=preset_path,
-                results=[mg.pcm24(output_path)]
-            )
             batch_jobs[batch_id]["processed_count"] = i + 1
             batch_jobs[batch_id]["output_files"].append(output_path)
             os.remove(target_path) # Clean up processed target file
