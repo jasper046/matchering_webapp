@@ -282,6 +282,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw waveforms
         drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
         drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
+
+        // Add click listeners to canvases for seeking
+        document.getElementById('original-waveform').addEventListener('click', seekAudio);
+        document.getElementById('processed-waveform').addEventListener('click', seekAudio);
     }
 
     function playAudio() {
@@ -476,6 +480,34 @@ document.addEventListener('DOMContentLoaded', () => {
         animationFrameId = requestAnimationFrame(updatePlayPosition);
     }
 
+    // Function to seek audio on waveform click
+    function seekAudio(event) {
+        if (!originalBuffer || !processedBuffer) return; // No audio loaded
+
+        const canvas = event.currentTarget; // The canvas that was clicked
+        const rect = canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left; // X position relative to the canvas
+        const canvasWidth = canvas.offsetWidth;
+
+        const duration = originalBuffer.duration;
+        const seekTime = (clickX / canvasWidth) * duration;
+
+        if (isPlaying) {
+            // Stop current playback
+            originalSourceNode.stop();
+            processedSourceNode.stop();
+            cancelAnimationFrame(animationFrameId);
+
+            // Update playbackTime and restart
+            playbackTime = seekTime;
+            playAudio();
+        } else {
+            // If not playing, just update playbackTime and redraw indicator
+            playbackTime = seekTime;
+            drawPlayPosition((seekTime / duration) * canvasWidth);
+        }
+    }
+
     // --- Batch Processing Section ---
     const processBatchForm = document.getElementById('process-batch-form');
     const processBatchStatus = document.getElementById('process-batch-status');
@@ -521,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const interval = setInterval(async () => {
             try {
                 const response = await fetch(`/api/batch_status/${batchId}`);
-                const data = await response.json();
+                const data = response.json();
 
                 processedCountSpan.textContent = data.processed_count;
                 totalCountSpan.textContent = data.total_count;
