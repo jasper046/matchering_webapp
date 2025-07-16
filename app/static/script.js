@@ -102,6 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBlendButton = document.getElementById('save-blend-button');
     const saveBlendStatus = document.getElementById('save-blend-status');
 
+    const playButton = document.getElementById('play-button');
+    const pauseButton = document.getElementById('pause-button');
+    const stopButton = document.getElementById('stop-button');
+
     let audioContext;
     let originalSourceNode;
     let processedSourceNode;
@@ -109,6 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let gainProcessed;
     let originalBuffer;
     let processedBuffer;
+    let playbackTime = 0;
+    let startTime = 0;
+    let isPlaying = false;
 
     // Toggle reference/preset file input for single conversion
     function toggleReferenceInput() {
@@ -136,14 +143,24 @@ document.addEventListener('DOMContentLoaded', () => {
         saveBlendStatus.textContent = '';
 
         const formData = new FormData();
-        formData.append('target_file', document.getElementById('target-file-single').files[0]);
+        const targetFile = document.getElementById('target-file-single').files[0];
+        formData.append('target_file', targetFile);
 
+        let referenceName = '';
         if (radioReference.checked) {
-            formData.append('reference_file', referenceFileSingle.files[0]);
+            const refFile = referenceFileSingle.files[0];
+            formData.append('reference_file', refFile);
+            referenceName = refFile.name.split('.').slice(0, -1).join('.').substring(0, 5); // Cap at 5 chars
         }
         else if (radioPreset.checked) {
-            formData.append('preset_file', presetFileSingle.files[0]);
+            const presetFile = presetFileSingle.files[0];
+            formData.append('preset_file', presetFile);
+            referenceName = presetFile.name.split('.').slice(0, -1).join('.').substring(0, 5); // Cap at 5 chars
         }
+
+        // Store original filename and reference name for blended output filename
+        processSingleStatus.dataset.originalFileName = targetFile.name.split('.').slice(0, -1).join('.');
+        processSingleStatus.dataset.referenceName = referenceName;
 
         try {
             const response = await fetch('/api/process_single', {
@@ -187,33 +204,76 @@ document.addEventListener('DOMContentLoaded', () => {
         processedBuffer = await fetchAudio(processedUrl);
 
         // Create sources and gain nodes
-        originalSourceNode = audioContext.createBufferSource();
-        originalSourceNode.buffer = originalBuffer;
+        // These are created and connected in playAudio() to allow for multiple play/pause cycles
         gainOriginal = audioContext.createGain();
-        originalSourceNode.connect(gainOriginal);
-
-        processedSourceNode = audioContext.createBufferSource();
-        processedSourceNode.buffer = processedBuffer;
         gainProcessed = audioContext.createGain();
-        processedSourceNode.connect(gainProcessed);
 
-        // Connect gain nodes to a single destination (the audio context's speakers)
         gainOriginal.connect(audioContext.destination);
         gainProcessed.connect(audioContext.destination);
 
         // Initial blend setting
         updateBlend();
 
-        // Start playback (looping for continuous blending)
-        originalSourceNode.loop = true;
-        processedSourceNode.loop = true;
-        originalSourceNode.start(0);
-        processedSourceNode.start(0);
-
         // Draw waveforms
         drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
         drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
     }
+
+    function playAudio() {
+        if (isPlaying) return; // Already playing
+
+        // Create new sources each time play is pressed
+        originalSourceNode = audioContext.createBufferSource();
+        originalSourceNode.buffer = originalBuffer;
+        originalSourceNode.connect(gainOriginal);
+
+        processedSourceNode = audioContext.createBufferSource();
+        processedSourceNode.buffer = processedBuffer;
+        processedSourceNode.connect(gainProcessed);
+
+        // Start from current playbackTime
+        originalSourceNode.start(0, playbackTime);
+        processedSourceNode.start(0, playbackTime);
+
+        startTime = audioContext.currentTime - playbackTime;
+        isPlaying = true;
+        updatePlaybackButtons('play');
+    }
+
+    function pauseAudio() {
+        if (!isPlaying) return;
+
+        originalSourceNode.stop();
+        processedSourceNode.stop();
+        playbackTime = audioContext.currentTime - startTime;
+        isPlaying = false;
+        updatePlaybackButtons('pause');
+    }
+
+    function stopAudio() {
+        if (isPlaying) {
+            originalSourceNode.stop();
+            processedSourceNode.stop();
+        }
+        playbackTime = 0;
+        startTime = 0;
+        isPlaying = false;
+        updatePlaybackButtons('stop');
+    }
+
+    function updatePlaybackButtons(activeButtonId) {
+        document.querySelectorAll('.playback-button').forEach(button => {
+            button.classList.remove('playback-active');
+        });
+        document.getElementById(`${activeButtonId}-button`).classList.add('playback-active');
+    }
+
+    playButton.addEventListener('click', playAudio);
+    pauseButton.addEventListener('click', pauseAudio);
+    stopButton.addEventListener('click', stopAudio);
+
+    // Set initial state for playback buttons
+    updatePlaybackButtons('stop');
 
     function updateBlend() {
         if (!audioContext || !gainOriginal || !gainProcessed) return;
@@ -231,11 +291,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const originalFilePathFromBackend = processSingleStatus.dataset.originalFilePath;
         const processedFilePathFromBackend = processSingleStatus.dataset.processedFilePath;
+        const originalFileName = processSingleStatus.dataset.originalFileName;
+        const referenceName = processSingleStatus.dataset.referenceName;
+        const blendPercentage = blendSlider.value;
 
         const formData = new FormData();
         formData.append('original_path', originalFilePathFromBackend);
         formData.append('processed_path', processedFilePathFromBackend);
-        formData.append('blend_ratio', blendSlider.value / 100);
+        formData.append('blend_ratio', blendPercentage / 100);
 
         try {
             const response = await fetch('/api/blend_and_save', {
@@ -244,12 +307,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
+                // Generate suggested filename for blended output
+                const suggestedBlendedFilename = `${originalFileName}_out_${referenceName}-blend${blendPercentage}.wav`;
+
                 // Display download link and instruction
-                const filename = `blended_${Date.now()}.wav`; // Generate a unique filename for the blended output
                 const link = document.createElement('a');
-                link.href = `/download/output/${data.blended_file_path.split('/').pop()}?download_name=${encodeURIComponent(filename)}`;
-                link.download = filename;
-                link.textContent = filename;
+                link.href = `/download/output/${data.blended_file_path.split('/').pop()}?download_name=${encodeURIComponent(suggestedBlendedFilename)}`;
+                link.download = suggestedBlendedFilename;
+                link.textContent = suggestedBlendedFilename;
                 link.className = 'alert-link';
 
                 const instructionText = document.createTextNode(' (Right Click to Save As)');

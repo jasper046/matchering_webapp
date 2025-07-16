@@ -10,6 +10,11 @@ h1, h2 {
     color: #f8f9fa; /* White color for titles */
 }
 
+/* Ensure h3 in single-conversion-results is white */
+#single-conversion-results h3 {
+    color: #f8f9fa;
+}
+
 .logo-img {
     height: 40px; /* Adjust as needed */
     margin-right: 10px;
@@ -160,4 +165,24 @@ canvas:last-child {
 
 .form-check-inline .radio-button-label:hover {
     background-color: #495057; /* Slightly lighter on hover */
+}
+
+/* Playback button styling */
+.playback-button {
+    background-color: #343a40; /* Default background for unselected */
+    color: #f8f9fa; /* Ensure text is readable */
+    padding: 0.5rem 1rem; /* Padding to encompass content */
+    border-radius: 0.5rem; /* Rounded corners matching tab labels */
+    border: 1px solid #495057;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.playback-button:hover {
+    background-color: #495057; /* Slightly lighter on hover */
+}
+
+.playback-button.playback-active {
+    background-color: #6c757d; /* Light grey background when active */
+    border-color: #86b7fe; /* Highlight border */
 }

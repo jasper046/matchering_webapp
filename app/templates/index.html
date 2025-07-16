@@ -72,12 +72,18 @@
                     <div id="single-conversion-results" class="mt-4" style="display:none;">
                         <h3>Interactive Blend</h3>
                         <div class="waveform-container">
+                            <div class="waveform-label">Original</div>
                             <canvas id="original-waveform"></canvas>
+                            <div class="waveform-label">Matchering Output</div>
                             <canvas id="processed-waveform"></canvas>
                         </div>
                         <input type="range" class="form-range" id="blend-slider" min="0" max="100" value="50">
-                        <audio id="blended-player" controls class="w-100 mt-3"></audio>
-                        <button type="button" id="save-blend-button" class="btn btn-success mt-3">Save Blended Audio</button>
+                        <div class="d-flex justify-content-center gap-2 mt-3">
+                            <button type="button" id="play-button" class="btn btn-secondary playback-button">Play</button>
+                            <button type="button" id="pause-button" class="btn btn-secondary playback-button">Pause</button>
+                            <button type="button" id="stop-button" class="btn btn-secondary playback-button playback-active">Stop</button>
+                        </div>
+                        <button type="button" id="save-blend-button" class="btn btn-success mt-3">Keep current blend</button>
                         <div id="save-blend-status" class="mt-3"></div>
                     </div>
                 </section>
@@ -94,6 +100,9 @@
                         <button type="submit" class="btn btn-primary">Create Preset</button>
                     </form>
                     <div id="create-preset-status" class="mt-3"></div>
+                    <div id="create-preset-download" class="mt-3" style="display:none;">
+                        <div id="preset-download-link-container"></div>
+                    </div>
                 </section>
             </div>
 
