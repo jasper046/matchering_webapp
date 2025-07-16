@@ -53,12 +53,16 @@ Follow these steps to set up and run the Matchering Web App:
 
 ## Running the Application
 
-Once setup is complete, you can start the web server:
+Once setup is complete, you can start the web server using the provided script:
 
-```bash
-source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
+1.  **Make the script executable:**
+    ```bash
+    chmod +x start_server.sh
+    ```
+2.  **Run the server:**
+    ```bash
+    ./start_server.sh
+    ```
 
 *   The server will typically run on `http://0.0.0.0:8000`.
 *   Open your web browser and navigate to `http://<YOUR_SERVER_IP>:8000` (replace `<YOUR_SERVER_IP>` with the actual IP address of the machine running the server).
