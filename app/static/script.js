@@ -108,6 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const pauseButton = document.getElementById('pause-button');
     const stopButton = document.getElementById('stop-button');
 
+    const processFileButton = document.getElementById('process-file-button'); // New: Get process button
+
     let audioContext;
     let originalSourceNode;
     let processedSourceNode;
@@ -119,6 +121,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let startTime = 0;
     let isPlaying = false;
     let animationFrameId; // For play position indicator
+
+    // Function to check and update process button visibility
+    function checkProcessButtonVisibility() {
+        const isTargetFileSelected = targetFileSingle.files.length > 0;
+        let isReferenceOrPresetSelected = false;
+
+        if (radioReference.checked) {
+            isReferenceOrPresetSelected = referenceFileSingle.files.length > 0;
+        } else if (radioPreset.checked) {
+            isReferenceOrPresetSelected = presetFileSingle.files.length > 0;
+        }
+
+        if (isTargetFileSelected && isReferenceOrPresetSelected) {
+            processFileButton.style.display = 'block';
+        } else {
+            processFileButton.style.display = 'none';
+        }
+    }
 
     // Step-by-step display logic for Single File Conversion
     targetFileSingle.addEventListener('change', () => {
@@ -134,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             referenceFileSingleDiv.style.display = 'none';
             presetFileSingleDiv.style.display = 'none';
         }
+        checkProcessButtonVisibility(); // Check visibility after target file changes
     });
 
     // Toggle reference/preset file input for single conversion
@@ -149,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             presetFileSingleDiv.style.display = 'block';
             presetFileSingle.setAttribute('required', 'true');
         }
+        checkProcessButtonVisibility(); // Check visibility after mode changes
     }
     radioReference.addEventListener('change', toggleReferenceInput);
     radioPreset.addEventListener('change', toggleReferenceInput);
@@ -156,6 +178,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (targetFileSingle.files.length > 0) {
         toggleReferenceInput();
     }
+
+    // Add event listeners to reference/preset file inputs to check button visibility
+    referenceFileSingle.addEventListener('change', checkProcessButtonVisibility);
+    presetFileSingle.addEventListener('change', checkProcessButtonVisibility);
+
+    // Initial check on page load
+    checkProcessButtonVisibility();
 
     // Process Single File Form Submission
     processSingleForm.addEventListener('submit', async (e) => {

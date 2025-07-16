@@ -214,8 +214,16 @@ canvas {
     z-index: 2; /* Ensure it's above waveforms */
 }
 
-/* Scrolling for single conversion results */
-#single-conversion-results {
-    /* max-height: 500px; Removed fixed height */
-    /* overflow-y: auto; Removed overflow */
+#process-file-button {
+    background-color: #343a40; /* Default background for unselected */
+    color: #f8f9fa; /* Ensure text is readable */
+    padding: 0.5rem 1rem; /* Padding to encompass content */
+    border-radius: 0.5rem; /* Rounded corners matching tab labels */
+    border: 1px solid #495057;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+#process-file-button:hover {
+    background-color: #495057; /* Slightly lighter on hover */
 }
