@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let playbackTime = 0;
     let startTime = 0;
     let isPlaying = false;
+    let animationFrameId; // For play position indicator
 
     // Toggle reference/preset file input for single conversion
     function toggleReferenceInput() {
@@ -238,6 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startTime = audioContext.currentTime - playbackTime;
         isPlaying = true;
         updatePlaybackButtons('play');
+        updatePlayPosition();
     }
 
     function pauseAudio() {
@@ -248,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playbackTime = audioContext.currentTime - startTime;
         isPlaying = false;
         updatePlaybackButtons('pause');
+        cancelAnimationFrame(animationFrameId);
     }
 
     function stopAudio() {
@@ -259,6 +262,8 @@ document.addEventListener('DOMContentLoaded', () => {
         startTime = 0;
         isPlaying = false;
         updatePlaybackButtons('stop');
+        cancelAnimationFrame(animationFrameId);
+        drawPlayPosition(0); // Reset play position line
     }
 
     function updatePlaybackButtons(activeButtonId) {
@@ -287,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Save Blended Audio
     saveBlendButton.addEventListener('click', async () => {
-        showStatus(saveBlendStatus, 'Saving blended audio...');
+        showStatus(saveBlendStatus, 'Generating output file...');
 
         const originalFilePathFromBackend = processSingleStatus.dataset.originalFilePath;
         const processedFilePathFromBackend = processSingleStatus.dataset.processedFilePath;
@@ -356,6 +361,55 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
         }
+    }
+
+    // Function to draw the play position indicator
+    function drawPlayPosition(positionX) {
+        const originalCanvas = document.getElementById('original-waveform');
+        const processedCanvas = document.getElementById('processed-waveform');
+        const originalCtx = originalCanvas.getContext('2d');
+        const processedCtx = processedCanvas.getContext('2d');
+
+        // Clear previous line (by redrawing the waveform or clearing a small area)
+        // For simplicity, we'll just redraw the waveform to clear the line
+        drawWaveform(originalCanvas, originalBuffer, '#007bff');
+        drawWaveform(processedCanvas, processedBuffer, '#28a745');
+
+        // Draw new line
+        originalCtx.strokeStyle = '#dc3545'; // Red color
+        originalCtx.lineWidth = 2;
+        originalCtx.beginPath();
+        originalCtx.moveTo(positionX, 0);
+        originalCtx.lineTo(positionX, originalCanvas.height);
+        originalCtx.stroke();
+
+        processedCtx.strokeStyle = '#dc3545'; // Red color
+        processedCtx.lineWidth = 2;
+        processedCtx.beginPath();
+        processedCtx.moveTo(positionX, 0);
+        processedCtx.lineTo(positionX, processedCanvas.height);
+        processedCtx.stroke();
+    }
+
+    // Function to update play position during playback
+    function updatePlayPosition() {
+        if (!isPlaying) return;
+
+        const currentTime = audioContext.currentTime - startTime;
+        const duration = originalBuffer.duration; // Assuming both buffers have same duration
+        const canvasWidth = document.getElementById('original-waveform').offsetWidth;
+
+        let positionX = (currentTime / duration) * canvasWidth;
+
+        // Loop playback if it reaches the end
+        if (currentTime >= duration) {
+            playbackTime = 0;
+            startTime = audioContext.currentTime;
+            positionX = 0;
+        }
+
+        drawPlayPosition(positionX);
+        animationFrameId = requestAnimationFrame(updatePlayPosition);
     }
 
     // --- Batch Processing Section ---

@@ -72,10 +72,14 @@
                     <div id="single-conversion-results" class="mt-4" style="display:none;">
                         <h3>Interactive Blend</h3>
                         <div class="waveform-container">
-                            <div class="waveform-label">Original</div>
-                            <canvas id="original-waveform"></canvas>
-                            <div class="waveform-label">Matchering Output</div>
-                            <canvas id="processed-waveform"></canvas>
+                            <div class="waveform-track-group">
+                                <div class="waveform-label">Original</div>
+                                <canvas id="original-waveform"></canvas>
+                            </div>
+                            <div class="waveform-track-group">
+                                <div class="waveform-label">Matchering Output</div>
+                                <canvas id="processed-waveform"></canvas>
+                            </div>
                         </div>
                         <input type="range" class="form-range" id="blend-slider" min="0" max="100" value="50">
                         <div class="d-flex justify-content-center gap-2 mt-3">
