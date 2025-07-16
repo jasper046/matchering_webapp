@@ -65,7 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const processSingleForm = document.getElementById('process-single-form');
     const processSingleStatus = document.getElementById('process-single-status');
     const singleConversionResults = document.getElementById('single-conversion-results');
-    const referenceTypeSelect = document.getElementById('reference-type');
+    const radioReference = document.getElementById('radioReference');
+    const radioPreset = document.getElementById('radioPreset');
     const referenceFileSingleDiv = document.getElementById('reference-file-single-div');
     const referenceFileSingle = document.getElementById('reference-file-single');
     const presetFileSingleDiv = document.getElementById('preset-file-single-div');
@@ -84,8 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let processedBuffer;
 
     // Toggle reference/preset file input for single conversion
-    referenceTypeSelect.addEventListener('change', () => {
-        if (referenceTypeSelect.value === 'reference') {
+    function toggleReferenceInput() {
+        if (radioReference.checked) {
             referenceFileSingleDiv.style.display = 'block';
             referenceFileSingle.setAttribute('required', 'true');
             presetFileSingleDiv.style.display = 'none';
@@ -96,7 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
             presetFileSingleDiv.style.display = 'block';
             presetFileSingle.setAttribute('required', 'true');
         }
-    });
+    }
+    radioReference.addEventListener('change', toggleReferenceInput);
+    radioPreset.addEventListener('change', toggleReferenceInput);
+    toggleReferenceInput(); // Call on load to set initial state
 
     // Process Single File Form Submission
     processSingleForm.addEventListener('submit', async (e) => {
@@ -108,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('target_file', document.getElementById('target-file-single').files[0]);
 
-        if (referenceTypeSelect.value === 'reference') {
+        if (radioReference.checked) {
             formData.append('reference_file', referenceFileSingle.files[0]);
         } else {
             formData.append('preset_file', presetFileSingle.files[0]);
@@ -314,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 clearInterval(interval);
-                showStatus(processBatchStatus, `Error polling batch status: ${error.message}`, true);
+                showStatus(processBatchStatus, `Network error: ${error.message}`, true);
             }
         }, 3000); // Poll every 3 seconds
     }

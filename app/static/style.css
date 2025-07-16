@@ -133,3 +133,29 @@ canvas:last-child {
 .tab-pane.fade {
     transition: opacity 0.15s linear; /* Faster transition for tab panes */
 }
+
+/* Style for radio button labels */
+.form-check-inline {
+    /* Ensure proper spacing and alignment for inline radio buttons */
+    margin-right: 1rem;
+}
+
+.form-check-label.radio-button-label {
+    background-color: #343a40; /* Default background for unselected */
+    color: #f8f9fa; /* Ensure text is readable */
+    padding: 0.5rem 1rem; /* Padding to encompass content */
+    border-radius: 0.5rem; /* Rounded corners matching tab labels */
+    border: 1px solid #495057;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    display: inline-block; /* Make it behave like a block for padding/border */
+}
+
+.form-check-input.visually-hidden:checked + .radio-button-label {
+    background-color: #6c757d; /* Light grey background when selected */
+    border-color: #86b7fe; /* Highlight border */
+}
+
+.form-check-label.radio-button-label:hover {
+    background-color: #495057; /* Slightly lighter on hover */
+}
