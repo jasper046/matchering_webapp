@@ -84,12 +84,17 @@ canvas:last-child {
 
 /* Tab styling */
 .nav-tabs .nav-link {
-    color: #f8f9fa; /* Inactive tab labels white */
+    color: #adb5bd; /* Inactive tab labels light grey */
     background-color: #343a40; /* Dark background for inactive tabs */
-    border-color: #495057; /* Border color for inactive tabs */
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    margin-right: 2px; /* Small gap between tabs */
+    border: 1px solid #495057; /* Border color for inactive tabs */
+    border-bottom-color: transparent; /* Hide bottom border */
+    border-top-left-radius: 0.25rem; /* Rounded top-left corner */
+    border-top-right-radius: 0.25rem; /* Rounded top-right corner */
+    margin-right: 0; /* No gap between tabs */
+}
+
+.nav-tabs .nav-item:not(:last-child) .nav-link {
+    border-right-color: transparent; /* Remove right border for adjacent tabs */
 }
 
 .nav-tabs .nav-link.active {
