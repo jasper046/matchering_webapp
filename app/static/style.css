@@ -88,7 +88,8 @@ canvas:last-child {
 }
 
 .nav-tabs .nav-item {
-    margin-bottom: 0; /* Remove default Bootstrap margin */
+    margin: 0; /* Remove all margins from nav items */
+    padding: 0; /* Remove all paddings from nav items */
     flex-grow: 1; /* Make all nav items grow equally */
 }
 
@@ -97,14 +98,16 @@ canvas:last-child {
     background-color: #343a40; /* Dark background for inactive tabs */
     border: 1px solid #495057; /* Border color for inactive tabs */
     border-bottom-color: transparent; /* Hide bottom border */
-    border-top-left-radius: 0.375rem; /* Increased rounded top-left corner */
-    border-top-right-radius: 0.375rem; /* Increased rounded top-right corner */
-    margin-right: 0; /* Ensure no gap between tabs */
+    border-top-left-radius: 0.5rem; /* Increased rounded top-left corner */
+    border-top-right-radius: 0.5rem; /* Increased rounded top-right corner */
+    margin: 0; /* Ensure no gap between tabs */
     text-align: center; /* Center text in tabs */
+    display: block; /* Ensure it fills the nav-item */
+    padding: 0.5rem 1rem; /* Standard Bootstrap padding for links */
 }
 
-.nav-tabs .nav-item:not(:last-child) .nav-link {
-    border-right-color: transparent; /* Remove right border for adjacent tabs */
+.nav-tabs .nav-item:not(:first-child) .nav-link {
+    border-left: none; /* Remove left border for all but the first tab to prevent double borders */
 }
 
 .nav-tabs .nav-link.active {
@@ -121,7 +124,12 @@ canvas:last-child {
 .tab-content {
     background-color: #212529; /* Match body background for content area */
     border: 1px solid #495057;
-    border-top: none; /* Remove top border to blend with active tab */
+    border-top: 1px solid #495057; /* Add top border for the line */
     padding: 20px;
     border-radius: 0 0 8px 8px;
+    margin-top: -1px; /* Pull content up to hide border under active tab */
+}
+
+.tab-pane.fade {
+    transition: opacity 0.15s linear; /* Faster transition for tab panes */
 }
