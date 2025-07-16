@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const referenceFileSingle = document.getElementById('reference-file-single');
     const presetFileSingleDiv = document.getElementById('preset-file-single-div');
     const presetFileSingle = document.getElementById('preset-file-single');
-    const blendSlider = document.getElementById('blend-slider');
+    const blendKnobCanvas = document.getElementById('blend-knob');
     const blendedPlayer = document.getElementById('blended-player');
     const saveBlendButton = document.getElementById('save-blend-button');
     const saveBlendStatus = document.getElementById('save-blend-status');
@@ -121,6 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let startTime = 0;
     let isPlaying = false;
     let animationFrameId; // For play position indicator
+    let currentBlendValue = 50; // Current blend value (0-100)
+    let isDragging = false;
+    let dragStartY = 0;
+    let dragStartValue = 0;
 
     // Function to check and update process button visibility
     function checkProcessButtonVisibility() {
@@ -276,6 +280,9 @@ document.addEventListener('DOMContentLoaded', () => {
         gainOriginal.connect(audioContext.destination);
         gainProcessed.connect(audioContext.destination);
 
+        // Initialize knob
+        initializeKnob();
+        
         // Initial blend setting
         updateBlend();
 
@@ -348,15 +355,148 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set initial state for playback buttons
     updatePlaybackButtons('stop');
 
+    function initializeKnob() {
+        // Set up canvas
+        const canvas = blendKnobCanvas;
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 60;
+        canvas.height = 60;
+        
+        // Add event listeners
+        canvas.addEventListener('mousedown', startDrag);
+        
+        // Add touch events for mobile
+        canvas.addEventListener('touchstart', startDragTouch);
+        
+        // Initial draw
+        drawKnob();
+    }
+    
+    function startDrag(e) {
+        isDragging = true;
+        dragStartY = e.clientY;
+        dragStartValue = currentBlendValue;
+        blendKnobCanvas.style.cursor = 'grabbing';
+        
+        // Add document-level event listeners
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+        
+        // Prevent default to avoid text selection
+        e.preventDefault();
+    }
+    
+    function startDragTouch(e) {
+        e.preventDefault();
+        isDragging = true;
+        dragStartY = e.touches[0].clientY;
+        dragStartValue = currentBlendValue;
+        
+        // Add document-level touch event listeners
+        document.addEventListener('touchmove', dragTouch);
+        document.addEventListener('touchend', endDrag);
+    }
+    
+    function drag(e) {
+        if (!isDragging) return;
+        
+        const deltaY = dragStartY - e.clientY; // Inverted: up = increase
+        const sensitivity = 0.3; // Adjust sensitivity for better control
+        const newValue = Math.max(0, Math.min(100, dragStartValue + (deltaY * sensitivity)));
+        
+        if (newValue !== currentBlendValue) {
+            currentBlendValue = Math.round(newValue);
+            drawKnob();
+            updateBlend();
+        }
+    }
+    
+    function dragTouch(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        
+        const deltaY = dragStartY - e.touches[0].clientY;
+        const sensitivity = 0.3;
+        const newValue = Math.max(0, Math.min(100, dragStartValue + (deltaY * sensitivity)));
+        
+        if (newValue !== currentBlendValue) {
+            currentBlendValue = Math.round(newValue);
+            drawKnob();
+            updateBlend();
+        }
+    }
+    
+    function endDrag() {
+        isDragging = false;
+        blendKnobCanvas.style.cursor = 'grab';
+        
+        // Remove document-level event listeners
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', endDrag);
+        document.removeEventListener('touchmove', dragTouch);
+        document.removeEventListener('touchend', endDrag);
+    }
+    
+    function drawKnob() {
+        const canvas = blendKnobCanvas;
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 22;
+        const trackWidth = 4;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw track background
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0.75 * Math.PI, 2.25 * Math.PI);
+        ctx.strokeStyle = '#343a40';
+        ctx.lineWidth = trackWidth;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        
+        // Draw progress arc
+        const startAngle = 0.75 * Math.PI;
+        const endAngle = startAngle + (currentBlendValue / 100) * (1.5 * Math.PI);
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = trackWidth;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        
+        // Draw knob handle
+        const handleAngle = startAngle + (currentBlendValue / 100) * (1.5 * Math.PI);
+        const handleX = centerX + Math.cos(handleAngle) * radius;
+        const handleY = centerY + Math.sin(handleAngle) * radius;
+        
+        ctx.beginPath();
+        ctx.arc(handleX, handleY, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = '#007bff';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Draw center value
+        ctx.fillStyle = '#f8f9fa';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(currentBlendValue + '%', centerX, centerY);
+    }
+
     function updateBlend() {
         if (!audioContext || !gainOriginal || !gainProcessed) return;
 
-        const blendValue = blendSlider.value / 100; // 0 to 1
+        const blendValue = currentBlendValue / 100; // 0 to 1
         gainOriginal.gain.value = 1 - blendValue;
         gainProcessed.gain.value = blendValue;
     }
-
-    blendSlider.addEventListener('input', updateBlend);
 
     // Save Blended Audio
     saveBlendButton.addEventListener('click', async () => {
@@ -366,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const processedFilePathFromBackend = processSingleStatus.dataset.processedFilePath;
         const originalFileName = processSingleStatus.dataset.originalFileName;
         const referenceName = processSingleStatus.dataset.referenceName;
-        const blendPercentage = blendSlider.value;
+        const blendPercentage = currentBlendValue;
 
         const formData = new FormData();
         formData.append('original_path', originalFilePathFromBackend);
@@ -378,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData,
             });
-            const data = response.json();
+            const data = await response.json();
             if (response.ok) {
                 // Generate suggested filename for blended output
                 const suggestedBlendedFilename = `${originalFileName}_out_${referenceName}-blend${blendPercentage}.wav`;
@@ -492,18 +632,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const duration = originalBuffer.duration;
         const seekTime = (clickX / canvasWidth) * duration;
 
+        // Stop current playback if playing
         if (isPlaying) {
-            // Stop current playback
             originalSourceNode.stop();
             processedSourceNode.stop();
             cancelAnimationFrame(animationFrameId);
+        }
 
-            // Update playbackTime and restart
-            playbackTime = seekTime;
-            playAudio();
+        // Update playbackTime and restart if playing, or just update indicator if paused/stopped
+        playbackTime = seekTime;
+        if (isPlaying) {
+            playAudio(); // Restart playback from new seekTime
         } else {
-            // If not playing, just update playbackTime and redraw indicator
-            playbackTime = seekTime;
             drawPlayPosition((seekTime / duration) * canvasWidth);
         }
     }
@@ -535,7 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData,
             });
-            const data = response.json();
+            const data = await response.json();
             if (response.ok) {
                 showStatus(processBatchStatus, `Batch processing started. Job ID: ${data.batch_id}`);
                 batchProgress.style.display = 'block';
@@ -553,7 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const interval = setInterval(async () => {
             try {
                 const response = await fetch(`/api/batch_status/${batchId}`);
-                const data = response.json();
+                const data = await response.json();
 
                 processedCountSpan.textContent = data.processed_count;
                 totalCountSpan.textContent = data.total_count;
