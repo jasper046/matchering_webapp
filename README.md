@@ -48,12 +48,11 @@ Follow these steps to set up and run the Matchering Web App:
     ```
 
 4.  **Install Dependencies:**
-    Install the required Python packages for the web app and the `matchering` library (in editable mode).
+    Install the required Python packages for the web app and the `matchering` library.
     ```bash
     pip install -r requirements.txt
-    pip install -e ./matchering-fork
+    pip install ./matchering-fork
     ```
-    *(Note: A `requirements.txt` will be generated/updated in a future step if not already present.)*
 
 ## Running the Application
 
