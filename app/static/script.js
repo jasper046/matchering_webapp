@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showStatus(blendPresetsStatus, `Blended preset saved: <a href="/download/preset/${data.blended_preset_path.split('/').pop()}" target="_blank">${data.blended_preset_path.split('/').pop()}</a>`);
+                showStatus(blendPresetsStatus, `Blended preset saved: <a href="/download/preset/${data.blended_preset_path.split('/').pop()}?download_name=${encodeURIComponent(data.blended_preset_path.split('/').pop())}" target="_blank">${data.blended_preset_path.split('/').pop()}</a>`);
             } else {
                 showStatus(blendPresetsStatus, `Error: ${data.detail}`, true);
             }
@@ -157,7 +157,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Store paths in dataset attributes for later use by saveBlendButton
                 processSingleStatus.dataset.originalFilePath = data.original_file_path;
                 processSingleStatus.dataset.processedFilePath = data.processed_file_path;
-                setupAudioContext(data.original_file_path, data.processed_file_path);
+                setupAudioContext(
+                    `/temp_files/${data.original_file_path.split('/').pop()}`,
+                    `/temp_files/${data.processed_file_path.split('/').pop()}`
+                );
             } else {
                 showStatus(processSingleStatus, `Error: ${data.detail}`, true);
             }
@@ -167,21 +170,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Setup Web Audio API for blending
-    async function setupAudioContext(originalPath, processedPath) {
+    async function setupAudioContext(originalUrl, processedUrl) {
         if (audioContext) {
             audioContext.close();
         }
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
         // Fetch audio files
-        const fetchAudio = async (path) => {
-            const response = await fetch(path);
+        const fetchAudio = async (url) => {
+            const response = await fetch(url);
             const arrayBuffer = await response.arrayBuffer();
             return await audioContext.decodeAudioData(arrayBuffer);
         };
 
-        originalBuffer = await fetchAudio(originalPath);
-        processedBuffer = await fetchAudio(processedPath);
+        originalBuffer = await fetchAudio(originalUrl);
+        processedBuffer = await fetchAudio(processedUrl);
 
         // Create sources and gain nodes
         originalSourceNode = audioContext.createBufferSource();
@@ -241,7 +244,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showStatus(saveBlendStatus, `Blended audio saved: <a href="/download/output/${data.blended_file_path.split('/').pop()}" target="_blank">Download</a>`);
+                // Display download link and instruction
+                const filename = `blended_${Date.now()}.wav`; // Generate a unique filename for the blended output
+                const link = document.createElement('a');
+                link.href = `/download/output/${data.blended_file_path.split('/').pop()}?download_name=${encodeURIComponent(filename)}`;
+                link.download = filename;
+                link.textContent = filename;
+                link.className = 'alert-link';
+
+                const instructionText = document.createTextNode(' (Right Click to Save As)');
+
+                saveBlendStatus.innerHTML = ''; // Clear previous status
+                saveBlendStatus.appendChild(link);
+                saveBlendStatus.appendChild(instructionText);
+
             } else {
                 showStatus(saveBlendStatus, `Error: ${data.detail}`, true);
             }
