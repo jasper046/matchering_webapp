@@ -202,10 +202,17 @@ async def process_batch(
 
 def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float):
     try:
+        # Get preset name for filename
+        preset_name = os.path.splitext(os.path.basename(preset_path))[0][:8]  # Cap at 8 chars
+        blend_percentage = int(blend_ratio * 100)
+        
         for i, target_path in enumerate(target_paths):
+            # Get original filename without extension
+            original_filename = os.path.splitext(os.path.basename(target_path))[0]
+            
             if blend_ratio == 1.0:
-                # Full processing (100% wet)
-                output_filename = f"batch_processed_{uuid.uuid4()}.wav"
+                # Full processing (100% wet) - format: originalname_out_presetname.wav
+                output_filename = f"{original_filename}_out_{preset_name}.wav"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
                 
                 mg.process_with_preset(
@@ -214,7 +221,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                     results=[mg.pcm24(output_path)]
                 )
             else:
-                # Blended processing
+                # Blended processing - format: originalname_out_presetname-blend50.wav
                 processed_filename = f"batch_temp_{uuid.uuid4()}.wav"
                 processed_path = os.path.join(OUTPUT_DIR, processed_filename)
                 
@@ -245,8 +252,8 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 # Blend the audio
                 blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
                 
-                # Save the blended result
-                output_filename = f"batch_blended_{uuid.uuid4()}.wav"
+                # Save the blended result with proper naming
+                output_filename = f"{original_filename}_out_{preset_name}-blend{blend_percentage}.wav"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
                 sf.write(output_path, blended_audio, sr_orig)
                 

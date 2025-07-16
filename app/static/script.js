@@ -219,12 +219,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (radioReference.checked) {
             const refFile = referenceFileSingle.files[0];
             formData.append('reference_file', refFile);
-            referenceName = refFile.name.split('.').slice(0, -1).join('.').substring(0, 5); // Cap at 5 chars
+            referenceName = refFile.name.split('.').slice(0, -1).join('.').substring(0, 8); // Cap at 8 chars
         }
         else if (radioPreset.checked) {
             const presetFile = presetFileSingle.files[0];
             formData.append('preset_file', presetFile);
-            referenceName = presetFile.name.split('.').slice(0, -1).join('.').substring(0, 5); // Cap at 5 chars
+            referenceName = presetFile.name.split('.').slice(0, -1).join('.').substring(0, 8); // Cap at 8 chars
         }
 
         // Store original filename and reference name for blended output filename
