@@ -46,15 +46,15 @@
                     <h2>Single File Conversion</h2>
                     <form id="process-single-form">
                         <div class="mb-3">
-                            <label for="target-file-single" class="form-label">Audio Source File (.wav, .mp3, .flac, etc.)</label>
-                            <input type="file" class="form-control" id="target-file-single" name="target_file" accept="audio/*" required>
+                            <label for="target-file-single" class="form-label">Audio Source File (.wav)</label>
+                            <input type="file" class="form-control" id="target-file-single" name="target_file" accept=".wav" required>
                         </div>
                         <div class="mb-3" id="reference-type-selection" style="display:none;">
                             <label class="form-label">Mode:</label>
                             <div class="d-flex gap-3">
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input visually-hidden" type="radio" name="reference_type" id="radioReference" value="reference">
-                                    <label class="form-check-label radio-button-label" for="radioReference">Audio Reference File (.wav, .mp3, .flac, etc.)</label>
+                                    <label class="form-check-label radio-button-label" for="radioReference">Audio Reference File (.wav)</label>
                                 </div>
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input visually-hidden" type="radio" name="reference_type" id="radioPreset" value="preset">
@@ -63,8 +63,8 @@
                             </div>
                         </div>
                         <div class="mb-3" id="reference-file-single-div" style="display:none;">
-                            <label for="reference-file-single" class="form-label">Audio Reference File (.wav, .mp3, .flac, etc.)</label>
-                            <input type="file" class="form-control" id="reference-file-single" name="reference_file" accept="audio/*">
+                            <label for="reference-file-single" class="form-label">Audio Reference File (.wav)</label>
+                            <input type="file" class="form-control" id="reference-file-single" name="reference_file" accept=".wav">
                         </div>
                         <div class="mb-3" id="preset-file-single-div" style="display:none;">
                             <label for="preset-file-single" class="form-label">Preset File (.pkl)</label>
@@ -106,8 +106,8 @@
                     <h2>Create Preset</h2>
                     <form id="create-preset-form">
                         <div class="mb-3">
-                            <label for="reference-file-preset" class="form-label">Audio Reference File (.wav, .mp3, .flac, etc.)</label>
-                            <input type="file" class="form-control" id="reference-file-preset" name="reference_file" accept="audio/*" required>
+                            <label for="reference-file-preset" class="form-label">Audio Reference File (.wav)</label>
+                            <input type="file" class="form-control" id="reference-file-preset" name="reference_file" accept=".wav" required>
                         </div>
                         <button type="submit" class="btn btn-primary">Create Preset</button>
                     </form>
@@ -145,8 +145,8 @@
                             <input type="file" class="form-control" id="batch-preset-file" name="preset_file" accept=".pkl" required>
                         </div>
                         <div class="mb-3">
-                            <label for="batch-target-files" class="form-label">Audio Source Files (.wav, .mp3, .flac, etc.) (1-20)</label>
-                            <input type="file" class="form-control" id="batch-target-files" name="target_files" accept="audio/*" multiple required>
+                            <label for="batch-target-files" class="form-label">Audio Source Files (.wav) (1-20)</label>
+                            <input type="file" class="form-control" id="batch-target-files" name="target_files" accept=".wav" multiple required>
                         </div>
                         <button type="submit" class="btn btn-primary">Start Batch Conversion</button>
                     </form>
