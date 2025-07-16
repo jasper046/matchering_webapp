@@ -1,59 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const createPresetForm = document.getElementById('create-preset-form');
-    const createPresetStatus = document.getElementById('create-preset-status');
-
-    const blendPresetsForm = document.getElementById('blend-presets-form');
-    const blendPresetsStatus = document.getElementById('blend-presets-status');
-
-    const processSingleForm = document.getElementById('process-single-form');
-    const processSingleStatus = document.getElementById('process-single-status');
-    const singleConversionResults = document.getElementById('single-conversion-results');
-    const referenceTypeSelect = document.getElementById('reference-type');
-    const referenceFileSingle = document.getElementById('reference-file-single');
-    const presetFileSingle = document.getElementById('preset-file-single');
-    const blendSlider = document.getElementById('blend-slider');
-    const blendedPlayer = document.getElementById('blended-player');
-    const saveBlendButton = document.getElementById('save-blend-button');
-    const saveBlendStatus = document.getElementById('save-blend-status');
-
-    const processBatchForm = document.getElementById('process-batch-form');
-    const processBatchStatus = document.getElementById('process-batch-status');
-    const batchProgress = document.getElementById('batch-progress');
-    const processedCountSpan = document.getElementById('processed-count');
-    const totalCountSpan = document.getElementById('total-count');
-    const progressBar = document.querySelector('.progress-bar');
-    const batchOutputLinks = document.getElementById('batch-output-links');
-
-    let audioContext;
-    let originalSource;
-    let processedSource;
-    let gainOriginal;
-    let gainProcessed;
-    let originalBuffer;
-    let processedBuffer;
-
     // Helper function to display status messages
     function showStatus(element, message, isError = false) {
-        element.textContent = message;
-        element.className = `status-message ${isError ? 'error' : 'success'}`;
+        element.innerHTML = message;
+        element.className = `mt-3 alert ${isError ? 'alert-danger' : 'alert-success'}`;
     }
 
-    // Toggle reference/preset file input for single conversion
-    referenceTypeSelect.addEventListener('change', () => {
-        if (referenceTypeSelect.value === 'reference') {
-            referenceFileSingle.style.display = 'block';
-            referenceFileSingle.setAttribute('required', 'true');
-            presetFileSingle.style.display = 'none';
-            presetFileSingle.removeAttribute('required');
-        } else {
-            referenceFileSingle.style.display = 'none';
-            referenceFileSingle.removeAttribute('required');
-            presetFileSingle.style.display = 'block';
-            presetFileSingle.setAttribute('required', 'true');
-        }
-    });
-
-    // Create Preset Form Submission
+    // --- Create Preset Section ---
+    const createPresetForm = document.getElementById('create-preset-form');
+    const createPresetStatus = document.getElementById('create-preset-status');
     createPresetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         showStatus(createPresetStatus, 'Creating preset...');
@@ -68,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showStatus(createPresetStatus, `Preset created: ${data.preset_path}`);
+                showStatus(createPresetStatus, `Preset created: <a href="/download/preset/${data.preset_path.split('/').pop()}" target="_blank">${data.preset_path.split('/').pop()}</a>`);
             } else {
                 showStatus(createPresetStatus, `Error: ${data.detail}`, true);
             }
@@ -77,7 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Blend Presets Form Submission
+    // --- Blend Presets Section ---
+    const blendPresetsForm = document.getElementById('blend-presets-form');
+    const blendPresetsStatus = document.getElementById('blend-presets-status');
     blendPresetsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         showStatus(blendPresetsStatus, 'Blending presets...');
@@ -96,12 +52,49 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showStatus(blendPresetsStatus, `Blended preset saved: ${data.blended_preset_path}`);
+                showStatus(blendPresetsStatus, `Blended preset saved: <a href="/download/preset/${data.blended_preset_path.split('/').pop()}" target="_blank">${data.blended_preset_path.split('/').pop()}</a>`);
             } else {
                 showStatus(blendPresetsStatus, `Error: ${data.detail}`, true);
             }
         } catch (error) {
             showStatus(blendPresetsStatus, `Network error: ${error.message}`, true);
+        }
+    });
+
+    // --- Single File Conversion Section ---
+    const processSingleForm = document.getElementById('process-single-form');
+    const processSingleStatus = document.getElementById('process-single-status');
+    const singleConversionResults = document.getElementById('single-conversion-results');
+    const referenceTypeSelect = document.getElementById('reference-type');
+    const referenceFileSingleDiv = document.getElementById('reference-file-single-div');
+    const referenceFileSingle = document.getElementById('reference-file-single');
+    const presetFileSingleDiv = document.getElementById('preset-file-single-div');
+    const presetFileSingle = document.getElementById('preset-file-single');
+    const blendSlider = document.getElementById('blend-slider');
+    const blendedPlayer = document.getElementById('blended-player');
+    const saveBlendButton = document.getElementById('save-blend-button');
+    const saveBlendStatus = document.getElementById('save-blend-status');
+
+    let audioContext;
+    let originalSourceNode;
+    let processedSourceNode;
+    let gainOriginal;
+    let gainProcessed;
+    let originalBuffer;
+    let processedBuffer;
+
+    // Toggle reference/preset file input for single conversion
+    referenceTypeSelect.addEventListener('change', () => {
+        if (referenceTypeSelect.value === 'reference') {
+            referenceFileSingleDiv.style.display = 'block';
+            referenceFileSingle.setAttribute('required', 'true');
+            presetFileSingleDiv.style.display = 'none';
+            presetFileSingle.removeAttribute('required');
+        } else {
+            referenceFileSingleDiv.style.display = 'none';
+            referenceFileSingle.removeAttribute('required');
+            presetFileSingleDiv.style.display = 'block';
+            presetFileSingle.setAttribute('required', 'true');
         }
     });
 
@@ -130,7 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 showStatus(processSingleStatus, 'File processed. Adjust blend below.');
                 singleConversionResults.style.display = 'block';
-                setupAudioPlayers(data.original_file_path, data.processed_file_path);
+                // Store paths in dataset attributes for later use by saveBlendButton
+                processSingleStatus.dataset.originalFilePath = data.original_file_path;
+                processSingleStatus.dataset.processedFilePath = data.processed_file_path;
+                setupAudioContext(data.original_file_path, data.processed_file_path);
             } else {
                 showStatus(processSingleStatus, `Error: ${data.detail}`, true);
             }
@@ -140,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Setup Web Audio API for blending
-    async function setupAudioPlayers(originalPath, processedPath) {
+    async function setupAudioContext(originalPath, processedPath) {
         if (audioContext) {
             audioContext.close();
         }
@@ -157,36 +153,32 @@ document.addEventListener('DOMContentLoaded', () => {
         processedBuffer = await fetchAudio(processedPath);
 
         // Create sources and gain nodes
-        originalSource = audioContext.createBufferSource();
-        originalSource.buffer = originalBuffer;
+        originalSourceNode = audioContext.createBufferSource();
+        originalSourceNode.buffer = originalBuffer;
         gainOriginal = audioContext.createGain();
-        originalSource.connect(gainOriginal);
-        gainOriginal.connect(audioContext.destination);
+        originalSourceNode.connect(gainOriginal);
 
-        processedSource = audioContext.createBufferSource();
-        processedSource.buffer = processedBuffer;
+        processedSourceNode = audioContext.createBufferSource();
+        processedSourceNode.buffer = processedBuffer;
         gainProcessed = audioContext.createGain();
-        processedSource.connect(gainProcessed);
-        gainProcessed.connect(audioContext.destination);
+        processedSourceNode.connect(gainProcessed);
 
-        // Connect to blended player for playback control (optional, can be removed if only Web Audio API is used for playback)
-        // This part is tricky. We want to control playback of the blended output, not individual sources.
-        // For simplicity, we'll just start/stop the Web Audio API sources directly.
-        // The <audio> element will be used as a visual cue/control, but its source will be empty.
-        blendedPlayer.src = ''; // Clear any previous source
+        // Connect gain nodes to a single destination (the audio context's speakers)
+        gainOriginal.connect(audioContext.destination);
+        gainProcessed.connect(audioContext.destination);
 
         // Initial blend setting
         updateBlend();
 
-        // Start playback (looping for testing, remove loop for production)
-        originalSource.loop = true;
-        processedSource.loop = true;
-        originalSource.start(0);
-        processedSource.start(0);
+        // Start playback (looping for continuous blending)
+        originalSourceNode.loop = true;
+        processedSourceNode.loop = true;
+        originalSourceNode.start(0);
+        processedSourceNode.start(0);
 
-        // Draw waveforms (placeholder - requires a library like wavesurfer.js for real implementation)
-        drawWaveform(document.getElementById('original-waveform'), originalBuffer, 'blue');
-        drawWaveform(document.getElementById('processed-waveform'), processedBuffer, 'red');
+        // Draw waveforms
+        drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
+        drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
     }
 
     function updateBlend() {
@@ -203,11 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
     saveBlendButton.addEventListener('click', async () => {
         showStatus(saveBlendStatus, 'Saving blended audio...');
 
-        const originalPath = document.getElementById('target-file-single').files[0].name; // This is not the full path, need to pass from backend
-        const processedPath = document.getElementById('process-single-status').dataset.processedPath; // Need to store this from backend response
-
-        // For now, we'll use the paths returned by the initial process_single endpoint
-        // In a real app, you'd pass these paths from the backend response to the frontend
         const originalFilePathFromBackend = processSingleStatus.dataset.originalFilePath;
         const processedFilePathFromBackend = processSingleStatus.dataset.processedFilePath;
 
@@ -232,11 +219,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Placeholder for waveform drawing (requires a library like wavesurfer.js for proper implementation)
+    // Waveform drawing function
     function drawWaveform(canvas, buffer, color) {
         const ctx = canvas.getContext('2d');
-        const width = canvas.width;
-        const height = canvas.height;
+        const width = canvas.width = canvas.offsetWidth; // Set canvas width to its display width
+        const height = canvas.height = canvas.offsetHeight; // Set canvas height to its display height
         const data = buffer.getChannelData(0); // Get data from the first channel
         const step = Math.ceil(data.length / width);
         const amp = height / 2;
@@ -259,7 +246,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Batch Processing Form Submission
+    // --- Batch Processing Section ---
+    const processBatchForm = document.getElementById('process-batch-form');
+    const processBatchStatus = document.getElementById('process-batch-status');
+    const batchProgress = document.getElementById('batch-progress');
+    const processedCountSpan = document.getElementById('processed-count');
+    const totalCountSpan = document.getElementById('total-count');
+    const progressBar = document.querySelector('.progress-bar');
+    const batchOutputLinks = document.getElementById('batch-output-links');
+
     processBatchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         showStatus(processBatchStatus, 'Starting batch processing...');
@@ -302,6 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalCountSpan.textContent = data.total_count;
                 const progress = (data.processed_count / data.total_count) * 100;
                 progressBar.style.width = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
                 progressBar.textContent = `${Math.round(progress)}%`;
 
                 if (data.status === 'completed') {
@@ -309,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showStatus(processBatchStatus, 'Batch processing completed!');
                     data.output_files.forEach(filePath => {
                         const filename = filePath.split('/').pop();
-                        const link = `<a href="/download/output/${filename}" target="_blank">${filename}</a><br>`;
+                        const link = `<a href="/download/output/${filename}" target="_blank" class="alert-link">${filename}</a><br>`;
                         batchOutputLinks.innerHTML += link;
                     });
                 } else if (data.status === 'failed') {
@@ -322,29 +318,4 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 3000); // Poll every 3 seconds
     }
-
-    // Store original and processed file paths from backend response for blend_and_save
-    processSingleForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        // ... (existing code)
-        try {
-            const response = await fetch('/api/process_single', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-            if (response.ok) {
-                showStatus(processSingleStatus, 'File processed. Adjust blend below.');
-                singleConversionResults.style.display = 'block';
-                // Store paths in dataset attributes for later use by saveBlendButton
-                processSingleStatus.dataset.originalFilePath = data.original_file_path;
-                processSingleStatus.dataset.processedFilePath = data.processed_file_path;
-                setupAudioPlayers(data.original_file_path, data.processed_file_path);
-            } else {
-                showStatus(processSingleStatus, `Error: ${data.detail}`, true);
-            }
-        } catch (error) {
-            showStatus(processSingleStatus, `Network error: ${error.message}`, true);
-        }
-    });
 });

@@ -1,59 +1,17 @@
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Noto Sans', sans-serif;
     margin: 0;
-    padding: 20px;
-    background-color: #f4f4f4;
-    color: #333;
+    padding: 0;
+    background-color: #212529; /* Dark background for dark mode */
+    color: #f8f9fa; /* Light text for dark mode */
 }
 
-.container {
-    max-width: 900px;
-    margin: 0 auto;
-    background-color: #fff;
-    padding: 20px 30px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.logo-img {
+    height: 40px; /* Adjust as needed */
+    margin-right: 10px;
 }
 
-h1, h2 {
-    color: #0056b3;
-}
-
-section {
-    background-color: #e9ecef;
-    padding: 15px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-    border: 1px solid #dee2e6;
-}
-
-form {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-input[type="file"],
-input[type="text"],
-select,
-button {
-    padding: 10px;
-    border-radius: 4px;
-    border: 1px solid #ced4da;
-    font-size: 16px;
-}
-
-button {
-    background-color: #007bff;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.2s ease-in-out;
-}
-
-button:hover {
-    background-color: #0056b3;
-}
-
+/* Custom styles for status messages to fit dark theme */
 .status-message {
     margin-top: 10px;
     padding: 10px;
@@ -61,21 +19,22 @@ button:hover {
 }
 
 .status-message.success {
-    background-color: #d4edda;
-    color: #155724;
-    border-color: #c3e6cb;
+    background-color: #198754;
+    color: #fff;
+    border-color: #198754;
 }
 
 .status-message.error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border-color: #f5c6cb;
+    background-color: #dc3545;
+    color: #fff;
+    border-color: #dc3545;
 }
 
+/* Waveform container adjustments for dark mode */
 .waveform-container {
     margin-top: 20px;
-    border: 1px solid #ccc;
-    background-color: #eee;
+    border: 1px solid #495057;
+    background-color: #343a40;
     position: relative;
     height: 150px; /* Adjust as needed */
 }
@@ -92,30 +51,29 @@ canvas:last-child {
     top: 50%;
 }
 
-#blend-slider {
-    width: 100%;
-    margin-top: 10px;
+/* Adjustments for Bootstrap form elements */
+.form-label {
+    color: #f8f9fa;
 }
 
-#blended-player {
-    width: 100%;
-    margin-top: 10px;
+.form-control, .form-select {
+    background-color: #343a40;
+    color: #f8f9fa;
+    border-color: #495057;
 }
 
-.progress-bar-container {
-    width: 100%;
-    background-color: #e0e0e0;
-    border-radius: 5px;
-    margin-top: 10px;
+.form-control:focus, .form-select:focus {
+    background-color: #343a40;
+    color: #f8f9fa;
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Progress bar adjustments */
+.progress {
+    background-color: #495057;
 }
 
 .progress-bar {
-    height: 20px;
-    width: 0%;
-    background-color: #28a745;
-    border-radius: 5px;
-    text-align: center;
-    color: white;
-    line-height: 20px;
-    transition: width 0.5s ease-in-out;
+    background-color: #0d6efd;
 }

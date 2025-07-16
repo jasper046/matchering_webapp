@@ -4,76 +4,141 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matchering Web App</title>
+    <!-- Noto Sans Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS (Lux Theme) -->
+    <link rel="stylesheet" href="/static/bootstrap.min.lux.css">
+    <!-- Custom Styles -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Matchering Web App</h1>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <img src="/static/Code_of_the_Geeks_Logo_White.png" alt="Logo" class="logo-img">
+                Matchering Web App
+            </a>
+        </div>
+    </nav>
 
-        <section id="create-preset">
-            <h2>Create Preset</h2>
-            <form id="create-preset-form">
-                <input type="file" id="reference-file-preset" name="reference_file" accept="audio/*" required>
-                <button type="submit">Create Preset</button>
-            </form>
-            <div id="create-preset-status"></div>
-        </section>
-
-        <section id="blend-presets">
-            <h2>Blend Presets</h2>
-            <form id="blend-presets-form">
-                <input type="file" id="preset-files" name="preset_files" accept=".pkl" multiple required>
-                <input type="text" id="new-preset-name" name="new_preset_name" placeholder="New Preset Name" required>
-                <button type="submit">Blend Presets</button>
-            </form>
-            <div id="blend-presets-status"></div>
-        </section>
-
-        <section id="process-single">
-            <h2>Single File Conversion</h2>
-            <form id="process-single-form">
-                <input type="file" id="target-file-single" name="target_file" accept="audio/*" required>
-                <label for="reference-type">Use:</label>
-                <select id="reference-type" name="reference_type">
-                    <option value="reference">Reference Track</option>
-                    <option value="preset">Preset File</option>
-                </select>
-                <input type="file" id="reference-file-single" name="reference_file" accept="audio/*">
-                <input type="file" id="preset-file-single" name="preset_file" accept=".pkl" style="display:none;">
-                <button type="submit">Process Single File</button>
-            </form>
-            <div id="process-single-status"></div>
-            <div id="single-conversion-results" style="display:none;">
-                <h3>Interactive Blend</h3>
-                <div class="waveform-container">
-                    <canvas id="original-waveform"></canvas>
-                    <canvas id="processed-waveform"></canvas>
-                </div>
-                <input type="range" id="blend-slider" min="0" max="100" value="50">
-                <audio id="blended-player" controls></audio>
-                <button id="save-blend-button">Save Blended Audio</button>
-                <div id="save-blend-status"></div>
+    <div class="container mt-4">
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single" type="button" role="tab" aria-controls="single" aria-selected="true">Single File Conversion</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="create-preset-tab" data-bs-toggle="tab" data-bs-target="#create-preset" type="button" role="tab" aria-controls="create-preset" aria-selected="false">Create Preset</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="blend-presets-tab" data-bs-toggle="tab" data-bs-target="#blend-presets" type="button" role="tab" aria-controls="blend-presets" aria-selected="false">Blend Presets</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch" type="button" role="tab" aria-controls="batch" aria-selected="false">Batch Conversion</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="myTabContent">
+            <div class="tab-pane fade show active" id="single" role="tabpanel" aria-labelledby="single-tab">
+                <section class="mt-3">
+                    <h2>Single File Conversion</h2>
+                    <form id="process-single-form">
+                        <div class="mb-3">
+                            <label for="target-file-single" class="form-label">Target Audio File</label>
+                            <input type="file" class="form-control" id="target-file-single" name="target_file" accept="audio/*" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="reference-type" class="form-label">Use:</label>
+                            <select class="form-select" id="reference-type" name="reference_type">
+                                <option value="reference">Reference Track</option>
+                                <option value="preset">Preset File</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="reference-file-single-div">
+                            <label for="reference-file-single" class="form-label">Reference Audio File</label>
+                            <input type="file" class="form-control" id="reference-file-single" name="reference_file" accept="audio/*">
+                        </div>
+                        <div class="mb-3" id="preset-file-single-div" style="display:none;">
+                            <label for="preset-file-single" class="form-label">Preset File</label>
+                            <input type="file" class="form-control" id="preset-file-single" name="preset_file" accept=".pkl">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Process Single File</button>
+                    </form>
+                    <div id="process-single-status" class="mt-3"></div>
+                    <div id="single-conversion-results" class="mt-4" style="display:none;">
+                        <h3>Interactive Blend</h3>
+                        <div class="waveform-container">
+                            <canvas id="original-waveform"></canvas>
+                            <canvas id="processed-waveform"></canvas>
+                        </div>
+                        <input type="range" class="form-range" id="blend-slider" min="0" max="100" value="50">
+                        <audio id="blended-player" controls class="w-100 mt-3"></audio>
+                        <button id="save-blend-button" class="btn btn-success mt-3">Save Blended Audio</button>
+                        <div id="save-blend-status" class="mt-3"></div>
+                    </div>
+                </section>
             </div>
-        </section>
 
-        <section id="process-batch">
-            <h2>Batch Conversion</h2>
-            <form id="process-batch-form">
-                <input type="file" id="batch-preset-file" name="preset_file" accept=".pkl" required>
-                <input type="file" id="batch-target-files" name="target_files" accept="audio/*" multiple required>
-                <button type="submit">Start Batch Conversion</button>
-            </form>
-            <div id="process-batch-status"></div>
-            <div id="batch-progress" style="display:none;">
-                <p>Processed: <span id="processed-count">0</span> / <span id="total-count">0</span></p>
-                <div class="progress-bar-container">
-                    <div class="progress-bar"></div>
-                </div>
-                <div id="batch-output-links"></div>
+            <div class="tab-pane fade" id="create-preset" role="tabpanel" aria-labelledby="create-preset-tab">
+                <section class="mt-3">
+                    <h2>Create Preset</h2>
+                    <form id="create-preset-form">
+                        <div class="mb-3">
+                            <label for="reference-file-preset" class="form-label">Reference Audio File</label>
+                            <input type="file" class="form-control" id="reference-file-preset" name="reference_file" accept="audio/*" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Create Preset</button>
+                    </form>
+                    <div id="create-preset-status" class="mt-3"></div>
+                </section>
             </div>
-        </section>
+
+            <div class="tab-pane fade" id="blend-presets" role="tabpanel" aria-labelledby="blend-presets-tab">
+                <section class="mt-3">
+                    <h2>Blend Presets</h2>
+                    <form id="blend-presets-form">
+                        <div class="mb-3">
+                            <label for="preset-files" class="form-label">Preset Files (2-5)</label>
+                            <input type="file" class="form-control" id="preset-files" name="preset_files" accept=".pkl" multiple required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new-preset-name" class="form-label">New Preset Name</label>
+                            <input type="text" class="form-control" id="new-preset-name" name="new_preset_name" placeholder="e.g., MyCustomBlend" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Blend Presets</button>
+                    </form>
+                    <div id="blend-presets-status" class="mt-3"></div>
+                </section>
+            </div>
+
+            <div class="tab-pane fade" id="batch" role="tabpanel" aria-labelledby="batch-tab">
+                <section class="mt-3">
+                    <h2>Batch Conversion</h2>
+                    <form id="process-batch-form">
+                        <div class="mb-3">
+                            <label for="batch-preset-file" class="form-label">Preset File</label>
+                            <input type="file" class="form-control" id="batch-preset-file" name="preset_file" accept=".pkl" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="batch-target-files" class="form-label">Target Audio Files (1-20)</label>
+                            <input type="file" class="form-control" id="batch-target-files" name="target_files" accept="audio/*" multiple required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Start Batch Conversion</button>
+                    </form>
+                    <div id="process-batch-status" class="mt-3"></div>
+                    <div id="batch-progress" class="mt-3" style="display:none;">
+                        <p>Processed: <span id="processed-count">0</span> / <span id="total-count">0</span></p>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                        <div id="batch-output-links" class="mt-3"></div>
+                    </div>
+                </section>
+            </div>
+        </div>
     </div>
 
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Custom Script -->
     <script src="/static/script.js"></script>
 </body>
 </html>
