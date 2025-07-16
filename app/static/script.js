@@ -8,12 +8,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Create Preset Section ---
     const createPresetForm = document.getElementById('create-preset-form');
     const createPresetStatus = document.getElementById('create-preset-status');
+    const createPresetDownloadDiv = document.getElementById('create-preset-download');
+    const presetDownloadLinkContainer = document.getElementById('preset-download-link-container');
+
+    let generatedPresetPath = '';
+    let suggestedPresetFilename = ''; // New variable to store suggested filename
+
     createPresetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         showStatus(createPresetStatus, 'Creating preset...');
+        createPresetDownloadDiv.style.display = 'none';
+        presetDownloadLinkContainer.innerHTML = ''; // Clear previous link
+
+        const referenceFile = document.getElementById('reference-file-preset').files[0];
 
         const formData = new FormData();
-        formData.append('reference_file', document.getElementById('reference-file-preset').files[0]);
+        formData.append('reference_file', referenceFile);
 
         try {
             const response = await fetch('/api/create_preset', {
@@ -22,7 +32,23 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showStatus(createPresetStatus, `Preset created: <a href="/download/preset/${data.preset_path.split('/').pop()}" target="_blank">${data.preset_path.split('/').pop()}</a>`);
+                showStatus(createPresetStatus, `Preset created.`);
+                generatedPresetPath = data.preset_path;
+                suggestedPresetFilename = data.suggested_filename; // Store suggested filename
+
+                // Generate and display the download link
+                const link = document.createElement('a');
+                link.href = `/download/preset/${generatedPresetPath.split('/').pop()}?download_name=${encodeURIComponent(suggestedPresetFilename)}`;
+                link.download = suggestedPresetFilename; // Suggest filename for download
+                link.textContent = suggestedPresetFilename; // Only filename as link text
+                link.className = 'alert-link'; // Apply Bootstrap link styling
+                
+                const instructionText = document.createTextNode(' (Right Click to Save As)');
+
+                presetDownloadLinkContainer.appendChild(link);
+                presetDownloadLinkContainer.appendChild(instructionText);
+                createPresetDownloadDiv.style.display = 'block';
+
             } else {
                 showStatus(createPresetStatus, `Error: ${data.detail}`, true);
             }
@@ -114,7 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (radioReference.checked) {
             formData.append('reference_file', referenceFileSingle.files[0]);
-        } else {
+        }
+        else if (radioPreset.checked) {
             formData.append('preset_file', presetFileSingle.files[0]);
         }
 
