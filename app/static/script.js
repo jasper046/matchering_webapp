@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (response.ok) {
                 // Generate suggested filename for blended output
-                const suggestedBlendedFilename = `${originalFileName}_out_${referenceName}-blend${blendPercentage}.wav`;
+                const suggestedBlendedFilename = `${originalFileName}-out-${referenceName}-blend${blendPercentage}.wav`;
 
                 // Display download link and instruction
                 const link = document.createElement('a');
@@ -655,11 +655,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Batch Processing Section ---
     const processBatchForm = document.getElementById('process-batch-form');
     const processBatchStatus = document.getElementById('process-batch-status');
-    const batchProgress = document.getElementById('batch-progress');
-    const processedCountSpan = document.getElementById('processed-count');
-    const totalCountSpan = document.getElementById('total-count');
-    const progressBar = document.querySelector('.progress-bar');
-    const batchOutputLinks = document.getElementById('batch-output-links');
+    const batchFileList = document.getElementById('batch-file-list');
+    const batchFilesContainer = document.getElementById('batch-files-container');
     const batchBlendRatio = document.getElementById('batch-blend-ratio');
 
     // Add validation for batch blend ratio input
@@ -688,12 +685,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Add event listener to show file list when files are selected
+    document.getElementById('batch-target-files').addEventListener('change', function() {
+        const targetFiles = this.files;
+        if (targetFiles.length > 0) {
+            createFileList(targetFiles);
+            batchFileList.style.display = 'block';
+        } else {
+            batchFileList.style.display = 'none';
+        }
+    });
+
     processBatchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         showStatus(processBatchStatus, 'Starting batch processing...');
-        batchProgress.style.display = 'none';
-        batchOutputLinks.innerHTML = '';
-
+        
         const formData = new FormData();
         formData.append('preset_file', document.getElementById('batch-preset-file').files[0]);
         formData.append('blend_ratio', batchBlendRatio.value / 100); // Convert to 0-1 range
@@ -709,8 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showStatus(processBatchStatus, `Batch processing started. Job ID: ${data.batch_id}`);
-                batchProgress.style.display = 'block';
+                showStatus(processBatchStatus, `Batch processing started.`);
                 pollBatchStatus(data.batch_id);
             } else {
                 showStatus(processBatchStatus, `Error: ${data.detail}`, true);
@@ -720,28 +725,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Create file list with initial pending status
+    function createFileList(files) {
+        batchFilesContainer.innerHTML = '';
+        for (let i = 0; i < files.length; i++) {
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'd-flex align-items-center gap-2 mb-2';
+            fileDiv.id = `batch-file-${i}`;
+            
+            const statusIcon = document.createElement('span');
+            statusIcon.className = 'batch-file-status';
+            statusIcon.innerHTML = '☐'; // Empty checkbox
+            statusIcon.style.fontSize = '16px';
+            statusIcon.style.color = '#6c757d';
+            
+            const fileName = document.createElement('span');
+            fileName.className = 'batch-file-name';
+            fileName.textContent = files[i].name;
+            fileName.style.color = '#f8f9fa';
+            
+            fileDiv.appendChild(statusIcon);
+            fileDiv.appendChild(fileName);
+            batchFilesContainer.appendChild(fileDiv);
+        }
+    }
+
     // Poll Batch Status
     async function pollBatchStatus(batchId) {
+        let lastProcessedCount = 0;
+        
         const interval = setInterval(async () => {
             try {
                 const response = await fetch(`/api/batch_status/${batchId}`);
                 const data = await response.json();
 
-                processedCountSpan.textContent = data.processed_count;
-                totalCountSpan.textContent = data.total_count;
-                const progress = (data.processed_count / data.total_count) * 100;
-                progressBar.style.width = `${progress}%`;
-                progressBar.setAttribute('aria-valuenow', progress);
-                progressBar.textContent = `${Math.round(progress)}%`;
+                // Update file statuses
+                if (data.processed_count > lastProcessedCount) {
+                    // Mark current file as processing
+                    if (data.processed_count < data.total_count) {
+                        updateFileStatus(data.processed_count, 'processing');
+                    }
+                    
+                    // Mark completed files
+                    for (let i = lastProcessedCount; i < data.processed_count; i++) {
+                        updateFileStatus(i, 'completed', data.output_files[i]);
+                    }
+                    
+                    lastProcessedCount = data.processed_count;
+                }
 
                 if (data.status === 'completed') {
                     clearInterval(interval);
-                    showStatus(processBatchStatus, 'Batch processing completed!');
-                    data.output_files.forEach(filePath => {
-                        const filename = filePath.split('/').pop();
-                        const link = `<a href="/download/output/${filename}" target="_blank" class="alert-link">${filename}</a><br>`;
-                        batchOutputLinks.innerHTML += link;
-                    });
+                    showStatus(processBatchStatus, 'Batch processing completed: Right Click to Save As');
                 } else if (data.status === 'failed') {
                     clearInterval(interval);
                     showStatus(processBatchStatus, `Batch processing failed: ${data.error}`, true);
@@ -750,6 +785,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearInterval(interval);
                 showStatus(processBatchStatus, `Network error: ${error.message}`, true);
             }
-        }, 3000); // Poll every 3 seconds
+        }, 2000); // Poll every 2 seconds
+    }
+
+    // Update file status in the list
+    function updateFileStatus(fileIndex, status, outputPath = null) {
+        const fileDiv = document.getElementById(`batch-file-${fileIndex}`);
+        if (!fileDiv) return;
+
+        const statusIcon = fileDiv.querySelector('.batch-file-status');
+        const fileName = fileDiv.querySelector('.batch-file-name');
+
+        switch (status) {
+            case 'processing':
+                statusIcon.innerHTML = '⏳'; // Hourglass
+                statusIcon.style.color = '#ffc107'; // Warning yellow
+                break;
+            case 'completed':
+                statusIcon.innerHTML = '✅'; // Checkmark
+                statusIcon.style.color = '#28a745'; // Success green
+                
+                if (outputPath) {
+                    // Convert filename to download link
+                    const outputFilename = outputPath.split('/').pop();
+                    const link = document.createElement('a');
+                    link.href = `/download/output/${outputFilename}`;
+                    link.target = '_blank';
+                    link.textContent = outputFilename;
+                    link.className = 'text-light';
+                    link.style.textDecoration = 'none';
+                    
+                    // Replace filename with download link
+                    fileName.innerHTML = '';
+                    fileName.appendChild(link);
+                }
+                break;
+        }
     }
 });

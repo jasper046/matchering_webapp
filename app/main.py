@@ -211,8 +211,8 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
             original_filename = os.path.splitext(os.path.basename(target_path))[0]
             
             if blend_ratio == 1.0:
-                # Full processing (100% wet) - format: originalname_out_presetname.wav
-                output_filename = f"{original_filename}_out_{preset_name}.wav"
+                # Full processing (100% wet) - format: originalname-out-presetname.wav
+                output_filename = f"{original_filename}-out-{preset_name}.wav"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
                 
                 mg.process_with_preset(
@@ -253,7 +253,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
                 
                 # Save the blended result with proper naming
-                output_filename = f"{original_filename}_out_{preset_name}-blend{blend_percentage}.wav"
+                output_filename = f"{original_filename}-out-{preset_name}-blend{blend_percentage}.wav"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
                 sf.write(output_path, blended_audio, sr_orig)
                 
