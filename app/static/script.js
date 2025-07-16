@@ -632,16 +632,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const duration = originalBuffer.duration;
         const seekTime = (clickX / canvasWidth) * duration;
 
+        // Remember if we were playing
+        const wasPlaying = isPlaying;
+        
         // Stop current playback if playing
         if (isPlaying) {
             originalSourceNode.stop();
             processedSourceNode.stop();
             cancelAnimationFrame(animationFrameId);
+            isPlaying = false; // Reset the flag so playAudio() can work
         }
 
-        // Update playbackTime and restart if playing, or just update indicator if paused/stopped
+        // Update playbackTime and restart if we were playing, or just update indicator if paused/stopped
         playbackTime = seekTime;
-        if (isPlaying) {
+        if (wasPlaying) {
             playAudio(); // Restart playback from new seekTime
         } else {
             drawPlayPosition((seekTime / duration) * canvasWidth);
