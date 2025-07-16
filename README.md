@@ -116,6 +116,10 @@ The web interface is divided into several sections:
 *   `outputs/`: Stores generated `.wav` output audio files.
 *   `venv/`: Python virtual environment (created during setup).
 
+## Limitations
+
+*   **Single-Client Use Only:** This application is designed for single-user environments. Multiple concurrent users may experience conflicts with file operations, batch job tracking, and shared storage directories. For multi-user deployment, session isolation and per-user file management would need to be implemented.
+
 ## Troubleshooting
 
 *   **`ModuleNotFoundError` or `ImportError`:** Ensure your virtual environment is activated (`source venv/bin/activate`) and all dependencies are installed (`pip install -r requirements.txt` and `pip install -e ./matchering-fork`).
