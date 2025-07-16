@@ -91,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const processSingleForm = document.getElementById('process-single-form');
     const processSingleStatus = document.getElementById('process-single-status');
     const singleConversionResults = document.getElementById('single-conversion-results');
+    const targetFileSingle = document.getElementById('target-file-single');
+    const referenceTypeSelection = document.getElementById('reference-type-selection');
     const radioReference = document.getElementById('radioReference');
     const radioPreset = document.getElementById('radioPreset');
     const referenceFileSingleDiv = document.getElementById('reference-file-single-div');
@@ -118,6 +120,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPlaying = false;
     let animationFrameId; // For play position indicator
 
+    // Step-by-step display logic for Single File Conversion
+    targetFileSingle.addEventListener('change', () => {
+        if (targetFileSingle.files.length > 0) {
+            referenceTypeSelection.style.display = 'block';
+            // Ensure initial state of reference/preset file inputs is correct
+            toggleReferenceInput(); 
+        } else {
+            referenceTypeSelection.style.display = 'none';
+            referenceFileSingleDiv.style.display = 'none';
+            presetFileSingleDiv.style.display = 'none';
+        }
+    });
+
     // Toggle reference/preset file input for single conversion
     function toggleReferenceInput() {
         if (radioReference.checked) {
@@ -134,7 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     radioReference.addEventListener('change', toggleReferenceInput);
     radioPreset.addEventListener('change', toggleReferenceInput);
-    toggleReferenceInput(); // Call on load to set initial state
+    // Initial call to set state if a file is already selected on page load (unlikely but good practice)
+    if (targetFileSingle.files.length > 0) {
+        toggleReferenceInput();
+    }
 
     // Process Single File Form Submission
     processSingleForm.addEventListener('submit', async (e) => {
