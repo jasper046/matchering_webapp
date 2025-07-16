@@ -45,19 +45,35 @@ h1, h2 {
     border: 1px solid #495057;
     background-color: #343a40;
     position: relative;
-    height: 150px; /* Adjust as needed */
+    /* height: 150px; Removed fixed height */
+    display: flex; /* Use flexbox to stack waveform groups */
+    flex-direction: column;
+}
+
+.waveform-track-group {
+    position: relative;
+    flex-grow: 1; /* Each group takes equal height */
+    display: flex;
+    flex-direction: column;
+}
+
+.waveform-label {
+    position: relative; /* Keep relative to flow */
+    z-index: 1; /* Bring text to front */
+    padding: 5px; /* Add some padding for readability */
+    color: #f8f9fa; /* Ensure text is white */
+    background-color: rgba(33, 37, 41, 0.5); /* Semi-transparent dark background (more transparent) */
+    border-radius: 4px;
+    text-align: center;
+    margin-bottom: -10px; /* Adjust to pull label closer to waveform */
 }
 
 canvas {
-    position: absolute;
+    position: relative; /* Change to relative to flow with label */
     top: 0;
     left: 0;
     width: 100%;
-    height: 50%; /* Each waveform takes half the container height */
-}
-
-canvas:last-child {
-    top: 50%;
+    height: 100%; /* Fill the remaining height of the group */
 }
 
 /* Adjustments for Bootstrap form elements */
@@ -185,4 +201,21 @@ canvas:last-child {
 .playback-button.playback-active {
     background-color: #6c757d; /* Light grey background when active */
     border-color: #86b7fe; /* Highlight border */
+}
+
+/* Playback line styling */
+.playback-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background-color: #dc3545; /* Red line */
+    z-index: 2; /* Ensure it's above waveforms */
+}
+
+/* Scrolling for single conversion results */
+#single-conversion-results {
+    /* max-height: 500px; Removed fixed height */
+    /* overflow-y: auto; Removed overflow */
 }
