@@ -7,6 +7,7 @@ import os
 import shutil
 import uuid
 import matchering as mg
+from matchering.limiter import limit
 import numpy as np
 import soundfile as sf
 import atexit
@@ -145,7 +146,8 @@ async def process_single(
 async def blend_and_save(
     original_path: str = Form(...),
     processed_path: str = Form(...),
-    blend_ratio: float = Form(...)
+    blend_ratio: float = Form(...),
+    apply_limiter: bool = Form(True)
 ):
     if not (0.0 <= blend_ratio <= 1.0):
         raise HTTPException(status_code=400, detail="Blend ratio must be between 0.0 and 1.0.")
@@ -172,6 +174,12 @@ async def blend_and_save(
 
         blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
 
+        if apply_limiter:
+            # Apply -6dB gain reduction for headroom
+            blended_audio = blended_audio * 0.5
+            # Use the matchering limiter to compensate and prevent clipping
+            blended_audio = limit(blended_audio, mg.Config())
+
         blended_filename = f"blended_{uuid.uuid4()}.wav"
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
         sf.write(blended_path, blended_audio, sr_orig)
@@ -185,7 +193,8 @@ async def process_batch(
     background_tasks: BackgroundTasks,
     preset_file: UploadFile = File(...),
     target_files: List[UploadFile] = File(...),
-    blend_ratio: float = Form(1.0)
+    blend_ratio: float = Form(1.0),
+    apply_limiter: bool = Form(True)
 ):
     if not (1 <= len(target_files) <= 20):
         raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
@@ -205,16 +214,17 @@ async def process_batch(
         target_file_paths.append(file_location)
 
     background_tasks.add_task(
-        _run_batch_processing,
-        batch_id,
-        preset_temp_path,
-        target_file_paths,
-        blend_ratio
-    )
+            _run_batch_processing,
+            batch_id,
+            preset_temp_path,
+            target_file_paths,
+            blend_ratio,
+            apply_limiter
+        )
 
     return {"message": "Batch processing started", "batch_id": batch_id}
 
-def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float):
+def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float, apply_limiter: bool):
     try:
         # Get preset name for filename
         preset_name = os.path.splitext(os.path.basename(preset_path))[0][:8]  # Cap at 8 chars
@@ -265,6 +275,12 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 
                 # Blend the audio
                 blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
+
+                if apply_limiter:
+                    # Apply -6dB gain reduction for headroom
+                    blended_audio = blended_audio * 0.5
+                    # Use the matchering limiter to compensate and prevent clipping
+                    blended_audio = limit(blended_audio, mg.Config())
                 
                 # Save the blended result with proper naming
                 output_filename = f"{original_filename}-out-{preset_name}-blend{blend_percentage}.wav"

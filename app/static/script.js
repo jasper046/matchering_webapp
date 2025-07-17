@@ -103,6 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const blendedPlayer = document.getElementById('blended-player');
     const saveBlendButton = document.getElementById('save-blend-button');
     const saveBlendStatus = document.getElementById('save-blend-status');
+    const previewBlendButton = document.getElementById('preview-blend-button');
+    const applyLimiterSwitch = document.getElementById('applyLimiterSwitch');
 
     const playButton = document.getElementById('play-button');
     const pauseButton = document.getElementById('pause-button');
@@ -255,61 +257,105 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Setup Web Audio API for blending
-    async function setupAudioContext(originalUrl, processedUrl) {
+    // Modify setupAudioContext to handle preview mode
+    async function setupAudioContext(originalUrl, processedUrl, isPreview = false) {
         if (audioContext) {
             audioContext.close();
         }
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-        // Fetch audio files
         const fetchAudio = async (url) => {
             const response = await fetch(url);
             const arrayBuffer = await response.arrayBuffer();
             return await audioContext.decodeAudioData(arrayBuffer);
         };
 
-        originalBuffer = await fetchAudio(originalUrl);
-        processedBuffer = await fetchAudio(processedUrl);
+        if (isPreview) {
+            // For preview, only load the blended audio
+            originalBuffer = await fetchAudio(originalUrl); // This is now the blended audio
+            processedBuffer = null; // No separate processed buffer for preview
+            // Disable blend knob and related controls for preview
+            blendKnobCanvas.style.pointerEvents = 'none';
+            blendKnobCanvas.style.opacity = '0.5';
+            applyLimiterSwitch.disabled = true;
+        } else {
+            // For regular processing, load original and processed
+            originalBuffer = await fetchAudio(originalUrl);
+            processedBuffer = await fetchAudio(processedUrl);
+            // Enable blend knob and related controls
+            blendKnobCanvas.style.pointerEvents = 'auto';
+            blendKnobCanvas.style.opacity = '1';
+            applyLimiterSwitch.disabled = false;
+        }
 
         // Create sources and gain nodes
-        // These are created and connected in playAudio() to allow for multiple play/pause cycles
         gainOriginal = audioContext.createGain();
         gainProcessed = audioContext.createGain();
 
         gainOriginal.connect(audioContext.destination);
         gainProcessed.connect(audioContext.destination);
 
-        // Initialize knob
-        initializeKnob();
+        // Initialize knob only if not in preview mode
+        if (!isPreview) {
+            initializeKnob();
+            updateBlend(); // Initial blend setting
+        } else {
+            // In preview mode, set gain for original (which is now blended) to 1 and processed to 0
+            gainOriginal.gain.value = 1;
+            gainProcessed.gain.value = 0;
+        }
         
-        // Initial blend setting
-        updateBlend();
-
         // Draw waveforms
         drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
-        drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
+        // Only draw processed waveform if not in preview mode
+        if (!isPreview) {
+            drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
+        } else {
+            // Clear processed waveform canvas if in preview mode
+            const processedCanvas = document.getElementById('processed-waveform');
+            const processedCtx = processedCanvas.getContext('2d');
+            processedCtx.clearRect(0, 0, processedCanvas.width, processedCanvas.height);
+        }
 
         // Add click listeners to canvases for seeking
         document.getElementById('original-waveform').addEventListener('click', seekAudio);
-        document.getElementById('processed-waveform').addEventListener('click', seekAudio);
+        // Only add listener to processed waveform if not in preview mode
+        if (!isPreview) {
+            document.getElementById('processed-waveform').addEventListener('click', seekAudio);
+        } else {
+            document.getElementById('processed-waveform').removeEventListener('click', seekAudio);
+        }
     }
 
     function playAudio() {
         if (isPlaying) return; // Already playing
+
+        // Stop any existing sources before creating new ones
+        if (originalSourceNode) {
+            originalSourceNode.stop();
+            originalSourceNode.disconnect();
+        }
+        if (processedSourceNode) {
+            if (processedSourceNode) { processedSourceNode.stop(); }
+            processedSourceNode.disconnect();
+        }
 
         // Create new sources each time play is pressed
         originalSourceNode = audioContext.createBufferSource();
         originalSourceNode.buffer = originalBuffer;
         originalSourceNode.connect(gainOriginal);
 
-        processedSourceNode = audioContext.createBufferSource();
-        processedSourceNode.buffer = processedBuffer;
-        processedSourceNode.connect(gainProcessed);
+        if (processedBuffer) {
+            processedSourceNode = audioContext.createBufferSource();
+            processedSourceNode.buffer = processedBuffer;
+            processedSourceNode.connect(gainProcessed);
+        }
 
         // Start from current playbackTime
         originalSourceNode.start(0, playbackTime);
-        processedSourceNode.start(0, playbackTime);
+        if (processedSourceNode) {
+            processedSourceNode.start(0, playbackTime);
+        }
 
         startTime = audioContext.currentTime - playbackTime;
         isPlaying = true;
@@ -321,7 +367,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isPlaying) return;
 
         originalSourceNode.stop();
-        processedSourceNode.stop();
+        if (processedSourceNode) {
+            if (processedSourceNode) { processedSourceNode.stop(); }
+        }
         playbackTime = audioContext.currentTime - startTime;
         isPlaying = false;
         updatePlaybackButtons('pause');
@@ -331,7 +379,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function stopAudio() {
         if (isPlaying) {
             originalSourceNode.stop();
-            processedSourceNode.stop();
+            if (processedSourceNode) {
+                if (processedSourceNode) { processedSourceNode.stop(); }
+            }
         }
         playbackTime = 0;
         startTime = 0;
@@ -498,160 +548,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gainProcessed.gain.value = blendValue;
     }
 
-    // Save Blended Audio
-    saveBlendButton.addEventListener('click', async () => {
-        showStatus(saveBlendStatus, 'Generating output file...');
-
-        const originalFilePathFromBackend = processSingleStatus.dataset.originalFilePath;
-        const processedFilePathFromBackend = processSingleStatus.dataset.processedFilePath;
-        const originalFileName = processSingleStatus.dataset.originalFileName;
-        const referenceName = processSingleStatus.dataset.referenceName;
-        const blendPercentage = currentBlendValue;
-
-        const formData = new FormData();
-        formData.append('original_path', originalFilePathFromBackend);
-        formData.append('processed_path', processedFilePathFromBackend);
-        formData.append('blend_ratio', blendPercentage / 100);
-
-        try {
-            const response = await fetch('/api/blend_and_save', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-            if (response.ok) {
-                // Generate suggested filename for blended output
-                const suggestedBlendedFilename = `${originalFileName}-out-${referenceName}-blend${blendPercentage}.wav`;
-
-                // Display download link and instruction
-                const link = document.createElement('a');
-                link.href = `/download/output/${data.blended_file_path.split('/').pop()}?download_name=${encodeURIComponent(suggestedBlendedFilename)}`;
-                link.download = suggestedBlendedFilename;
-                link.textContent = suggestedBlendedFilename;
-                link.className = 'alert-link';
-
-                const instructionText = document.createTextNode(' (Right Click to Save As)');
-
-                saveBlendStatus.innerHTML = ''; // Clear previous status
-                saveBlendStatus.appendChild(link);
-                saveBlendStatus.appendChild(instructionText);
-
-            } else {
-                showStatus(saveBlendStatus, `Error: ${data.detail}`, true);
-            }
-        } catch (error) {
-            showStatus(saveBlendStatus, `Network error: ${error.message}`, true);
-        }
-    });
-
-    // Waveform drawing function
-    function drawWaveform(canvas, buffer, color) {
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width = canvas.offsetWidth; // Set canvas width to its display width
-        const height = canvas.height = canvas.offsetHeight; // Set canvas height to its display height
-        const data = buffer.getChannelData(0); // Get data from the first channel
-        const step = Math.ceil(data.length / width);
-        const amp = height / 2;
-
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = color;
-
-        for (let i = 0; i < width; i++) {
-            let min = 1.0;
-            let max = -1.0;
-            for (let j = 0; j < step; j++) {
-                const datum = data[(i * step) + j];
-                if (datum < min) {
-                    min = datum;
-                } else if (datum > max) {
-                    max = datum;
-                }
-            }
-            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
-        }
-    }
-
-    // Function to draw the play position indicator
-    function drawPlayPosition(positionX) {
-        const originalCanvas = document.getElementById('original-waveform');
-        const processedCanvas = document.getElementById('processed-waveform');
-        const originalCtx = originalCanvas.getContext('2d');
-        const processedCtx = processedCanvas.getContext('2d');
-
-        // Clear previous line (by redrawing the waveform or clearing a small area)
-        // For simplicity, we'll just redraw the waveform to clear the line
-        drawWaveform(originalCanvas, originalBuffer, '#007bff');
-        drawWaveform(processedCanvas, processedBuffer, '#28a745');
-
-        // Draw new line
-        originalCtx.strokeStyle = '#dc3545'; // Red color
-        originalCtx.lineWidth = 2;
-        originalCtx.beginPath();
-        originalCtx.moveTo(positionX, 0);
-        originalCtx.lineTo(positionX, originalCanvas.height);
-        originalCtx.stroke();
-
-        processedCtx.strokeStyle = '#dc3545'; // Red color
-        processedCtx.lineWidth = 2;
-        processedCtx.beginPath();
-        processedCtx.moveTo(positionX, 0);
-        processedCtx.lineTo(positionX, processedCanvas.height);
-        processedCtx.stroke();
-    }
-
-    // Function to update play position during playback
-    function updatePlayPosition() {
-        if (!isPlaying) return;
-
-        const currentTime = audioContext.currentTime - startTime;
-        const duration = originalBuffer.duration; // Assuming both buffers have same duration
-        const canvasWidth = document.getElementById('original-waveform').offsetWidth;
-
-        let positionX = (currentTime / duration) * canvasWidth;
-
-        // Loop playback if it reaches the end
-        if (currentTime >= duration) {
-            playbackTime = 0;
-            startTime = audioContext.currentTime;
-            positionX = 0;
-        }
-
-        drawPlayPosition(positionX);
-        animationFrameId = requestAnimationFrame(updatePlayPosition);
-    }
-
-    // Function to seek audio on waveform click
-    function seekAudio(event) {
-        if (!originalBuffer || !processedBuffer) return; // No audio loaded
-
-        const canvas = event.currentTarget; // The canvas that was clicked
-        const rect = canvas.getBoundingClientRect();
-        const clickX = event.clientX - rect.left; // X position relative to the canvas
-        const canvasWidth = canvas.offsetWidth;
-
-        const duration = originalBuffer.duration;
-        const seekTime = (clickX / canvasWidth) * duration;
-
-        // Remember if we were playing
-        const wasPlaying = isPlaying;
-        
-        // Stop current playback if playing
-        if (isPlaying) {
-            originalSourceNode.stop();
-            processedSourceNode.stop();
-            cancelAnimationFrame(animationFrameId);
-            isPlaying = false; // Reset the flag so playAudio() can work
-        }
-
-        // Update playbackTime and restart if we were playing, or just update indicator if paused/stopped
-        playbackTime = seekTime;
-        if (wasPlaying) {
-            playAudio(); // Restart playback from new seekTime
-        } else {
-            drawPlayPosition((seekTime / duration) * canvasWidth);
-        }
-    }
-
     // --- Batch Processing Section ---
     const processBatchForm = document.getElementById('process-batch-form');
     const processBatchStatus = document.getElementById('process-batch-status');
@@ -703,6 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('preset_file', document.getElementById('batch-preset-file').files[0]);
         formData.append('blend_ratio', batchBlendRatio.value / 100); // Convert to 0-1 range
+        formData.append('apply_limiter', document.getElementById('batchApplyLimiterSwitch').checked); // New: Send limiter status
         const targetFiles = document.getElementById('batch-target-files').files;
         for (let i = 0; i < targetFiles.length; i++) {
             formData.append('target_files', targetFiles[i]);
