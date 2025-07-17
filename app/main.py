@@ -9,6 +9,7 @@ import uuid
 import matchering as mg
 import numpy as np
 import soundfile as sf
+import atexit
 
 app = FastAPI()
 
@@ -21,14 +22,24 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "app", "static
 # Configure Jinja2Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "app", "templates"))
 
-# Directories for uploads, presets, and outputs
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-PRESET_DIR = os.path.join(BASE_DIR, "presets")
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+# Create PID-specific directories for uploads, presets, and outputs
+PID = os.getpid()
+UPLOAD_DIR = os.path.join(BASE_DIR, f"uploads_{PID}")
+PRESET_DIR = os.path.join(BASE_DIR, f"presets_{PID}")
+OUTPUT_DIR = os.path.join(BASE_DIR, f"outputs_{PID}")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PRESET_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Cleanup function to remove PID-specific directories on exit
+def cleanup_pid_directories():
+    for directory in [UPLOAD_DIR, PRESET_DIR, OUTPUT_DIR]:
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+
+# Register cleanup function
+atexit.register(cleanup_pid_directories)
 
 # In-memory storage for batch job statuses
 batch_jobs = {}
