@@ -68,8 +68,8 @@ async def create_preset(reference_file: UploadFile = File(...)):
 
 @app.post("/api/blend_presets")
 async def blend_presets(preset_files: List[UploadFile] = File(...), new_preset_name: str = Form(...)):
-    if not (2 <= len(preset_files) <= 5):
-        raise HTTPException(status_code=400, detail="Please upload between 2 and 5 preset files.")
+    if not (2 <= len(preset_files) <= 10):
+        raise HTTPException(status_code=400, detail="Please upload between 2 and 10 preset files.")
 
     uploaded_preset_paths = []
     for preset_file in preset_files:
