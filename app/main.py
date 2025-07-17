@@ -175,9 +175,7 @@ async def blend_and_save(
         blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
 
         if apply_limiter:
-            # Apply -6dB gain reduction for headroom
-            blended_audio = blended_audio * 0.5
-            # Use the matchering limiter to compensate and prevent clipping
+            # Apply limiter for soft clipping
             blended_audio = limit(blended_audio, mg.Config())
 
         blended_filename = f"blended_{uuid.uuid4()}.wav"
@@ -277,9 +275,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
 
                 if apply_limiter:
-                    # Apply -6dB gain reduction for headroom
-                    blended_audio = blended_audio * 0.5
-                    # Use the matchering limiter to compensate and prevent clipping
+                    # Apply limiter for soft clipping
                     blended_audio = limit(blended_audio, mg.Config())
                 
                 # Save the blended result with proper naming
@@ -321,6 +317,53 @@ async def download_file(file_type: str, filename: str, download_name: Optional[s
         raise HTTPException(status_code=404, detail="File not found.")
     
     return FileResponse(path=file_path, filename=download_name if download_name else filename, media_type="application/octet-stream")
+
+@app.post("/api/preview_blend")
+async def preview_blend(
+    original_path: str = Form(...),
+    processed_path: str = Form(...),
+    blend_ratio: float = Form(...),
+    apply_limiter: bool = Form(True)
+):
+    """Generate a preview of the blended audio with optional limiter"""
+    if not (0.0 <= blend_ratio <= 1.0):
+        raise HTTPException(status_code=400, detail="Blend ratio must be between 0.0 and 1.0.")
+
+    try:
+        original_audio, sr_orig = sf.read(original_path)
+        processed_audio, sr_proc = sf.read(processed_path)
+
+        if sr_orig != sr_proc:
+            raise HTTPException(status_code=400, detail="Sample rates do not match.")
+        
+        # Ensure both arrays have the same number of channels
+        if original_audio.ndim == 1:
+            original_audio = np.expand_dims(original_audio, axis=1)
+        if processed_audio.ndim == 1:
+            processed_audio = np.expand_dims(processed_audio, axis=1)
+
+        # Pad to match lengths
+        max_len = max(len(original_audio), len(processed_audio))
+        if len(original_audio) < max_len:
+            original_audio = np.pad(original_audio, ((0, max_len - len(original_audio)), (0,0)), 'constant')
+        elif len(processed_audio) < max_len:
+            processed_audio = np.pad(processed_audio, ((0, max_len - len(processed_audio)), (0,0)), 'constant')
+
+        # Blend the audio
+        blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
+
+        if apply_limiter:
+            # Apply limiter for soft clipping
+            blended_audio = limit(blended_audio, mg.Config())
+
+        # Save preview to temporary file
+        preview_filename = f"preview_{uuid.uuid4()}.wav"
+        preview_path = os.path.join(OUTPUT_DIR, preview_filename)
+        sf.write(preview_path, blended_audio, sr_orig)
+
+        return {"preview_file_path": preview_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/temp_files/{filename}")
 async def get_temp_file(filename: str):

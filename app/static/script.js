@@ -103,8 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const blendedPlayer = document.getElementById('blended-player');
     const saveBlendButton = document.getElementById('save-blend-button');
     const saveBlendStatus = document.getElementById('save-blend-status');
-    const previewBlendButton = document.getElementById('preview-blend-button');
-    const applyLimiterSwitch = document.getElementById('applyLimiterSwitch');
+    const limiterButton = document.getElementById('limiterButton');
+    const batchLimiterButton = document.getElementById('batchLimiterButton');
+    let limiterEnabled = true; // Default to enabled
+    let batchLimiterEnabled = true; // Default to enabled
 
     const playButton = document.getElementById('play-button');
     const pauseButton = document.getElementById('pause-button');
@@ -127,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDragging = false;
     let dragStartY = 0;
     let dragStartValue = 0;
+    let isUpdatingPreview = false; // Prevent multiple simultaneous preview updates
 
     // Function to check and update process button visibility
     function checkProcessButtonVisibility() {
@@ -245,10 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Store paths in dataset attributes for later use by saveBlendButton
                 processSingleStatus.dataset.originalFilePath = data.original_file_path;
                 processSingleStatus.dataset.processedFilePath = data.processed_file_path;
-                setupAudioContext(
-                    `/temp_files/${data.original_file_path.split('/').pop()}`,
-                    `/temp_files/${data.processed_file_path.split('/').pop()}`
-                );
+                // Initialize with preview system
+                updateAudioPreview();
             } else {
                 showStatus(processSingleStatus, `Error: ${data.detail}`, true);
             }
@@ -257,105 +258,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Modify setupAudioContext to handle preview mode
-    async function setupAudioContext(originalUrl, processedUrl, isPreview = false) {
-        if (audioContext) {
-            audioContext.close();
-        }
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-        const fetchAudio = async (url) => {
-            const response = await fetch(url);
-            const arrayBuffer = await response.arrayBuffer();
-            return await audioContext.decodeAudioData(arrayBuffer);
-        };
-
-        if (isPreview) {
-            // For preview, only load the blended audio
-            originalBuffer = await fetchAudio(originalUrl); // This is now the blended audio
-            processedBuffer = null; // No separate processed buffer for preview
-            // Disable blend knob and related controls for preview
-            blendKnobCanvas.style.pointerEvents = 'none';
-            blendKnobCanvas.style.opacity = '0.5';
-            applyLimiterSwitch.disabled = true;
-        } else {
-            // For regular processing, load original and processed
-            originalBuffer = await fetchAudio(originalUrl);
-            processedBuffer = await fetchAudio(processedUrl);
-            // Enable blend knob and related controls
-            blendKnobCanvas.style.pointerEvents = 'auto';
-            blendKnobCanvas.style.opacity = '1';
-            applyLimiterSwitch.disabled = false;
-        }
-
-        // Create sources and gain nodes
-        gainOriginal = audioContext.createGain();
-        gainProcessed = audioContext.createGain();
-
-        gainOriginal.connect(audioContext.destination);
-        gainProcessed.connect(audioContext.destination);
-
-        // Initialize knob only if not in preview mode
-        if (!isPreview) {
-            initializeKnob();
-            updateBlend(); // Initial blend setting
-        } else {
-            // In preview mode, set gain for original (which is now blended) to 1 and processed to 0
-            gainOriginal.gain.value = 1;
-            gainProcessed.gain.value = 0;
-        }
-        
-        // Draw waveforms
-        drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
-        // Only draw processed waveform if not in preview mode
-        if (!isPreview) {
-            drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
-        } else {
-            // Clear processed waveform canvas if in preview mode
-            const processedCanvas = document.getElementById('processed-waveform');
-            const processedCtx = processedCanvas.getContext('2d');
-            processedCtx.clearRect(0, 0, processedCanvas.width, processedCanvas.height);
-        }
-
-        // Add click listeners to canvases for seeking
-        document.getElementById('original-waveform').addEventListener('click', seekAudio);
-        // Only add listener to processed waveform if not in preview mode
-        if (!isPreview) {
-            document.getElementById('processed-waveform').addEventListener('click', seekAudio);
-        } else {
-            document.getElementById('processed-waveform').removeEventListener('click', seekAudio);
-        }
-    }
 
     function playAudio() {
         if (isPlaying) return; // Already playing
+        if (!audioContext || !gainOriginal) return; // No audio context set up
+        
+        const activeBuffer = window.previewBuffer || originalBuffer;
+        if (!activeBuffer) return; // No audio buffer available
 
         // Stop any existing sources before creating new ones
         if (originalSourceNode) {
             originalSourceNode.stop();
             originalSourceNode.disconnect();
         }
-        if (processedSourceNode) {
-            if (processedSourceNode) { processedSourceNode.stop(); }
-            processedSourceNode.disconnect();
-        }
 
-        // Create new sources each time play is pressed
+        // Create new source for preview audio (use the blended+limited result)
         originalSourceNode = audioContext.createBufferSource();
-        originalSourceNode.buffer = originalBuffer;
+        originalSourceNode.buffer = activeBuffer;
         originalSourceNode.connect(gainOriginal);
-
-        if (processedBuffer) {
-            processedSourceNode = audioContext.createBufferSource();
-            processedSourceNode.buffer = processedBuffer;
-            processedSourceNode.connect(gainProcessed);
-        }
 
         // Start from current playbackTime
         originalSourceNode.start(0, playbackTime);
-        if (processedSourceNode) {
-            processedSourceNode.start(0, playbackTime);
-        }
 
         startTime = audioContext.currentTime - playbackTime;
         isPlaying = true;
@@ -364,11 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function pauseAudio() {
-        if (!isPlaying) return;
+        if (!isPlaying || !audioContext) return;
 
-        originalSourceNode.stop();
-        if (processedSourceNode) {
-            if (processedSourceNode) { processedSourceNode.stop(); }
+        if (originalSourceNode) {
+            originalSourceNode.stop();
         }
         playbackTime = audioContext.currentTime - startTime;
         isPlaying = false;
@@ -377,11 +299,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopAudio() {
-        if (isPlaying) {
+        if (isPlaying && originalSourceNode) {
             originalSourceNode.stop();
-            if (processedSourceNode) {
-                if (processedSourceNode) { processedSourceNode.stop(); }
-            }
         }
         playbackTime = 0;
         startTime = 0;
@@ -453,13 +372,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isDragging) return;
         
         const deltaY = dragStartY - e.clientY; // Inverted: up = increase
-        const sensitivity = 0.3; // Adjust sensitivity for better control
+        const sensitivity = 1.0; // Increased sensitivity for faster control
         const newValue = Math.max(0, Math.min(100, dragStartValue + (deltaY * sensitivity)));
         
         if (newValue !== currentBlendValue) {
             currentBlendValue = Math.round(newValue);
             drawKnob();
-            updateBlend();
+            updateAudioPreviewAsync();
         }
     }
     
@@ -468,13 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         
         const deltaY = dragStartY - e.touches[0].clientY;
-        const sensitivity = 0.3;
+        const sensitivity = 1.0;
         const newValue = Math.max(0, Math.min(100, dragStartValue + (deltaY * sensitivity)));
         
         if (newValue !== currentBlendValue) {
             currentBlendValue = Math.round(newValue);
             drawKnob();
-            updateBlend();
+            updateAudioPreviewAsync();
         }
     }
     
@@ -548,6 +467,360 @@ document.addEventListener('DOMContentLoaded', () => {
         gainProcessed.gain.value = blendValue;
     }
 
+    // Draw waveform visualization
+    function drawWaveform(canvas, buffer, color) {
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width = canvas.offsetWidth;
+        const height = canvas.height = 100;
+        
+        ctx.clearRect(0, 0, width, height);
+        
+        if (!buffer) return;
+        
+        const data = buffer.getChannelData(0);
+        const step = Math.ceil(data.length / width);
+        const amp = height / 2;
+        
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6;
+        
+        for (let i = 0; i < width; i++) {
+            const index = i * step;
+            if (index >= data.length) break;
+            
+            // Get max and min values in this section for better visualization
+            let min = 0, max = 0;
+            for (let j = 0; j < step && index + j < data.length; j++) {
+                const value = data[index + j];
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+            
+            // Draw waveform bar from min to max
+            const yMax = amp - (max * amp);
+            const yMin = amp - (min * amp);
+            const barHeight = yMin - yMax;
+            
+            if (barHeight > 0) {
+                ctx.fillRect(i, yMax, 1, barHeight);
+            }
+        }
+        
+        ctx.globalAlpha = 1;
+    }
+
+    // Seek audio to specific position
+    function seekAudio(event) {
+        const activeBuffer = window.previewBuffer || originalBuffer;
+        if (!activeBuffer) return;
+        
+        const canvas = event.target;
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const clickPosition = x / canvas.offsetWidth;
+        
+        // Calculate new playback time
+        const newTime = clickPosition * activeBuffer.duration;
+        
+        // Remember if we were playing
+        const wasPlaying = isPlaying;
+        
+        // Stop current playback
+        if (isPlaying) {
+            if (originalSourceNode) {
+                originalSourceNode.stop();
+                originalSourceNode.disconnect();
+            }
+            isPlaying = false;
+            cancelAnimationFrame(animationFrameId);
+        }
+        
+        // Set new playback position
+        playbackTime = newTime;
+        
+        // Update visual position
+        drawPlayPosition(clickPosition);
+        
+        // Resume playback if it was playing
+        if (wasPlaying) {
+            playAudio();
+        }
+    }
+
+    // Draw play position indicator
+    function drawPlayPosition(position) {
+        const canvases = [
+            document.getElementById('original-waveform'),
+            document.getElementById('processed-waveform')
+        ];
+        
+        canvases.forEach(canvas => {
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+            
+            // Redraw the waveform first
+            if (canvas.id === 'original-waveform' && originalBuffer) {
+                drawWaveform(canvas, originalBuffer, '#007bff');
+            } else if (canvas.id === 'processed-waveform' && processedBuffer) {
+                drawWaveform(canvas, processedBuffer, '#28a745');
+            }
+            
+            // Draw position line
+            const x = position * width;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+        });
+    }
+
+    // Update play position during playback
+    function updatePlayPosition() {
+        const activeBuffer = window.previewBuffer || originalBuffer;
+        if (!isPlaying || !activeBuffer) return;
+        
+        const currentTime = audioContext.currentTime - startTime;
+        const position = currentTime / activeBuffer.duration;
+        
+        if (position >= 1) {
+            // Reached end, stop playback
+            stopAudio();
+            return;
+        }
+        
+        drawPlayPosition(position);
+        animationFrameId = requestAnimationFrame(updatePlayPosition);
+    }
+
+    // Limiter button event listeners
+    function toggleLimiter(button, isEnabled) {
+        const text = button.querySelector('.limiter-text');
+        
+        if (isEnabled) {
+            button.classList.remove('limiter-on');
+            button.classList.add('limiter-bypassed');
+            text.textContent = 'BYPASS';
+            return false;
+        } else {
+            button.classList.remove('limiter-bypassed');
+            button.classList.add('limiter-on');
+            text.textContent = 'ON';
+            return true;
+        }
+    }
+
+    limiterButton.addEventListener('click', () => {
+        limiterEnabled = toggleLimiter(limiterButton, limiterEnabled);
+        // Update the audio preview when limiter state changes
+        updateAudioPreviewAsync();
+    });
+
+    batchLimiterButton.addEventListener('click', () => {
+        batchLimiterEnabled = toggleLimiter(batchLimiterButton, batchLimiterEnabled);
+    });
+
+    // Function to update audio preview with current blend and limiter settings
+    async function updateAudioPreview() {
+        const originalFilePath = processSingleStatus.dataset.originalFilePath;
+        const processedFilePath = processSingleStatus.dataset.processedFilePath;
+        
+        if (!originalFilePath || !processedFilePath) return;
+        
+        try {
+            const formData = new FormData();
+            formData.append('original_path', originalFilePath);
+            formData.append('processed_path', processedFilePath);
+            formData.append('blend_ratio', currentBlendValue / 100);
+            formData.append('apply_limiter', limiterEnabled);
+            
+            const response = await fetch('/api/preview_blend', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Update the audio context with the new preview file
+                const previewUrl = `/temp_files/${data.preview_file_path.split('/').pop()}`;
+                await setupPreviewAudioContext(previewUrl);
+            }
+        } catch (error) {
+            console.error('Error updating audio preview:', error);
+        }
+    }
+
+    // Function to update audio preview without disrupting playback
+    async function updateAudioPreviewAsync() {
+        const originalFilePath = processSingleStatus.dataset.originalFilePath;
+        const processedFilePath = processSingleStatus.dataset.processedFilePath;
+        
+        if (!originalFilePath || !processedFilePath || isUpdatingPreview) return;
+        
+        isUpdatingPreview = true;
+        
+        // Remember current playback state and position
+        const wasPlaying = isPlaying;
+        let currentTime = playbackTime;
+        
+        // Always pause playback during processing to prevent glitches
+        if (isPlaying) {
+            // Calculate the actual current position during playback
+            currentTime = audioContext.currentTime - startTime;
+            
+            if (originalSourceNode) {
+                originalSourceNode.stop();
+                originalSourceNode.disconnect();
+            }
+            isPlaying = false;
+            cancelAnimationFrame(animationFrameId);
+            updatePlaybackButtons('pause');
+        }
+        
+        try {
+            const formData = new FormData();
+            formData.append('original_path', originalFilePath);
+            formData.append('processed_path', processedFilePath);
+            formData.append('blend_ratio', currentBlendValue / 100);
+            formData.append('apply_limiter', limiterEnabled);
+            
+            const response = await fetch('/api/preview_blend', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Update only the preview buffer
+                const previewUrl = `/temp_files/${data.preview_file_path.split('/').pop()}`;
+                const fetchAudio = async (url) => {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    return await audioContext.decodeAudioData(arrayBuffer);
+                };
+                
+                // Update the preview buffer
+                window.previewBuffer = await fetchAudio(previewUrl);
+                
+                // Resume playback at the exact position if it was playing
+                if (wasPlaying) {
+                    playbackTime = currentTime;
+                    playAudio();
+                }
+            }
+        } catch (error) {
+            console.error('Error updating audio preview:', error);
+            // If there was an error, set playback buttons back to stopped state
+            updatePlaybackButtons('stop');
+        } finally {
+            isUpdatingPreview = false;
+        }
+    }
+
+    // Setup audio context for preview (single blended file)
+    async function setupPreviewAudioContext(previewUrl) {
+        if (audioContext) {
+            audioContext.close();
+        }
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        const fetchAudio = async (url) => {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            return await audioContext.decodeAudioData(arrayBuffer);
+        };
+
+        // Load the preview audio (this is the blended + limited result for playback)
+        const previewBuffer = await fetchAudio(previewUrl);
+        
+        // Also load the original files for waveform display
+        const originalFilePath = processSingleStatus.dataset.originalFilePath;
+        const processedFilePath = processSingleStatus.dataset.processedFilePath;
+        
+        originalBuffer = await fetchAudio(`/temp_files/${originalFilePath.split('/').pop()}`);
+        processedBuffer = await fetchAudio(`/temp_files/${processedFilePath.split('/').pop()}`);
+
+        // Create gain node for preview playback
+        gainOriginal = audioContext.createGain();
+        gainOriginal.connect(audioContext.destination);
+        gainOriginal.gain.value = 1; // Full volume for preview
+        
+        // Store the preview buffer for actual playback
+        window.previewBuffer = previewBuffer;
+
+        // Initialize knob if not already done
+        if (!blendKnobCanvas.dataset.initialized) {
+            initializeKnob();
+            blendKnobCanvas.dataset.initialized = 'true';
+        }
+
+        // Draw waveforms (original and processed, not the blended result)
+        drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
+        drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
+        
+        // Add click listeners for seeking
+        document.getElementById('original-waveform').addEventListener('click', seekAudio);
+        document.getElementById('processed-waveform').addEventListener('click', seekAudio);
+        
+        // Reset playback buttons to initial state
+        updatePlaybackButtons('stop');
+    }
+
+    // Save blend button event listener
+    saveBlendButton.addEventListener('click', async () => {
+        const originalFilePath = processSingleStatus.dataset.originalFilePath;
+        const processedFilePath = processSingleStatus.dataset.processedFilePath;
+        
+        if (!originalFilePath || !processedFilePath) {
+            showStatus(saveBlendStatus, 'Error: No processed files available to blend.', true);
+            return;
+        }
+        
+        // Prevent multiple simultaneous save operations
+        if (saveBlendButton.disabled) return;
+        
+        saveBlendButton.disabled = true;
+        showStatus(saveBlendStatus, 'Saving blended audio...');
+        
+        const formData = new FormData();
+        formData.append('original_path', originalFilePath);
+        formData.append('processed_path', processedFilePath);
+        formData.append('blend_ratio', currentBlendValue / 100);
+        formData.append('apply_limiter', limiterEnabled);
+        
+        try {
+            const response = await fetch('/api/blend_and_save', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                const blendedFileName = data.blended_file_path.split('/').pop();
+                const originalFileName = processSingleStatus.dataset.originalFileName;
+                const referenceName = processSingleStatus.dataset.referenceName;
+                const blendPercentage = currentBlendValue;
+                
+                // Generate download filename
+                const downloadName = `${originalFileName}-out-${referenceName}-blend${blendPercentage}.wav`;
+                
+                showStatus(saveBlendStatus, 
+                    `Blended audio saved: <a href="/download/output/${blendedFileName}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
+                );
+            } else {
+                showStatus(saveBlendStatus, `Error: ${data.detail}`, true);
+            }
+        } catch (error) {
+            showStatus(saveBlendStatus, `Network error: ${error.message}`, true);
+        } finally {
+            saveBlendButton.disabled = false;
+        }
+    });
+
     // --- Batch Processing Section ---
     const processBatchForm = document.getElementById('process-batch-form');
     const processBatchStatus = document.getElementById('process-batch-status');
@@ -599,7 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('preset_file', document.getElementById('batch-preset-file').files[0]);
         formData.append('blend_ratio', batchBlendRatio.value / 100); // Convert to 0-1 range
-        formData.append('apply_limiter', document.getElementById('batchApplyLimiterSwitch').checked); // New: Send limiter status
+        formData.append('apply_limiter', batchLimiterEnabled); // Send limiter status
         const targetFiles = document.getElementById('batch-target-files').files;
         for (let i = 0; i < targetFiles.length; i++) {
             formData.append('target_files', targetFiles[i]);
@@ -658,17 +931,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Update file statuses
                 if (data.processed_count > lastProcessedCount) {
-                    // Mark current file as processing
-                    if (data.processed_count < data.total_count) {
-                        updateFileStatus(data.processed_count, 'processing');
-                    }
-                    
                     // Mark completed files
                     for (let i = lastProcessedCount; i < data.processed_count; i++) {
                         updateFileStatus(i, 'completed', data.output_files[i]);
                     }
                     
+                    // Mark current file as processing (if not the last one)
+                    if (data.processed_count < data.total_count) {
+                        updateFileStatus(data.processed_count, 'processing');
+                    }
+                    
                     lastProcessedCount = data.processed_count;
+                } else if (data.processed_count === 0 && lastProcessedCount === 0) {
+                    // Mark first file as processing when batch just started
+                    updateFileStatus(0, 'processing');
                 }
 
                 if (data.status === 'completed') {

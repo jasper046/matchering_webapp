@@ -81,7 +81,7 @@ h1, h2 {
     border: 1px solid #495057;
     background-color: #343a40;
     position: relative;
-    /* height: 150px; Removed fixed height */
+    height: 220px; /* Fixed height to prevent size jumps */
     display: flex; /* Use flexbox to stack waveform groups */
     flex-direction: column;
 }
@@ -109,7 +109,7 @@ canvas {
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%; /* Fill the remaining height of the group */
+    height: 100px; /* Fixed height to prevent huge initial size */
 }
 
 /* Adjustments for Bootstrap form elements */
@@ -278,4 +278,50 @@ canvas {
 
 #blend-knob:active {
     cursor: grabbing;
+}
+
+/* Limiter button styling */
+.limiter-btn {
+    background-color: #343a40; /* Same as playback buttons */
+    color: #f8f9fa; /* Same as playback buttons */
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #495057;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    font-weight: 500;
+    min-width: 140px; /* Fixed width to accommodate both states */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.limiter-btn:hover {
+    background-color: #495057; /* Same hover as playback buttons */
+}
+
+.limiter-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #f8f9fa;
+}
+
+.limiter-text {
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.3rem;
+    width: 75px; /* Fixed width to accommodate both ON/BYPASSED */
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+}
+
+.limiter-btn.limiter-on .limiter-text {
+    background-color: #ffc107; /* Yellow background for ON state */
+    color: #212529; /* Dark text */
+}
+
+.limiter-btn.limiter-bypassed .limiter-text {
+    background-color: #dc3545; /* Red background for BYPASSED state */
+    color: #fff; /* White text */
 }

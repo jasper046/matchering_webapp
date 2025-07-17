@@ -89,16 +89,15 @@
                             <button type="button" id="play-button" class="btn btn-secondary playback-button">Play</button>
                             <button type="button" id="pause-button" class="btn btn-secondary playback-button">Pause</button>
                             <button type="button" id="stop-button" class="btn btn-secondary playback-button playback-active">Stop</button>
-                            <button type="button" id="preview-blend-button" class="btn btn-info playback-button">Preview Blend</button>
                             <div class="d-flex align-items-center gap-2 ms-4">
                                 <span class="text-light small">dry</span>
                                 <canvas id="blend-knob" width="60" height="60"></canvas>
                                 <span class="text-light small">wet</span>
                             </div>
-                            <div class="form-check form-switch ms-4">
-                                <input class="form-check-input" type="checkbox" id="applyLimiterSwitch" checked>
-                                <label class="form-check-label text-light" for="applyLimiterSwitch">Apply Limiter</label>
-                            </div>
+                            <button type="button" id="limiterButton" class="btn limiter-btn limiter-on ms-4">
+                                <span class="limiter-label">LIMITER</span>
+                                <span class="limiter-text">ON</span>
+                            </button>
                         </div>
                         <button type="button" id="save-blend-button" class="btn btn-success mt-3">Keep current blend</button>
                         <div id="save-blend-status" class="mt-3"></div>
@@ -157,9 +156,12 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="batchApplyLimiterSwitch" checked>
-                                <label class="form-check-label text-light" for="batchApplyLimiterSwitch">Apply Limiter to Blended Output</label>
+                            <label class="form-label text-light">Limiter</label>
+                            <div>
+                                <button type="button" id="batchLimiterButton" class="btn limiter-btn limiter-on">
+                                    <span class="limiter-label">LIMITER</span>
+                                    <span class="limiter-text">ON</span>
+                                </button>
                             </div>
                         </div>
                         <div class="mb-3">
