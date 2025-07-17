@@ -12,16 +12,19 @@ import soundfile as sf
 
 app = FastAPI()
 
+# Get the directory where this file is located
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # Mount static files (CSS, JS)
-app.mount("/static", StaticFiles(directory="/home/jasper/Music/matchering/matchering_webapp/app/static"), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "app", "static")), name="static")
 
 # Configure Jinja2Templates
-templates = Jinja2Templates(directory="/home/jasper/Music/matchering/matchering_webapp/app/templates")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "app", "templates"))
 
 # Directories for uploads, presets, and outputs
-UPLOAD_DIR = "/home/jasper/Music/matchering/matchering_webapp/uploads"
-PRESET_DIR = "/home/jasper/Music/matchering/matchering_webapp/presets"
-OUTPUT_DIR = "/home/jasper/Music/matchering/matchering_webapp/outputs"
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+PRESET_DIR = os.path.join(BASE_DIR, "presets")
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PRESET_DIR, exist_ok=True)
