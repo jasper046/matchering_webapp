@@ -315,10 +315,8 @@ def process_stems_with_presets_sync(
             "target_instrumental_path": target_instrumental_path,
             "processed_vocal_path": processed_vocal_path,
             "processed_instrumental_path": processed_instrumental_path,
-            "vocal_preset_path": vocal_preset_path,
-            "instrumental_preset_path": instrumental_preset_path,
-            "vocal_preset_filename": os.path.basename(vocal_preset_path),
-            "instrumental_preset_filename": os.path.basename(instrumental_preset_path)
+            # NOTE: Don't include preset paths here because these are uploaded presets that the user already has
+            # Only include preset paths when they are created from reference files (not uploaded by user)
         })
         
         # Clean up temporary files but KEEP stem files for frontend usage

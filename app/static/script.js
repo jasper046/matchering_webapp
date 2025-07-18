@@ -880,7 +880,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     function drawWaveform(canvas, buffer, color) {
         const ctx = canvas.getContext('2d');
         const width = canvas.width = canvas.offsetWidth;
-        const height = canvas.height = 100;
+        const height = canvas.height = 120;
         
         ctx.clearRect(0, 0, width, height);
         
@@ -923,6 +923,75 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         }
         
         ctx.globalAlpha = 1;
+    }
+
+    function drawCombinedWaveform(canvas, originalBuffer, processedBuffer, originalColor = '#007bff', processedColor = '#28a745') {
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width = canvas.offsetWidth;
+        const height = canvas.height = 120;
+        
+        ctx.clearRect(0, 0, width, height);
+        
+        if (!originalBuffer && !processedBuffer) return;
+        
+        const centerY = height / 2;
+        
+        // Draw center line
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.stroke();
+        
+        // Function to draw half waveform (positive or negative)
+        function drawHalfWaveform(buffer, color, drawPositive) {
+            if (!buffer) return;
+            
+            const leftData = buffer.getChannelData(0);
+            const rightData = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : leftData;
+            const step = Math.ceil(leftData.length / width);
+            const amp = height / 2;
+            
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.7;
+            
+            for (let i = 0; i < width; i++) {
+                const index = i * step;
+                if (index >= leftData.length) break;
+                
+                // Get max absolute value from both channels
+                let maxValue = 0;
+                for (let j = 0; j < step && index + j < leftData.length; j++) {
+                    const leftValue = leftData[index + j];
+                    const rightValue = rightData[index + j];
+                    const maxAbsValue = Math.max(Math.abs(leftValue), Math.abs(rightValue));
+                    if (maxAbsValue > maxValue) maxValue = maxAbsValue;
+                }
+                
+                if (drawPositive) {
+                    // Draw original waveform in positive half (above center)
+                    const barHeight = maxValue * amp;
+                    if (barHeight > 0) {
+                        ctx.fillRect(i, centerY - barHeight, 1, barHeight);
+                    }
+                } else {
+                    // Draw processed waveform in negative half (below center)
+                    const barHeight = maxValue * amp;
+                    if (barHeight > 0) {
+                        ctx.fillRect(i, centerY, 1, barHeight);
+                    }
+                }
+            }
+            
+            ctx.globalAlpha = 1;
+        }
+        
+        // Draw original waveform in positive half (above center line)
+        drawHalfWaveform(originalBuffer, originalColor, true);
+        
+        // Draw processed waveform in negative half (below center line)
+        drawHalfWaveform(processedBuffer, processedColor, false);
     }
 
     // Seek audio to specific position
@@ -970,18 +1039,15 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         let canvases = [];
         
         if (isStemSeparation) {
-            // Use stem waveform canvases
+            // Use combined stem waveform canvases
             canvases = [
-                document.getElementById('vocal-original-waveform'),
-                document.getElementById('vocal-processed-waveform'),
-                document.getElementById('instrumental-original-waveform'),
-                document.getElementById('instrumental-processed-waveform')
+                document.getElementById('vocal-combined-waveform'),
+                document.getElementById('instrumental-combined-waveform')
             ];
         } else {
-            // Use standard waveform canvases
+            // Use combined standard waveform canvas
             canvases = [
-                document.getElementById('original-waveform'),
-                document.getElementById('processed-waveform')
+                document.getElementById('combined-waveform')
             ];
         }
         
@@ -994,34 +1060,15 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             
             // Redraw the waveform first
             if (isStemSeparation) {
-                // For stem separation, use the individual stem buffers (STATIC - don't change on blend)
-                let buffer = null;
-                let color = '#007bff';
-                
-                if (canvas.id.includes('vocal-original')) {
-                    buffer = window.targetVocalBuffer;
-                    color = '#007bff';
-                } else if (canvas.id.includes('vocal-processed')) {
-                    buffer = window.processedVocalBuffer;
-                    color = '#28a745';
-                } else if (canvas.id.includes('instrumental-original')) {
-                    buffer = window.targetInstrumentalBuffer;
-                    color = '#6f42c1';
-                } else if (canvas.id.includes('instrumental-processed')) {
-                    buffer = window.processedInstrumentalBuffer;
-                    color = '#fd7e14';
-                }
-                
-                if (buffer) {
-                    drawWaveform(canvas, buffer, color);
+                // For stem separation, use combined waveforms
+                if (canvas.id === 'vocal-combined-waveform') {
+                    drawCombinedWaveform(canvas, window.targetVocalBuffer, window.processedVocalBuffer, '#007bff', '#28a745');
+                } else if (canvas.id === 'instrumental-combined-waveform') {
+                    drawCombinedWaveform(canvas, window.targetInstrumentalBuffer, window.processedInstrumentalBuffer, '#6f42c1', '#fd7e14');
                 }
             } else {
-                // Standard waveform redraw
-                if (canvas.id === 'original-waveform' && originalBuffer) {
-                    drawWaveform(canvas, originalBuffer, '#007bff');
-                } else if (canvas.id === 'processed-waveform' && processedBuffer) {
-                    drawWaveform(canvas, processedBuffer, '#28a745');
-                }
+                // Standard combined waveform
+                drawCombinedWaveform(canvas, originalBuffer, processedBuffer, '#007bff', '#28a745');
             }
             
             // Draw position line
@@ -1217,13 +1264,11 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             blendKnobCanvas.dataset.initialized = 'true';
         }
 
-        // Draw waveforms (original and processed, not the blended result)
-        drawWaveform(document.getElementById('original-waveform'), originalBuffer, '#007bff');
-        drawWaveform(document.getElementById('processed-waveform'), processedBuffer, '#28a745');
+        // Draw combined waveform (original positive, processed negative)
+        drawCombinedWaveform(document.getElementById('combined-waveform'), originalBuffer, processedBuffer, '#007bff', '#28a745');
         
-        // Add click listeners for seeking
-        document.getElementById('original-waveform').addEventListener('click', seekAudio);
-        document.getElementById('processed-waveform').addEventListener('click', seekAudio);
+        // Add click listener for seeking
+        document.getElementById('combined-waveform').addEventListener('click', seekAudio);
         
         // Reset playback buttons to initial state
         updatePlaybackButtons('stop');
@@ -1387,16 +1432,12 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             window.processedInstrumentalBuffer = processedInstrumentalBuffer;
             
             // Get canvas elements
-            const vocalOriginalCanvas = document.getElementById('vocal-original-waveform');
-            const vocalProcessedCanvas = document.getElementById('vocal-processed-waveform');
-            const instrumentalOriginalCanvas = document.getElementById('instrumental-original-waveform');
-            const instrumentalProcessedCanvas = document.getElementById('instrumental-processed-waveform');
+            const vocalCombinedCanvas = document.getElementById('vocal-combined-waveform');
+            const instrumentalCombinedCanvas = document.getElementById('instrumental-combined-waveform');
 
-            // Draw individual stem waveforms
-            drawWaveform(vocalOriginalCanvas, targetVocalBuffer, '#007bff');
-            drawWaveform(vocalProcessedCanvas, processedVocalBuffer, '#28a745');
-            drawWaveform(instrumentalOriginalCanvas, targetInstrumentalBuffer, '#6f42c1');
-            drawWaveform(instrumentalProcessedCanvas, processedInstrumentalBuffer, '#fd7e14');
+            // Draw combined stem waveforms (original positive, processed negative)
+            drawCombinedWaveform(vocalCombinedCanvas, targetVocalBuffer, processedVocalBuffer, '#007bff', '#28a745');
+            drawCombinedWaveform(instrumentalCombinedCanvas, targetInstrumentalBuffer, processedInstrumentalBuffer, '#6f42c1', '#fd7e14');
 
             // Create gain nodes for stem mixing
             gainOriginal = audioContext.createGain();
@@ -1411,8 +1452,8 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             // Initialize dual knobs for stem separation
             initializeDualKnobs();
 
-            // Add click listeners for seeking on stem waveforms
-            [vocalOriginalCanvas, vocalProcessedCanvas, instrumentalOriginalCanvas, instrumentalProcessedCanvas].forEach(canvas => {
+            // Add click listeners for seeking on combined stem waveforms
+            [vocalCombinedCanvas, instrumentalCombinedCanvas].forEach(canvas => {
                 canvas.addEventListener('click', seekAudio);
             });
             
