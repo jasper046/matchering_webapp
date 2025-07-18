@@ -256,7 +256,7 @@ def process_stems_with_presets_sync(
         processing_progress[job_id].update({
             "stage": "loading_model",
             "progress": 10,
-            "message": "Loading audio separation model..."
+            "message": "(10%) Loading audio separation model..."
         })
         
         # Separate the target file into vocal and instrumental stems
@@ -266,10 +266,12 @@ def process_stems_with_presets_sync(
         processing_progress[job_id].update({
             "stage": "separating_target",
             "progress": 25,
-            "message": "Separating target audio into vocal and instrumental stems..."
+            "message": "(25%) Separating target audio into vocal and instrumental stems..."
         })
         
-        separator.separate(target_path)
+        # Use progress interceptor for real-time updates during separation
+        with ProgressInterceptor(job_id, "separating_target", 25, 50):
+            separator.separate(target_path)
         
         # Construct paths for separated target files
         target_base = os.path.splitext(os.path.basename(target_path))[0]
@@ -280,7 +282,7 @@ def process_stems_with_presets_sync(
         processing_progress[job_id].update({
             "stage": "processing_vocal",
             "progress": 50,
-            "message": "Processing vocal stem with matchering..."
+            "message": "(50%) Processing vocal stem with matchering..."
         })
         
         processed_vocal_path = os.path.join(OUTPUT_DIR, f"processed_vocals_{uuid.uuid4()}.wav")
@@ -295,7 +297,7 @@ def process_stems_with_presets_sync(
         processing_progress[job_id].update({
             "stage": "processing_instrumental",
             "progress": 75,
-            "message": "Processing instrumental stem with matchering..."
+            "message": "(75%) Processing instrumental stem with matchering..."
         })
         
         processed_instrumental_path = os.path.join(OUTPUT_DIR, f"processed_instrumentals_{uuid.uuid4()}.wav")
@@ -351,7 +353,7 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "loading_model",
             "progress": 10,
-            "message": "Loading audio separation model..."
+            "message": "(10%) Loading audio separation model..."
         })
         
         # Separate the reference file into vocal and instrumental stems
@@ -361,7 +363,7 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "extracting_segment",
             "progress": 15,
-            "message": "Finding loudest part of reference audio..."
+            "message": "(15%) Finding loudest part of reference audio..."
         })
         print(f"DEBUG: Progress updated for job {job_id}: extracting_segment 15%")
         
@@ -372,11 +374,13 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "separating_reference",
             "progress": 25,
-            "message": "Separating reference segment into vocal and instrumental stems..."
+            "message": "(25%) Separating reference segment into vocal and instrumental stems..."
         })
         print(f"DEBUG: Progress updated for job {job_id}: separating_reference 25%")
         
-        separator.separate(ref_segment_path)
+        # Use progress interceptor for real-time updates during separation
+        with ProgressInterceptor(job_id, "separating_reference", 25, 35):
+            separator.separate(ref_segment_path)
         
         # Construct paths for separated reference files
         ref_segment_base = os.path.splitext(os.path.basename(ref_segment_path))[0]
@@ -387,7 +391,7 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "creating_presets",
             "progress": 35,
-            "message": "Creating presets from separated reference stems..."
+            "message": "(35%) Creating presets from separated reference stems..."
         })
         
         # Generate preset filenames based on original reference name
@@ -406,10 +410,12 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "separating_target",
             "progress": 45,
-            "message": "Separating target audio into vocal and instrumental stems..."
+            "message": "(45%) Separating target audio into vocal and instrumental stems..."
         })
         
-        separator.separate(target_path)
+        # Use progress interceptor for real-time updates during separation
+        with ProgressInterceptor(job_id, "separating_target", 45, 65):
+            separator.separate(target_path)
         
         # Construct paths for separated target files
         target_base = os.path.splitext(os.path.basename(target_path))[0]
@@ -420,7 +426,7 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "processing_vocal",
             "progress": 65,
-            "message": "Processing vocal stem with matchering..."
+            "message": "(65%) Processing vocal stem with matchering..."
         })
         
         processed_vocal_path = os.path.join(OUTPUT_DIR, f"processed_vocals_{uuid.uuid4()}.wav")
@@ -439,7 +445,7 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "processing_instrumental",
             "progress": 85,
-            "message": "Processing instrumental stem with matchering..."
+            "message": "(85%) Processing instrumental stem with matchering..."
         })
         
         processed_instrumental_path = os.path.join(OUTPUT_DIR, f"processed_instrumentals_{uuid.uuid4()}.wav")
@@ -458,7 +464,7 @@ def process_stems_with_reference_sync(
         processing_progress[job_id].update({
             "stage": "combining",
             "progress": 95,
-            "message": "Combining processed stems..."
+            "message": "(95%) Combining processed stems..."
         })
         
         # Update progress: Complete (individual stems ready for real-time mixing)
@@ -958,10 +964,12 @@ async def preview_blend(
 class ProgressInterceptor:
     """Context manager to intercept tqdm progress bars for real-time updates"""
     
-    def __init__(self, job_id: str):
+    def __init__(self, job_id: str, stage_name: str = "separating", stage_start_progress: int = 0, stage_end_progress: int = 100):
         self.job_id = job_id
         self.original_tqdm = None
-        self.current_stage = "separating"
+        self.stage_name = stage_name
+        self.stage_start_progress = stage_start_progress
+        self.stage_end_progress = stage_end_progress
         
     def __enter__(self):
         # Store original tqdm
@@ -975,12 +983,24 @@ class ProgressInterceptor:
             def update_with_callback(n=1):
                 result = original_update(n)
                 if pbar.total and pbar.total > 0:
-                    progress = min((pbar.n / pbar.total) * 100, 100)
+                    # Calculate separation progress (0-100%)
+                    separation_progress = min((pbar.n / pbar.total) * 100, 100)
+                    
+                    # Calculate overall progress within the stage range
+                    overall_progress = self.stage_start_progress + (separation_progress / 100) * (self.stage_end_progress - self.stage_start_progress)
+                    
                     # Update progress in our global store
                     if self.job_id in processing_progress:
+                        current_stage = processing_progress[self.job_id].get("stage", self.stage_name)
+                        stage_message = {
+                            "separating_reference": "Separating reference segment",
+                            "separating_target": "Separating target audio",
+                            "separating": "Processing audio separation"
+                        }.get(current_stage, "Processing audio separation")
+                        
                         processing_progress[self.job_id].update({
-                            "progress": int(progress),
-                            "message": f"Processing audio separation... {progress:.1f}%"
+                            "progress": int(overall_progress),
+                            "message": f"({int(overall_progress)}%) {stage_message}... {separation_progress:.1f}%"
                         })
                 return result
             
@@ -1021,7 +1041,7 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
         processing_progress[job_id].update({
             "stage": "loading_model",
             "progress": 10,
-            "message": "Loading separation model..."
+            "message": "(10%) Loading separation model..."
         })
         
         separator = Separator(
@@ -1034,7 +1054,7 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
         processing_progress[job_id].update({
             "stage": "separating",
             "progress": 20,
-            "message": "Starting audio separation..."
+            "message": "(20%) Starting audio separation..."
         })
         
         # Use progress interceptor to track separation progress

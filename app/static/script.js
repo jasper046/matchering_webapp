@@ -306,7 +306,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                 const progress = await response.json();
                 
                 // Update the existing status box with progress
-                showStatus(processSingleStatus, `${progress.message} (${progress.progress}%)`);
+                showStatus(processSingleStatus, progress.message);
                 
                 if (progress.stage === 'complete') {
                     clearInterval(pollInterval);
@@ -1844,7 +1844,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                                 const progressData = await progressResponse.json();
                                 
                                 // Update status with progress
-                                showStatus(stemSeparationStatus, `${progressData.message} (${progressData.progress}%)`);
+                                showStatus(stemSeparationStatus, progressData.message);
                                 
                                 // Check if complete
                                 if (progressData.stage === 'complete') {
