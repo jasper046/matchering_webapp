@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Helper function to display status messages
     function showStatus(element, message, isError = false) {
+        console.log('showStatus called:', message);
         element.innerHTML = message;
         element.className = `mt-3 alert ${isError ? 'alert-danger' : 'alert-success'}`;
     }
@@ -113,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stopButton = document.getElementById('stop-button');
 
     const processFileButton = document.getElementById('process-file-button'); // New: Get process button
+const useStemSeparation = document.getElementById('use-stem-separation');    const vocalPresetFileSingleDiv = document.getElementById('vocal-preset-file-single-div');    const instrumentalPresetFileSingleDiv = document.getElementById('instrumental-preset-file-single-div');
 
     let audioContext;
     let originalSourceNode;
@@ -133,16 +135,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to check and update process button visibility
     function checkProcessButtonVisibility() {
+        const isStemSeparation = useStemSeparation.checked;
+        const isVocalPresetSelected = document.getElementById('vocal-preset-file-single').files.length > 0;
+        const isInstrumentalPresetSelected = document.getElementById('instrumental-preset-file-single').files.length > 0;
         const isTargetFileSelected = targetFileSingle.files.length > 0;
-        let isReferenceOrPresetSelected = false;
+        let isRequiredFilesSelected = false;
 
         if (radioReference.checked) {
-            isReferenceOrPresetSelected = referenceFileSingle.files.length > 0;
+            // Reference mode: always just need reference file (stem separation happens on backend)
+            isRequiredFilesSelected = referenceFileSingle.files.length > 0;
         } else if (radioPreset.checked) {
-            isReferenceOrPresetSelected = presetFileSingle.files.length > 0;
+            if (isStemSeparation) {
+                // Preset mode with stem separation: need both vocal and instrumental presets
+                isRequiredFilesSelected = isVocalPresetSelected && isInstrumentalPresetSelected;
+            } else {
+                // Standard preset mode: need single preset file
+                isRequiredFilesSelected = presetFileSingle.files.length > 0;
+            }
         }
 
-        if (isTargetFileSelected && isReferenceOrPresetSelected) {
+        if (isTargetFileSelected && isRequiredFilesSelected) {
             processFileButton.style.display = 'block';
         } else {
             processFileButton.style.display = 'none';
@@ -153,16 +165,23 @@ document.addEventListener('DOMContentLoaded', () => {
     targetFileSingle.addEventListener('change', () => {
         processSingleStatus.textContent = ''; // Clear status
         if (targetFileSingle.files.length > 0) {
+            // Show stem separation option first
+            document.getElementById('stem-separation-selection').style.display = 'block';
             referenceTypeSelection.style.display = 'block';
             // Reset radio buttons and hide file inputs when a new target file is selected
             radioReference.checked = false;
             radioPreset.checked = false;
             referenceFileSingleDiv.style.display = 'none';
             presetFileSingleDiv.style.display = 'none';
+            vocalPresetFileSingleDiv.style.display = 'none';
+            instrumentalPresetFileSingleDiv.style.display = 'none';
         } else {
+            document.getElementById('stem-separation-selection').style.display = 'none';
             referenceTypeSelection.style.display = 'none';
             referenceFileSingleDiv.style.display = 'none';
             presetFileSingleDiv.style.display = 'none';
+            vocalPresetFileSingleDiv.style.display = 'none';
+            instrumentalPresetFileSingleDiv.style.display = 'none';
         }
         checkProcessButtonVisibility(); // Check visibility after target file changes
         // Hide results section if target file changes
@@ -172,17 +191,49 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toggle reference/preset file input for single conversion
     function toggleReferenceInput() {
         processSingleStatus.textContent = ''; // Clear status
+        
+        const isStemSeparation = useStemSeparation.checked;
+        
         if (radioReference.checked) {
-            referenceFileSingleDiv.style.display = 'block';
-            referenceFileSingle.setAttribute('required', 'true');
-            presetFileSingleDiv.style.display = 'none';
-            presetFileSingle.removeAttribute('required');
-        } else {
-            referenceFileSingleDiv.style.display = 'none';
-            referenceFileSingle.removeAttribute('required');
-            presetFileSingleDiv.style.display = 'block';
-            presetFileSingle.setAttribute('required', 'true');
+            // Reference mode
+            if (isStemSeparation) {
+                // Stem separation with reference: show reference file input only
+                referenceFileSingleDiv.style.display = 'block';
+                referenceFileSingle.setAttribute('required', 'true');
+                presetFileSingleDiv.style.display = 'none';
+                presetFileSingle.removeAttribute('required');
+                vocalPresetFileSingleDiv.style.display = 'none';
+                instrumentalPresetFileSingleDiv.style.display = 'none';
+            } else {
+                // Standard reference mode
+                referenceFileSingleDiv.style.display = 'block';
+                referenceFileSingle.setAttribute('required', 'true');
+                presetFileSingleDiv.style.display = 'none';
+                presetFileSingle.removeAttribute('required');
+                vocalPresetFileSingleDiv.style.display = 'none';
+                instrumentalPresetFileSingleDiv.style.display = 'none';
+            }
+        } else if (radioPreset.checked) {
+            // Preset mode
+            if (isStemSeparation) {
+                // Stem separation with presets: show vocal and instrumental preset inputs
+                referenceFileSingleDiv.style.display = 'none';
+                referenceFileSingle.removeAttribute('required');
+                presetFileSingleDiv.style.display = 'none';
+                presetFileSingle.removeAttribute('required');
+                vocalPresetFileSingleDiv.style.display = 'block';
+                instrumentalPresetFileSingleDiv.style.display = 'block';
+            } else {
+                // Standard preset mode
+                referenceFileSingleDiv.style.display = 'none';
+                referenceFileSingle.removeAttribute('required');
+                presetFileSingleDiv.style.display = 'block';
+                presetFileSingle.setAttribute('required', 'true');
+                vocalPresetFileSingleDiv.style.display = 'none';
+                instrumentalPresetFileSingleDiv.style.display = 'none';
+            }
         }
+        
         checkProcessButtonVisibility(); // Check visibility after mode changes
         // Hide results section if mode changes
         singleConversionResults.style.display = 'none';
@@ -206,19 +257,116 @@ document.addEventListener('DOMContentLoaded', () => {
         singleConversionResults.style.display = 'none'; // Hide results if preset file changes
     });
 
+    // Stem separation event listener
+    useStemSeparation.addEventListener('change', () => {
+        // When stem separation checkbox changes, update the UI based on current mode
+        if (radioReference.checked || radioPreset.checked) {
+            toggleReferenceInput(); // This will handle the display logic based on current mode and stem separation state
+        }
+        checkProcessButtonVisibility();
+    });
+
     // Initial check on page load
     checkProcessButtonVisibility();
+
+    // System info and progress tracking functions
+    async function showProcessingStatus() {
+        try {
+            const response = await fetch('/api/system_info');
+            const systemInfo = await response.json();
+            
+            // Just return the system info, don't overwrite status
+            return systemInfo;
+        } catch (error) {
+            console.error('Error getting system info:', error);
+            return null;
+        }
+    }
+
+    async function pollProgress(jobId) {
+        const pollProgressData = async () => {
+            try {
+                const response = await fetch(`/api/progress/${jobId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const progress = await response.json();
+                
+                // Update the existing status box with progress
+                showStatus(processSingleStatus, `${progress.message} (${progress.progress}%)`);
+                
+                if (progress.stage === 'complete') {
+                    clearInterval(pollInterval);
+                    showStatus(processSingleStatus, 'File processed. Adjust blend below.');
+                    
+                    // Store individual stem paths for waveform display and real-time mixing
+                    if (progress.target_vocal_path) {
+                        processSingleStatus.dataset.targetVocalPath = progress.target_vocal_path;
+                        processSingleStatus.dataset.targetInstrumentalPath = progress.target_instrumental_path;
+                        processSingleStatus.dataset.processedVocalPath = progress.processed_vocal_path;
+                        processSingleStatus.dataset.processedInstrumentalPath = progress.processed_instrumental_path;
+                        
+                        // Store preset information for download links
+                        if (progress.vocal_preset_path) {
+                            processSingleStatus.dataset.vocalPresetPath = progress.vocal_preset_path;
+                            processSingleStatus.dataset.instrumentalPresetPath = progress.instrumental_preset_path;
+                            processSingleStatus.dataset.vocalPresetFilename = progress.vocal_preset_filename;
+                            processSingleStatus.dataset.instrumentalPresetFilename = progress.instrumental_preset_filename;
+                        }
+                    }
+                    
+                    // Show results and initialize waveforms
+                    singleConversionResults.style.display = 'block';
+                    initializeStemWaveforms();
+                    
+                    // Show preset download links if available
+                    showPresetDownloadLinks();
+                    
+                } else if (progress.stage === 'error') {
+                    clearInterval(pollInterval);
+                    showStatus(processSingleStatus, progress.message, true);
+                }
+            } catch (error) {
+                console.error('Error polling progress:', error);
+                clearInterval(pollInterval);
+                showStatus(processSingleStatus, 'Error polling progress', true);
+            }
+        };
+        
+        // Poll immediately, then every second
+        pollProgressData();
+        const pollInterval = setInterval(pollProgressData, 1000);
+        
+        return pollInterval;
+    }
+
+    function hideProcessingStatus() {
+        processSingleStatus.textContent = '';
+        processSingleStatus.className = '';
+    }
 
     // Process Single File Form Submission
     processSingleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // Get system info and show initial processing status
+        const systemInfo = await showProcessingStatus();
         showStatus(processSingleStatus, 'Processing single file...');
+        console.log('Form submitted, showing initial status');
+        
         singleConversionResults.style.display = 'none';
         saveBlendStatus.textContent = '';
 
         const formData = new FormData();
         const targetFile = document.getElementById('target-file-single').files[0];
         formData.append('target_file', targetFile);
+        formData.append('use_stem_separation', useStemSeparation.checked);
+        
+        // Only add vocal and instrumental preset files if we're in preset mode with stem separation
+        if (useStemSeparation.checked && radioPreset.checked) {
+            formData.append('vocal_preset_file', document.getElementById('vocal-preset-file-single').files[0]);
+            formData.append('instrumental_preset_file', document.getElementById('instrumental-preset-file-single').files[0]);
+        }
 
         let referenceName = '';
         if (radioReference.checked) {
@@ -237,19 +385,70 @@ document.addEventListener('DOMContentLoaded', () => {
         processSingleStatus.dataset.referenceName = referenceName;
 
         try {
+            // Start the request
             const response = await fetch('/api/process_single', {
                 method: 'POST',
                 body: formData,
             });
             const data = await response.json();
+            
             if (response.ok) {
-                showStatus(processSingleStatus, 'File processed. Adjust blend below.');
-                singleConversionResults.style.display = 'block';
-                // Store paths in dataset attributes for later use by saveBlendButton
-                processSingleStatus.dataset.originalFilePath = data.original_file_path;
-                processSingleStatus.dataset.processedFilePath = data.processed_file_path;
-                // Initialize with preview system
-                updateAudioPreview();
+                // Store stem separation mode
+                processSingleStatus.dataset.isStemSeparation = useStemSeparation.checked;
+                
+                if (useStemSeparation.checked) {
+                    // For stem separation, start progress polling if we have a job_id
+                    if (data.job_id) {
+                        // Show stem waveform container and hide standard container
+                        document.getElementById('standard-waveform-container').style.display = 'none';
+                        document.getElementById('stem-waveform-container').style.display = 'block';
+                        
+                        // Start polling for progress (this will update the status immediately)
+                        pollProgress(data.job_id);
+                    } else {
+                        // Fallback for synchronous processing
+                        showStatus(processSingleStatus, 'File processed. Adjust blend below.');
+                        
+                        // Show stem waveform container and hide standard container
+                        document.getElementById('standard-waveform-container').style.display = 'none';
+                        document.getElementById('stem-waveform-container').style.display = 'block';
+                        
+                        // Store stem-specific paths
+                        processSingleStatus.dataset.combinedFilePath = data.combined_file_path;
+                        
+                        // Initialize stem waveform display
+                        initializeStemWaveforms();
+                        
+                        // Show results section
+                        singleConversionResults.style.display = 'block';
+                    }
+                } else {
+                    // For standard processing, show completion immediately
+                    showStatus(processSingleStatus, 'File processed. Adjust blend below.');
+                    
+                    // Show standard waveform container and hide stem container
+                    document.getElementById('standard-waveform-container').style.display = 'block';
+                    document.getElementById('stem-waveform-container').style.display = 'none';
+                    
+                    // Store standard paths
+                    processSingleStatus.dataset.originalFilePath = data.original_file_path;
+                    processSingleStatus.dataset.processedFilePath = data.processed_file_path;
+                    
+                    // Store preset information if created from reference
+                    if (data.created_preset_path) {
+                        processSingleStatus.dataset.createdPresetPath = data.created_preset_path;
+                        processSingleStatus.dataset.createdPresetFilename = data.created_preset_filename;
+                    }
+                    
+                    // Initialize with preview system
+                    updateAudioPreview();
+                    
+                    // Show results section
+                    singleConversionResults.style.display = 'block';
+                    
+                    // Show preset download links if available
+                    showPresetDownloadLinks();
+                }
             } else {
                 showStatus(processSingleStatus, `Error: ${data.detail}`, true);
             }
@@ -549,10 +748,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Draw play position indicator
     function drawPlayPosition(position) {
-        const canvases = [
-            document.getElementById('original-waveform'),
-            document.getElementById('processed-waveform')
-        ];
+        const isStemSeparation = processSingleStatus.dataset.isStemSeparation === 'true';
+        
+        let canvases = [];
+        
+        if (isStemSeparation) {
+            // Use stem waveform canvases
+            canvases = [
+                document.getElementById('vocal-original-waveform'),
+                document.getElementById('vocal-processed-waveform'),
+                document.getElementById('instrumental-original-waveform'),
+                document.getElementById('instrumental-processed-waveform')
+            ];
+        } else {
+            // Use standard waveform canvases
+            canvases = [
+                document.getElementById('original-waveform'),
+                document.getElementById('processed-waveform')
+            ];
+        }
         
         canvases.forEach(canvas => {
             if (!canvas) return;
@@ -562,10 +776,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const height = canvas.offsetHeight;
             
             // Redraw the waveform first
-            if (canvas.id === 'original-waveform' && originalBuffer) {
-                drawWaveform(canvas, originalBuffer, '#007bff');
-            } else if (canvas.id === 'processed-waveform' && processedBuffer) {
-                drawWaveform(canvas, processedBuffer, '#28a745');
+            if (isStemSeparation) {
+                // For stem separation, use the combined buffer for all canvases (for now)
+                const activeBuffer = window.previewBuffer || originalBuffer;
+                if (activeBuffer) {
+                    let color = '#007bff';
+                    if (canvas.id.includes('vocal-original')) color = '#007bff';
+                    else if (canvas.id.includes('vocal-processed')) color = '#28a745';
+                    else if (canvas.id.includes('instrumental-original')) color = '#6f42c1';
+                    else if (canvas.id.includes('instrumental-processed')) color = '#fd7e14';
+                    
+                    drawWaveform(canvas, activeBuffer, color);
+                }
+            } else {
+                // Standard waveform redraw
+                if (canvas.id === 'original-waveform' && originalBuffer) {
+                    drawWaveform(canvas, originalBuffer, '#007bff');
+                } else if (canvas.id === 'processed-waveform' && processedBuffer) {
+                    drawWaveform(canvas, processedBuffer, '#28a745');
+                }
             }
             
             // Draw position line
@@ -770,10 +999,231 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePlaybackButtons('stop');
     }
 
+    // Create mixed buffer from individual stems
+    function createMixedBuffer(vocalBlend, instrumentalBlend) {
+        if (!window.targetVocalBuffer || !window.processedVocalBuffer || 
+            !window.targetInstrumentalBuffer || !window.processedInstrumentalBuffer) {
+            return null;
+        }
+        
+        // Get blended vocal and instrumental tracks
+        const vocalBuffer = blendStemBuffers(window.targetVocalBuffer, window.processedVocalBuffer, vocalBlend);
+        const instrumentalBuffer = blendStemBuffers(window.targetInstrumentalBuffer, window.processedInstrumentalBuffer, instrumentalBlend);
+        
+        // Mix vocal and instrumental together
+        const mixedBuffer = audioContext.createBuffer(2, vocalBuffer.length, vocalBuffer.sampleRate);
+        const vocalData = vocalBuffer.getChannelData(0);
+        const instrumentalData = instrumentalBuffer.getChannelData(0);
+        
+        for (let channel = 0; channel < mixedBuffer.numberOfChannels; channel++) {
+            const outputData = mixedBuffer.getChannelData(channel);
+            const vocalChannelData = vocalBuffer.getChannelData(Math.min(channel, vocalBuffer.numberOfChannels - 1));
+            const instrumentalChannelData = instrumentalBuffer.getChannelData(Math.min(channel, instrumentalBuffer.numberOfChannels - 1));
+            
+            for (let i = 0; i < outputData.length; i++) {
+                outputData[i] = vocalChannelData[i] + instrumentalChannelData[i];
+            }
+        }
+        
+        return mixedBuffer;
+    }
+    
+    // Blend two stem buffers based on blend ratio
+    function blendStemBuffers(originalBuffer, processedBuffer, blendRatio) {
+        const blendedBuffer = audioContext.createBuffer(
+            originalBuffer.numberOfChannels,
+            originalBuffer.length,
+            originalBuffer.sampleRate
+        );
+        
+        for (let channel = 0; channel < blendedBuffer.numberOfChannels; channel++) {
+            const blendedData = blendedBuffer.getChannelData(channel);
+            const originalData = originalBuffer.getChannelData(channel);
+            const processedData = processedBuffer.getChannelData(channel);
+            
+            for (let i = 0; i < blendedData.length; i++) {
+                blendedData[i] = originalData[i] * (1 - blendRatio) + processedData[i] * blendRatio;
+            }
+        }
+        
+        return blendedBuffer;
+    }
+
+    // Show preset download links for both stem and non-stem processing
+    function showPresetDownloadLinks() {
+        const vocalPresetPath = processSingleStatus.dataset.vocalPresetPath;
+        const instrumentalPresetPath = processSingleStatus.dataset.instrumentalPresetPath;
+        const vocalPresetFilename = processSingleStatus.dataset.vocalPresetFilename;
+        const instrumentalPresetFilename = processSingleStatus.dataset.instrumentalPresetFilename;
+        
+        const createdPresetPath = processSingleStatus.dataset.createdPresetPath;
+        const createdPresetFilename = processSingleStatus.dataset.createdPresetFilename;
+        
+        // Check if we have presets to show
+        const hasStemPresets = (vocalPresetPath && instrumentalPresetPath);
+        const hasStandardPreset = (createdPresetPath);
+        
+        if (hasStemPresets || hasStandardPreset) {
+            // Find or create preset download section
+            let presetDownloadSection = document.getElementById('preset-download-section');
+            if (!presetDownloadSection) {
+                presetDownloadSection = document.createElement('div');
+                presetDownloadSection.id = 'preset-download-section';
+                presetDownloadSection.className = 'mt-4 p-3 bg-secondary rounded';
+                presetDownloadSection.innerHTML = `
+                    <h5 class="text-light mb-3">📥 Download Reference Presets</h5>
+                    <div class="alert alert-info">
+                        <small>These presets were created from your reference audio's separated stems. You can use them for future processing!</small>
+                    </div>
+                    <div id="preset-download-links" class="d-flex flex-wrap gap-3"></div>
+                `;
+                
+                // Insert before the waveform section
+                const waveformSection = document.querySelector('.stem-waveform-container') || document.querySelector('.waveform-container');
+                if (waveformSection) {
+                    waveformSection.parentNode.insertBefore(presetDownloadSection, waveformSection);
+                }
+            }
+            
+            // Create download links
+            const linksContainer = document.getElementById('preset-download-links');
+            linksContainer.innerHTML = '';
+            
+            if (hasStemPresets) {
+                // Vocal preset link
+                const vocalLink = document.createElement('a');
+                vocalLink.href = `/download/preset/${vocalPresetPath.split('/').pop()}?download_name=${encodeURIComponent(vocalPresetFilename)}`;
+                vocalLink.className = 'btn btn-outline-primary btn-sm';
+                vocalLink.innerHTML = '🎤 ' + vocalPresetFilename;
+                vocalLink.title = 'Download vocal preset';
+                
+                // Instrumental preset link
+                const instrumentalLink = document.createElement('a');
+                instrumentalLink.href = `/download/preset/${instrumentalPresetPath.split('/').pop()}?download_name=${encodeURIComponent(instrumentalPresetFilename)}`;
+                instrumentalLink.className = 'btn btn-outline-primary btn-sm';
+                instrumentalLink.innerHTML = '🎹 ' + instrumentalPresetFilename;
+                instrumentalLink.title = 'Download instrumental preset';
+                
+                linksContainer.appendChild(vocalLink);
+                linksContainer.appendChild(instrumentalLink);
+            } else if (hasStandardPreset) {
+                // Standard preset link
+                const standardLink = document.createElement('a');
+                standardLink.href = `/download/preset/${createdPresetPath.split('/').pop()}?download_name=${encodeURIComponent(createdPresetFilename)}`;
+                standardLink.className = 'btn btn-outline-primary btn-sm';
+                standardLink.innerHTML = '🎵 ' + createdPresetFilename;
+                standardLink.title = 'Download preset';
+                
+                linksContainer.appendChild(standardLink);
+            }
+        }
+    }
+
+    // Initialize stem waveform display
+    async function initializeStemWaveforms() {
+        const targetVocalPath = processSingleStatus.dataset.targetVocalPath;
+        const targetInstrumentalPath = processSingleStatus.dataset.targetInstrumentalPath;
+        const processedVocalPath = processSingleStatus.dataset.processedVocalPath;
+        const processedInstrumentalPath = processSingleStatus.dataset.processedInstrumentalPath;
+        
+        if (!targetVocalPath || !processedVocalPath) {
+            console.error('Stem paths not found for stem separation');
+            return;
+        }
+        
+        try {
+            // Set up audio context if not already done
+            if (audioContext) {
+                audioContext.close();
+            }
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            const fetchAudio = async (url) => {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                return await audioContext.decodeAudioData(arrayBuffer);
+            };
+
+            // Load individual stem files for waveform display and real-time mixing
+            const targetVocalBuffer = await fetchAudio(`/temp_files/${targetVocalPath.split('/').pop()}`);
+            const targetInstrumentalBuffer = await fetchAudio(`/temp_files/${targetInstrumentalPath.split('/').pop()}`);
+            const processedVocalBuffer = await fetchAudio(`/temp_files/${processedVocalPath.split('/').pop()}`);
+            const processedInstrumentalBuffer = await fetchAudio(`/temp_files/${processedInstrumentalPath.split('/').pop()}`);
+            
+            // Store buffers globally for real-time mixing
+            window.targetVocalBuffer = targetVocalBuffer;
+            window.targetInstrumentalBuffer = targetInstrumentalBuffer;
+            window.processedVocalBuffer = processedVocalBuffer;
+            window.processedInstrumentalBuffer = processedInstrumentalBuffer;
+            
+            // Get canvas elements
+            const vocalOriginalCanvas = document.getElementById('vocal-original-waveform');
+            const vocalProcessedCanvas = document.getElementById('vocal-processed-waveform');
+            const instrumentalOriginalCanvas = document.getElementById('instrumental-original-waveform');
+            const instrumentalProcessedCanvas = document.getElementById('instrumental-processed-waveform');
+
+            // Draw individual stem waveforms
+            drawWaveform(vocalOriginalCanvas, targetVocalBuffer, '#007bff');
+            drawWaveform(vocalProcessedCanvas, processedVocalBuffer, '#28a745');
+            drawWaveform(instrumentalOriginalCanvas, targetInstrumentalBuffer, '#6f42c1');
+            drawWaveform(instrumentalProcessedCanvas, processedInstrumentalBuffer, '#fd7e14');
+
+            // Create gain nodes for stem mixing
+            gainOriginal = audioContext.createGain();
+            gainOriginal.connect(audioContext.destination);
+            gainOriginal.gain.value = 1;
+            
+            // Create initial mixed buffer for playback (50/50 mix)
+            const mixedBuffer = createMixedBuffer(0.5, 0.5);
+            window.previewBuffer = mixedBuffer;
+            originalBuffer = mixedBuffer; // For compatibility with existing playback code
+
+            // Initialize knob if not already done
+            if (!blendKnobCanvas.dataset.initialized) {
+                initializeKnob();
+                blendKnobCanvas.dataset.initialized = 'true';
+            }
+
+            // Add click listeners for seeking on stem waveforms
+            [vocalOriginalCanvas, vocalProcessedCanvas, instrumentalOriginalCanvas, instrumentalProcessedCanvas].forEach(canvas => {
+                canvas.addEventListener('click', seekAudio);
+            });
+            
+            // Reset playback buttons to initial state
+            updatePlaybackButtons('stop');
+            
+        } catch (error) {
+            console.error('Error initializing stem waveforms:', error);
+        }
+    }
+
     // Save blend button event listener
     saveBlendButton.addEventListener('click', async () => {
+        const isStemSeparation = processSingleStatus.dataset.isStemSeparation === 'true';
         const originalFilePath = processSingleStatus.dataset.originalFilePath;
         const processedFilePath = processSingleStatus.dataset.processedFilePath;
+        const combinedFilePath = processSingleStatus.dataset.combinedFilePath;
+        
+        if (isStemSeparation) {
+            // For stem separation, save the combined file directly
+            if (!combinedFilePath) {
+                showStatus(saveBlendStatus, 'Error: No processed files available to save.', true);
+                return;
+            }
+            
+            // For stem separation, we don't need to blend - just provide a download link
+            const combinedFileName = combinedFilePath.split('/').pop();
+            const originalFileName = processSingleStatus.dataset.originalFileName;
+            const referenceName = processSingleStatus.dataset.referenceName;
+            
+            // Generate download filename for stem separation
+            const downloadName = `${originalFileName}-stems-${referenceName}.wav`;
+            
+            showStatus(saveBlendStatus, 
+                `Processed audio ready: <a href="/temp_files/${combinedFileName}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
+            );
+            return;
+        }
         
         if (!originalFilePath || !processedFilePath) {
             showStatus(saveBlendStatus, 'Error: No processed files available to blend.', true);
@@ -959,6 +1409,99 @@ document.addEventListener('DOMContentLoaded', () => {
                 showStatus(processBatchStatus, `Network error: ${error.message}`, true);
             }
         }, 2000); // Poll every 2 seconds
+    }
+
+    // --- Stem Separation Section ---
+    const stemSeparationForm = document.getElementById('stem-separation-form');
+    const stemSeparationStatus = document.getElementById('stem-separation-status');
+    const stemSeparationResults = document.getElementById('stem-separation-results');
+    const stemDownloadLinks = document.getElementById('stem-download-links');
+
+    if (stemSeparationForm) {
+        stemSeparationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showStatus(stemSeparationStatus, 'Starting stem separation...');
+            stemSeparationResults.style.display = 'none';
+
+            const formData = new FormData();
+            const audioFile = document.getElementById('stem-audio-file').files[0];
+            formData.append('audio_file', audioFile);
+
+            try {
+                const response = await fetch('/api/separate_stems', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.job_id) {
+                    // Start polling for progress
+                    const pollInterval = setInterval(async () => {
+                        try {
+                            const progressResponse = await fetch(`/api/progress/${data.job_id}`);
+                            
+                            if (progressResponse.ok) {
+                                const progressData = await progressResponse.json();
+                                
+                                // Update status with progress
+                                showStatus(stemSeparationStatus, `${progressData.message} (${progressData.progress}%)`);
+                                
+                                // Check if complete
+                                if (progressData.stage === 'complete') {
+                                    clearInterval(pollInterval);
+                                    showStatus(stemSeparationStatus, 'Stems separated successfully!');
+                                    
+                                    // Create download links
+                                    stemDownloadLinks.innerHTML = '';
+                                    
+                                    // Vocal stem link
+                                    const vocalLink = document.createElement('a');
+                                    vocalLink.href = `/temp_files/${progressData.vocal_path.split('/').pop()}?download_name=${encodeURIComponent(progressData.vocal_filename)}`;
+                                    vocalLink.className = 'btn btn-success btn-sm';
+                                    vocalLink.innerHTML = '🎤 Download Vocal Stem';
+                                    vocalLink.download = progressData.vocal_filename;
+                                    vocalLink.title = progressData.vocal_filename;
+                                    
+                                    // Instrumental stem link
+                                    const instrumentalLink = document.createElement('a');
+                                    instrumentalLink.href = `/temp_files/${progressData.instrumental_path.split('/').pop()}?download_name=${encodeURIComponent(progressData.instrumental_filename)}`;
+                                    instrumentalLink.className = 'btn btn-info btn-sm';
+                                    instrumentalLink.innerHTML = '🎹 Download Instrumental Stem';
+                                    instrumentalLink.download = progressData.instrumental_filename;
+                                    instrumentalLink.title = progressData.instrumental_filename;
+                                    
+                                    stemDownloadLinks.appendChild(vocalLink);
+                                    stemDownloadLinks.appendChild(instrumentalLink);
+                                    
+                                    // Show results section
+                                    stemSeparationResults.style.display = 'block';
+                                } else if (progressData.stage === 'error') {
+                                    clearInterval(pollInterval);
+                                    showStatus(stemSeparationStatus, `Error: ${progressData.message}`, true);
+                                }
+                            } else if (progressResponse.status === 404) {
+                                // Job not found, stop polling
+                                clearInterval(pollInterval);
+                                showStatus(stemSeparationStatus, 'Job not found. Please try again.', true);
+                            }
+                        } catch (progressError) {
+                            console.error('Progress polling error:', progressError);
+                            // Continue polling on error
+                        }
+                    }, 1000); // Poll every second
+                    
+                    // Set timeout to stop polling after 10 minutes
+                    setTimeout(() => {
+                        clearInterval(pollInterval);
+                        showStatus(stemSeparationStatus, 'Processing timeout. Please try again.', true);
+                    }, 600000);
+                } else {
+                    showStatus(stemSeparationStatus, `Error: ${data.detail || 'Unknown error'}`, true);
+                }
+            } catch (error) {
+                showStatus(stemSeparationStatus, `Network error: ${error.message}`, true);
+            }
+        });
     }
 
     // Update file status in the list

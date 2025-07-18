@@ -1,3 +1,6 @@
 [submodule "matchering-fork"]
 	path = matchering-fork
 	url = git@github.com:jasper046/matchering.git
+[submodule "python-audio-separator"]
+	path = python-audio-separator
+	url = https://github.com/nomadkaraoke/python-audio-separator.git

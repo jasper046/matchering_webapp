@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from typing import List, Optional
+from urllib.parse import unquote
 import os
 import shutil
 import uuid
@@ -11,6 +12,9 @@ from matchering.limiter import limit
 import numpy as np
 import soundfile as sf
 import atexit
+import logging
+import torch
+from audio_separator.separator import Separator
 
 app = FastAPI()
 
@@ -42,12 +46,94 @@ def cleanup_pid_directories():
 # Register cleanup function
 atexit.register(cleanup_pid_directories)
 
+# Initialize the audio separator
+use_cuda = torch.cuda.is_available()
+separator = Separator(log_level=logging.INFO, model_file_dir="/tmp/audio-separator-models", output_dir=OUTPUT_DIR)
+
 # In-memory storage for batch job statuses
 batch_jobs = {}
+
+# In-memory storage for processing progress
+processing_progress = {}
+
+def extract_loudest_segment(audio_path: str, segment_duration: float = 30.0, sample_rate: int = 44100) -> str:
+    """
+    Extract the loudest segment from audio file, similar to matchering's approach.
+    
+    Args:
+        audio_path: Path to the audio file
+        segment_duration: Duration of the segment to extract in seconds
+        sample_rate: Sample rate for processing
+    
+    Returns:
+        Path to the extracted segment file
+    """
+    # Load the audio file
+    audio, sr = sf.read(audio_path)
+    
+    # Convert to mono for analysis if stereo
+    if audio.ndim > 1:
+        audio_mono = np.mean(audio, axis=1)
+    else:
+        audio_mono = audio
+    
+    # Calculate segment size in samples
+    segment_size = int(segment_duration * sr)
+    
+    # If audio is shorter than segment duration, return the whole file
+    if len(audio_mono) <= segment_size:
+        return audio_path
+    
+    # Calculate RMS for overlapping windows
+    hop_size = segment_size // 4  # 75% overlap
+    max_rms = 0
+    best_start = 0
+    
+    for start in range(0, len(audio_mono) - segment_size, hop_size):
+        end = start + segment_size
+        segment = audio_mono[start:end]
+        rms = np.sqrt(np.mean(segment ** 2))
+        
+        if rms > max_rms:
+            max_rms = rms
+            best_start = start
+    
+    # Extract the loudest segment from the original audio (preserve channels)
+    best_end = best_start + segment_size
+    if audio.ndim > 1:
+        loudest_segment = audio[best_start:best_end]
+    else:
+        loudest_segment = audio[best_start:best_end]
+    
+    # Save the segment to a temporary file
+    segment_filename = f"loudest_segment_{uuid.uuid4()}.wav"
+    segment_path = os.path.join(OUTPUT_DIR, segment_filename)
+    sf.write(segment_path, loudest_segment, sr)
+    
+    return segment_path
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     return templates.TemplateResponse("index.html", {"request": {}})
+
+@app.get("/api/system_info")
+async def get_system_info():
+    """Get system information including GPU/CPU status"""
+    return {
+        "cuda_available": torch.cuda.is_available(),
+        "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU",
+        "processing_mode": "GPU" if torch.cuda.is_available() else "CPU"
+    }
+
+@app.get("/api/progress/{job_id}")
+async def get_progress(job_id: str):
+    """Get processing progress for a job"""
+    if job_id not in processing_progress:
+        print(f"DEBUG: Job {job_id} not found in processing_progress")
+        raise HTTPException(status_code=404, detail="Job not found")
+    progress_data = processing_progress[job_id]
+    print(f"DEBUG: Returning progress for job {job_id}: {progress_data}")
+    return progress_data
 
 @app.post("/api/create_preset")
 async def create_preset(reference_file: UploadFile = File(...)):
@@ -91,12 +177,282 @@ async def blend_presets(preset_files: List[UploadFile] = File(...), new_preset_n
         for path in uploaded_preset_paths:
             os.remove(path)
 
+@app.post("/api/process_stems")
+async def process_stems(
+    target_file: UploadFile = File(...),
+    vocal_preset_file: UploadFile = File(...),
+    instrumental_preset_file: UploadFile = File(...),
+):
+    target_path = os.path.join(UPLOAD_DIR, target_file.filename)
+    with open(target_path, "wb") as f:
+        shutil.copyfileobj(target_file.file, f)
+
+    vocal_preset_path = os.path.join(UPLOAD_DIR, vocal_preset_file.filename)
+    with open(vocal_preset_path, "wb") as f:
+        shutil.copyfileobj(vocal_preset_file.file, f)
+
+    instrumental_preset_path = os.path.join(UPLOAD_DIR, instrumental_preset_file.filename)
+    with open(instrumental_preset_path, "wb") as f:
+        shutil.copyfileobj(instrumental_preset_file.file, f)
+
+    try:
+        # Separate the audio into vocals and instrumentals
+        separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
+        primary_stem_path, secondary_stem_path = separator.separate(target_path)
+
+        # Process the vocal stem
+        processed_vocal_path = os.path.join(OUTPUT_DIR, f"processed_vocals_{uuid.uuid4()}.wav")
+        mg.process_with_preset(
+            target=primary_stem_path,
+            preset_path=vocal_preset_path,
+            results=[mg.pcm24(processed_vocal_path)]
+        )
+
+        # Process the instrumental stem
+        processed_instrumental_path = os.path.join(OUTPUT_DIR, f"processed_instrumentals_{uuid.uuid4()}.wav")
+        mg.process_with_preset(
+            target=secondary_stem_path,
+            preset_path=instrumental_preset_path,
+            results=[mg.pcm24(processed_instrumental_path)]
+        )
+
+        # Combine the processed stems
+        vocal_audio, sr = sf.read(processed_vocal_path)
+        instrumental_audio, _ = sf.read(processed_instrumental_path)
+
+        # Ensure both audio files have the same length
+        min_len = min(len(vocal_audio), len(instrumental_audio))
+        vocal_audio = vocal_audio[:min_len]
+        instrumental_audio = instrumental_audio[:min_len]
+
+        combined_audio = vocal_audio + instrumental_audio
+
+        combined_filename = f"combined_{uuid.uuid4()}.wav"
+        combined_path = os.path.join(OUTPUT_DIR, combined_filename)
+        sf.write(combined_path, combined_audio, sr)
+
+        return {
+            "message": "Stem processing completed successfully",
+            "combined_file_path": combined_path,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        os.remove(target_path)
+        os.remove(vocal_preset_path)
+        os.remove(instrumental_preset_path)
+
+
+def process_stems_with_reference_sync(
+    target_path: str,
+    reference_path: str,
+    job_id: str
+):
+    """Synchronous background task version of stem processing with reference"""
+    print(f"Background task started for job_id: {job_id}")
+    try:
+        
+        # Update progress: Loading model
+        processing_progress[job_id].update({
+            "stage": "loading_model",
+            "progress": 10,
+            "message": "Loading audio separation model..."
+        })
+        
+        # Separate the reference file into vocal and instrumental stems
+        separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
+        
+        # Update progress: Extracting loudest segment
+        processing_progress[job_id].update({
+            "stage": "extracting_segment",
+            "progress": 15,
+            "message": "Finding loudest part of reference audio..."
+        })
+        print(f"DEBUG: Progress updated for job {job_id}: extracting_segment 15%")
+        
+        # Extract loudest segment from reference (much faster than processing entire file)
+        ref_segment_path = extract_loudest_segment(reference_path, segment_duration=30.0)
+        
+        # Update progress: Separating reference segment
+        processing_progress[job_id].update({
+            "stage": "separating_reference",
+            "progress": 25,
+            "message": "Separating reference segment into vocal and instrumental stems..."
+        })
+        print(f"DEBUG: Progress updated for job {job_id}: separating_reference 25%")
+        
+        separator.separate(ref_segment_path)
+        
+        # Construct paths for separated reference files
+        ref_segment_base = os.path.splitext(os.path.basename(ref_segment_path))[0]
+        ref_vocal_path = os.path.join(OUTPUT_DIR, f"{ref_segment_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
+        ref_instrumental_path = os.path.join(OUTPUT_DIR, f"{ref_segment_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
+        
+        # Create presets from separated reference stems
+        processing_progress[job_id].update({
+            "stage": "creating_presets",
+            "progress": 35,
+            "message": "Creating presets from separated reference stems..."
+        })
+        
+        # Generate preset filenames based on original reference name
+        reference_base = os.path.splitext(os.path.basename(reference_path))[0]
+        vocal_preset_filename = f"{reference_base}_vocal.pkl"
+        instrumental_preset_filename = f"{reference_base}_instrumental.pkl"
+        
+        vocal_preset_path = os.path.join(PRESET_DIR, vocal_preset_filename)
+        instrumental_preset_path = os.path.join(PRESET_DIR, instrumental_preset_filename)
+        
+        # Create presets using matchering's analyze_reference_track
+        mg.analyze_reference_track(reference=ref_vocal_path, preset_path=vocal_preset_path)
+        mg.analyze_reference_track(reference=ref_instrumental_path, preset_path=instrumental_preset_path)
+        
+        # Update progress: Separating target
+        processing_progress[job_id].update({
+            "stage": "separating_target",
+            "progress": 45,
+            "message": "Separating target audio into vocal and instrumental stems..."
+        })
+        
+        separator.separate(target_path)
+        
+        # Construct paths for separated target files
+        target_base = os.path.splitext(os.path.basename(target_path))[0]
+        target_vocal_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
+        target_instrumental_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
+
+        # Update progress: Processing vocal stem
+        processing_progress[job_id].update({
+            "stage": "processing_vocal",
+            "progress": 65,
+            "message": "Processing vocal stem with matchering..."
+        })
+        
+        processed_vocal_path = os.path.join(OUTPUT_DIR, f"processed_vocals_{uuid.uuid4()}.wav")
+        
+        # Debug: Check if vocal files exist and have content
+        print(f"DEBUG: Vocal target file exists: {os.path.exists(target_vocal_path)}, size: {os.path.getsize(target_vocal_path) if os.path.exists(target_vocal_path) else 0}")
+        print(f"DEBUG: Vocal reference file exists: {os.path.exists(ref_vocal_path)}, size: {os.path.getsize(ref_vocal_path) if os.path.exists(ref_vocal_path) else 0}")
+        
+        mg.process_with_preset(
+            target=target_vocal_path,
+            preset_path=vocal_preset_path,
+            results=[mg.pcm24(processed_vocal_path)]
+        )
+
+        # Update progress: Processing instrumental stem
+        processing_progress[job_id].update({
+            "stage": "processing_instrumental",
+            "progress": 85,
+            "message": "Processing instrumental stem with matchering..."
+        })
+        
+        processed_instrumental_path = os.path.join(OUTPUT_DIR, f"processed_instrumentals_{uuid.uuid4()}.wav")
+        
+        # Debug: Check if instrumental files exist and have content
+        print(f"DEBUG: Instrumental target file exists: {os.path.exists(target_instrumental_path)}, size: {os.path.getsize(target_instrumental_path) if os.path.exists(target_instrumental_path) else 0}")
+        print(f"DEBUG: Instrumental reference file exists: {os.path.exists(ref_instrumental_path)}, size: {os.path.getsize(ref_instrumental_path) if os.path.exists(ref_instrumental_path) else 0}")
+        
+        mg.process_with_preset(
+            target=target_instrumental_path,
+            preset_path=instrumental_preset_path,
+            results=[mg.pcm24(processed_instrumental_path)]
+        )
+
+        # Update progress: Combining stems
+        processing_progress[job_id].update({
+            "stage": "combining",
+            "progress": 95,
+            "message": "Combining processed stems..."
+        })
+        
+        # Update progress: Complete (individual stems ready for real-time mixing)
+        processing_progress[job_id].update({
+            "stage": "complete",
+            "progress": 100,
+            "message": "Processing completed successfully!",
+            "target_vocal_path": target_vocal_path,
+            "target_instrumental_path": target_instrumental_path,
+            "processed_vocal_path": processed_vocal_path,
+            "processed_instrumental_path": processed_instrumental_path,
+            "vocal_preset_path": vocal_preset_path,
+            "instrumental_preset_path": instrumental_preset_path,
+            "vocal_preset_filename": vocal_preset_filename,
+            "instrumental_preset_filename": instrumental_preset_filename
+        })
+        
+        # Clean up temporary files
+        os.remove(target_path)
+        os.remove(reference_path)
+        if os.path.exists(ref_segment_path):
+            os.remove(ref_segment_path)
+        if 'ref_vocal_path' in locals():
+            os.remove(ref_vocal_path)
+        if 'ref_instrumental_path' in locals():
+            os.remove(ref_instrumental_path)
+        # Keep stem files for real-time mixing - they will be cleaned up by a separate process
+        # Note: target_vocal_path and target_instrumental_path are kept for waveform display
+        # processed_vocal_path and processed_instrumental_path are kept for real-time blending
+            
+    except Exception as e:
+        processing_progress[job_id].update({
+            "stage": "error",
+            "progress": 0,
+            "message": str(e)
+        })
+
 @app.post("/api/process_single")
 async def process_single(
+    background_tasks: BackgroundTasks,
     target_file: UploadFile = File(...),
     reference_file: Optional[UploadFile] = File(None),
-    preset_file: Optional[UploadFile] = File(None)
+    preset_file: Optional[UploadFile] = File(None),
+    use_stem_separation: bool = Form(False),
+    vocal_preset_file: Optional[UploadFile] = File(None),
+    instrumental_preset_file: Optional[UploadFile] = File(None),
 ):
+    if use_stem_separation:
+        if reference_file:
+            # Stem separation with reference file - create presets from separated reference
+            job_id = str(uuid.uuid4())
+            processing_progress[job_id] = {
+                "stage": "initializing",
+                "progress": 0,
+                "message": "Initializing stem separation with reference...",
+                "device": "GPU" if torch.cuda.is_available() else "CPU"
+            }
+            print(f"DEBUG: Initial progress set for job {job_id}: {processing_progress[job_id]}")
+            
+            # Save files before starting background task (to avoid "read of closed file" error)
+            target_path = os.path.join(UPLOAD_DIR, target_file.filename)
+            reference_path = os.path.join(UPLOAD_DIR, reference_file.filename)
+            
+            with open(target_path, "wb") as f:
+                shutil.copyfileobj(target_file.file, f)
+            with open(reference_path, "wb") as f:
+                shutil.copyfileobj(reference_file.file, f)
+            
+            # Start background task for stem processing
+            print(f"Starting background task for job_id: {job_id}")
+            background_tasks.add_task(
+                process_stems_with_reference_sync,
+                target_path, reference_path, job_id
+            )
+            
+            return {
+                "message": "Stem processing started",
+                "job_id": job_id
+            }
+        elif vocal_preset_file and instrumental_preset_file:
+            # Stem separation with presets
+            return await process_stems(
+                target_file=target_file,
+                vocal_preset_file=vocal_preset_file,
+                instrumental_preset_file=instrumental_preset_file,
+            )
+        else:
+            raise HTTPException(status_code=400, detail="For stem separation, either a reference file or both vocal and instrumental presets are required.")
+
     if not reference_file and not preset_file:
         raise HTTPException(status_code=400, detail="Either a reference file or a preset file must be provided.")
     if reference_file and preset_file:
@@ -111,16 +467,38 @@ async def process_single(
 
     try:
         if reference_file:
+            # Step 1: Create preset from reference audio first
             ref_path = os.path.join(UPLOAD_DIR, reference_file.filename)
             with open(ref_path, "wb") as f:
                 shutil.copyfileobj(reference_file.file, f)
-            mg.process(
+            
+            # Generate preset filename
+            reference_base = os.path.splitext(reference_file.filename)[0]
+            preset_filename = f"{reference_base}.pkl"
+            created_preset_path = os.path.join(PRESET_DIR, preset_filename)
+            
+            # Create preset using analyze_reference_track
+            mg.analyze_reference_track(reference=ref_path, preset_path=created_preset_path)
+            
+            # Step 2: Process target using the created preset
+            mg.process_with_preset(
                 target=target_path,
-                reference=ref_path,
+                preset_path=created_preset_path,
                 results=[mg.pcm24(processed_path)]
             )
+            
+            # Clean up reference file
             os.remove(ref_path)
+            
+            return {
+                "message": "Single file processed successfully",
+                "original_file_path": target_path,
+                "processed_file_path": processed_path,
+                "created_preset_path": created_preset_path,
+                "created_preset_filename": preset_filename
+            }
         elif preset_file:
+            # Standard preset processing (unchanged)
             preset_temp_path = os.path.join(UPLOAD_DIR, preset_file.filename)
             with open(preset_temp_path, "wb") as f:
                 shutil.copyfileobj(preset_file.file, f)
@@ -131,11 +509,11 @@ async def process_single(
             )
             os.remove(preset_temp_path)
 
-        return {
-            "message": "Single file processed successfully",
-            "original_file_path": target_path,
-            "processed_file_path": processed_path
-        }
+            return {
+                "message": "Single file processed successfully",
+                "original_file_path": target_path,
+                "processed_file_path": processed_path
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -365,15 +743,173 @@ async def preview_blend(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class ProgressInterceptor:
+    """Context manager to intercept tqdm progress bars for real-time updates"""
+    
+    def __init__(self, job_id: str):
+        self.job_id = job_id
+        self.original_tqdm = None
+        self.current_stage = "separating"
+        
+    def __enter__(self):
+        # Store original tqdm
+        import tqdm
+        self.original_tqdm = tqdm.tqdm
+        
+        def custom_tqdm(*args, **kwargs):
+            pbar = self.original_tqdm(*args, **kwargs)
+            original_update = pbar.update
+            
+            def update_with_callback(n=1):
+                result = original_update(n)
+                if pbar.total and pbar.total > 0:
+                    progress = min((pbar.n / pbar.total) * 100, 100)
+                    # Update progress in our global store
+                    if self.job_id in processing_progress:
+                        processing_progress[self.job_id].update({
+                            "progress": int(progress),
+                            "message": f"Processing audio separation... {progress:.1f}%"
+                        })
+                return result
+            
+            pbar.update = update_with_callback
+            return pbar
+        
+        # Replace tqdm in the separator modules
+        try:
+            import audio_separator.separator.architectures.mdx_separator
+            import audio_separator.separator.architectures.vr_separator
+            import audio_separator.separator.architectures.mdxc_separator
+            audio_separator.separator.architectures.mdx_separator.tqdm = custom_tqdm
+            audio_separator.separator.architectures.vr_separator.tqdm = custom_tqdm
+            audio_separator.separator.architectures.mdxc_separator.tqdm = custom_tqdm
+        except ImportError:
+            pass  # Some modules might not be available
+        
+        return self
+    
+    def __exit__(self, *args):
+        # Restore original tqdm
+        if self.original_tqdm:
+            import tqdm
+            tqdm.tqdm = self.original_tqdm
+
+
+def separate_stems_background(audio_path: str, job_id: str, original_filename: str):
+    """Background task for stem separation with progress tracking"""
+    try:
+        # Initialize progress
+        processing_progress[job_id] = {
+            "stage": "initializing",
+            "progress": 0,
+            "message": "Initializing stem separation..."
+        }
+        
+        # Initialize separator
+        processing_progress[job_id].update({
+            "stage": "loading_model",
+            "progress": 10,
+            "message": "Loading separation model..."
+        })
+        
+        separator = Separator(
+            output_dir=OUTPUT_DIR,
+            output_format="WAV"
+        )
+        separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
+        
+        # Start separation with progress tracking
+        processing_progress[job_id].update({
+            "stage": "separating",
+            "progress": 20,
+            "message": "Starting audio separation..."
+        })
+        
+        # Use progress interceptor to track separation progress
+        with ProgressInterceptor(job_id):
+            separator.separate(audio_path)
+        
+        # Construct paths for separated files (library generates these)
+        audio_base = os.path.splitext(os.path.basename(audio_path))[0]
+        temp_vocal_path = os.path.join(OUTPUT_DIR, f"{audio_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
+        temp_instrumental_path = os.path.join(OUTPUT_DIR, f"{audio_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
+        
+        # Generate clean filenames and paths
+        original_base = os.path.splitext(original_filename)[0]
+        vocal_filename = f"{original_base}_Vocal.wav"
+        instrumental_filename = f"{original_base}_Instrumental.wav"
+        vocal_path = os.path.join(OUTPUT_DIR, vocal_filename)
+        instrumental_path = os.path.join(OUTPUT_DIR, instrumental_filename)
+        
+        # Rename files to clean names
+        if os.path.exists(temp_vocal_path):
+            shutil.move(temp_vocal_path, vocal_path)
+        if os.path.exists(temp_instrumental_path):
+            shutil.move(temp_instrumental_path, instrumental_path)
+        
+        # Complete
+        processing_progress[job_id].update({
+            "stage": "complete",
+            "progress": 100,
+            "message": "Stem separation completed successfully!",
+            "vocal_path": vocal_path,
+            "instrumental_path": instrumental_path,
+            "vocal_filename": vocal_filename,
+            "instrumental_filename": instrumental_filename
+        })
+        
+    except Exception as e:
+        processing_progress[job_id].update({
+            "stage": "error",
+            "progress": 0,
+            "message": f"Error during separation: {str(e)}"
+        })
+    finally:
+        # Clean up input file
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+
+
+@app.post("/api/separate_stems")
+async def separate_stems(
+    background_tasks: BackgroundTasks,
+    audio_file: UploadFile = File(...)
+):
+    """Separate audio file into vocal and instrumental stems with progress tracking"""
+    # Create job ID for tracking
+    job_id = str(uuid.uuid4())
+    
+    # Save uploaded file
+    audio_filename = f"stem_input_{uuid.uuid4()}.wav"
+    audio_path = os.path.join(UPLOAD_DIR, audio_filename)
+    with open(audio_path, "wb") as f:
+        shutil.copyfileobj(audio_file.file, f)
+    
+    # Start background task
+    background_tasks.add_task(
+        separate_stems_background,
+        audio_path,
+        job_id,
+        audio_file.filename
+    )
+    
+    return {
+        "message": "Stem separation started",
+        "job_id": job_id
+    }
+
 @app.get("/temp_files/{filename}")
 async def get_temp_file(filename: str):
+    # URL decode the filename to handle special characters
+    decoded_filename = unquote(filename)
+    
     # Check if the file is in UPLOAD_DIR or OUTPUT_DIR
-    upload_file_path = os.path.join(UPLOAD_DIR, filename)
-    output_file_path = os.path.join(OUTPUT_DIR, filename)
+    upload_file_path = os.path.join(UPLOAD_DIR, decoded_filename)
+    output_file_path = os.path.join(OUTPUT_DIR, decoded_filename)
 
     if os.path.exists(upload_file_path):
-        return FileResponse(path=upload_file_path, filename=filename)
+        return FileResponse(path=upload_file_path, filename=decoded_filename)
     elif os.path.exists(output_file_path):
-        return FileResponse(path=output_file_path, filename=filename)
+        return FileResponse(path=output_file_path, filename=decoded_filename)
     else:
         raise HTTPException(status_code=404, detail="Temporary file not found.")
