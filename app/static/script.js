@@ -256,6 +256,19 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         checkProcessButtonVisibility();
         singleConversionResults.style.display = 'none'; // Hide results if preset file changes
     });
+    
+    // Event listeners for vocal and instrumental preset files (stem separation mode)
+    document.getElementById('vocal-preset-file-single').addEventListener('change', () => {
+        processSingleStatus.textContent = ''; // Clear status
+        checkProcessButtonVisibility();
+        singleConversionResults.style.display = 'none'; // Hide results if vocal preset file changes
+    });
+    
+    document.getElementById('instrumental-preset-file-single').addEventListener('change', () => {
+        processSingleStatus.textContent = ''; // Clear status
+        checkProcessButtonVisibility();
+        singleConversionResults.style.display = 'none'; // Hide results if instrumental preset file changes
+    });
 
     // Stem separation event listener
     useStemSeparation.addEventListener('change', () => {
@@ -378,9 +391,17 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             referenceName = refFile.name.split('.').slice(0, -1).join('.').substring(0, 8); // Cap at 8 chars
         }
         else if (radioPreset.checked) {
-            const presetFile = presetFileSingle.files[0];
-            formData.append('preset_file', presetFile);
-            referenceName = presetFile.name.split('.').slice(0, -1).join('.').substring(0, 8); // Cap at 8 chars
+            if (useStemSeparation.checked) {
+                // For stem separation with presets, we already added vocal/instrumental preset files above
+                // Use vocal preset name for reference naming
+                const vocalPresetFile = document.getElementById('vocal-preset-file-single').files[0];
+                referenceName = vocalPresetFile ? vocalPresetFile.name.split('.').slice(0, -1).join('.').substring(0, 8) : 'preset';
+            } else {
+                // Standard preset mode
+                const presetFile = presetFileSingle.files[0];
+                formData.append('preset_file', presetFile);
+                referenceName = presetFile.name.split('.').slice(0, -1).join('.').substring(0, 8); // Cap at 8 chars
+            }
         }
 
         // Store original filename and reference name for blended output filename
@@ -396,13 +417,19 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             const data = await response.json();
             
             if (response.ok) {
-                // Store stem separation mode and original filename
+                // Store stem separation mode and original filename (without extension)
                 processSingleStatus.dataset.isStemSeparation = useStemSeparation.checked;
-                processSingleStatus.dataset.originalFileName = formData.get('target_file').name;
+                const targetFileName = targetFile.name;  // Use the targetFile variable, not formData
+                processSingleStatus.dataset.originalFileName = targetFileName.split('.').slice(0, -1).join('.');
+                
+                console.log('Response data:', data);
+                console.log('Is stem separation:', useStemSeparation.checked);
+                console.log('Has job_id:', !!data.job_id);
                 
                 if (useStemSeparation.checked) {
                     // For stem separation, start progress polling if we have a job_id
                     if (data.job_id) {
+                        console.log('Starting progress polling for job_id:', data.job_id);
                         // Show stem channels and hide standard channel
                         document.getElementById('standard-channel').style.display = 'none';
                         document.getElementById('vocal-channel').style.display = 'block';
@@ -1456,7 +1483,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                     const downloadName = `${baseFilename}_stem_blend_v${Math.round(vocalBlendRatio * 100)}_i${Math.round(instrumentalBlendRatio * 100)}.wav`;
                     
                     showStatus(saveBlendStatus, 
-                        `Stem blend saved: <a href="/temp_files/${outputFilename}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
+                        `Output file: <a href="/temp_files/${outputFilename}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
                     );
                 } else {
                     showStatus(saveBlendStatus, `Error saving stem blend: ${data.detail}`, true);
@@ -1508,7 +1535,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                 const downloadName = `${originalFileName}-out-${referenceName}-blend${blendPercentage}.wav`;
                 
                 showStatus(saveBlendStatus, 
-                    `Blended audio saved: <a href="/download/output/${blendedFileName}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
+                    `Output file: <a href="/download/output/${blendedFileName}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
                 );
             } else {
                 showStatus(saveBlendStatus, `Error: ${data.detail}`, true);

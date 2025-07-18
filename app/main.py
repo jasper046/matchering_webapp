@@ -243,6 +243,103 @@ async def process_stems(
         os.remove(instrumental_preset_path)
 
 
+def process_stems_with_presets_sync(
+    target_path: str,
+    vocal_preset_path: str,
+    instrumental_preset_path: str,
+    job_id: str
+):
+    """Synchronous background task for stem processing with preset files"""
+    print(f"Background task started for job_id: {job_id}")
+    try:
+        # Update progress: Loading model
+        processing_progress[job_id].update({
+            "stage": "loading_model",
+            "progress": 10,
+            "message": "Loading audio separation model..."
+        })
+        
+        # Separate the target file into vocal and instrumental stems
+        separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
+        
+        # Update progress: Separating target
+        processing_progress[job_id].update({
+            "stage": "separating_target",
+            "progress": 25,
+            "message": "Separating target audio into vocal and instrumental stems..."
+        })
+        
+        separator.separate(target_path)
+        
+        # Construct paths for separated target files
+        target_base = os.path.splitext(os.path.basename(target_path))[0]
+        target_vocal_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
+        target_instrumental_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
+
+        # Update progress: Processing vocal stem
+        processing_progress[job_id].update({
+            "stage": "processing_vocal",
+            "progress": 50,
+            "message": "Processing vocal stem with matchering..."
+        })
+        
+        processed_vocal_path = os.path.join(OUTPUT_DIR, f"processed_vocals_{uuid.uuid4()}.wav")
+        
+        mg.process_with_preset(
+            target=target_vocal_path,
+            preset_path=vocal_preset_path,
+            results=[mg.pcm24(processed_vocal_path)]
+        )
+
+        # Update progress: Processing instrumental stem
+        processing_progress[job_id].update({
+            "stage": "processing_instrumental",
+            "progress": 75,
+            "message": "Processing instrumental stem with matchering..."
+        })
+        
+        processed_instrumental_path = os.path.join(OUTPUT_DIR, f"processed_instrumentals_{uuid.uuid4()}.wav")
+        
+        mg.process_with_preset(
+            target=target_instrumental_path,
+            preset_path=instrumental_preset_path,
+            results=[mg.pcm24(processed_instrumental_path)]
+        )
+
+        # Update progress: Complete
+        processing_progress[job_id].update({
+            "stage": "complete",
+            "progress": 100,
+            "message": "Processing completed successfully!",
+            "target_vocal_path": target_vocal_path,
+            "target_instrumental_path": target_instrumental_path,
+            "processed_vocal_path": processed_vocal_path,
+            "processed_instrumental_path": processed_instrumental_path,
+            "vocal_preset_path": vocal_preset_path,
+            "instrumental_preset_path": instrumental_preset_path,
+            "vocal_preset_filename": os.path.basename(vocal_preset_path),
+            "instrumental_preset_filename": os.path.basename(instrumental_preset_path)
+        })
+        
+        # Clean up temporary files but KEEP stem files for frontend usage
+        os.remove(target_path)
+        os.remove(vocal_preset_path)
+        os.remove(instrumental_preset_path)
+        
+        # IMPORTANT: Keep these files for frontend waveform display and real-time mixing:
+        # - target_vocal_path (original vocal stem for waveform display)
+        # - target_instrumental_path (original instrumental stem for waveform display)
+        # - processed_vocal_path (processed vocal stem for mixing)
+        # - processed_instrumental_path (processed instrumental stem for mixing)
+        
+    except Exception as e:
+        processing_progress[job_id].update({
+            "stage": "error",
+            "progress": 0,
+            "message": f"Error during processing: {str(e)}"
+        })
+
+
 def process_stems_with_reference_sync(
     target_path: str,
     reference_path: str,
@@ -416,7 +513,9 @@ async def process_single(
     instrumental_preset_file: Optional[UploadFile] = File(None),
 ):
     if use_stem_separation:
+        print(f"DEBUG: Stem separation mode enabled")
         if reference_file:
+            print(f"DEBUG: Using reference file for stem separation")
             # Stem separation with reference file - create presets from separated reference
             job_id = str(uuid.uuid4())
             processing_progress[job_id] = {
@@ -448,13 +547,45 @@ async def process_single(
                 "job_id": job_id
             }
         elif vocal_preset_file and instrumental_preset_file:
-            # Stem separation with presets
-            return await process_stems(
-                target_file=target_file,
-                vocal_preset_file=vocal_preset_file,
-                instrumental_preset_file=instrumental_preset_file,
+            print(f"DEBUG: Using preset files for stem separation")
+            print(f"DEBUG: Vocal preset: {vocal_preset_file.filename}")
+            print(f"DEBUG: Instrumental preset: {instrumental_preset_file.filename}")
+            # Stem separation with presets - use background task for progress tracking
+            job_id = str(uuid.uuid4())
+            processing_progress[job_id] = {
+                "stage": "initializing",
+                "progress": 0,
+                "message": "Initializing stem separation with presets...",
+                "device": "GPU" if torch.cuda.is_available() else "CPU"
+            }
+            
+            # Save files before starting background task
+            target_path = os.path.join(UPLOAD_DIR, target_file.filename)
+            vocal_preset_path = os.path.join(UPLOAD_DIR, vocal_preset_file.filename)
+            instrumental_preset_path = os.path.join(UPLOAD_DIR, instrumental_preset_file.filename)
+            
+            with open(target_path, "wb") as f:
+                shutil.copyfileobj(target_file.file, f)
+            with open(vocal_preset_path, "wb") as f:
+                shutil.copyfileobj(vocal_preset_file.file, f)
+            with open(instrumental_preset_path, "wb") as f:
+                shutil.copyfileobj(instrumental_preset_file.file, f)
+            
+            # Start background task
+            background_tasks.add_task(
+                process_stems_with_presets_sync,
+                target_path, vocal_preset_path, instrumental_preset_path, job_id
             )
+            
+            return {
+                "message": "Stem processing started",
+                "job_id": job_id
+            }
         else:
+            print(f"DEBUG: Missing required files for stem separation")
+            print(f"DEBUG: reference_file: {reference_file}")
+            print(f"DEBUG: vocal_preset_file: {vocal_preset_file}")
+            print(f"DEBUG: instrumental_preset_file: {instrumental_preset_file}")
             raise HTTPException(status_code=400, detail="For stem separation, either a reference file or both vocal and instrumental presets are required.")
 
     if not reference_file and not preset_file:
