@@ -75,6 +75,33 @@ h1, h2 {
     gap: 8px;
 }
 
+.knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.knob-input {
+    width: 50px;
+    height: 24px;
+    background-color: #343a40;
+    color: #f8f9fa;
+    border: 1px solid #495057;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 4px;
+}
+
+.knob-input:focus {
+    background-color: #495057;
+    border-color: #86b7fe;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+}
+
 .master-controls-box {
     background-color: #2b2b2b;
     border: 1px solid #444;
@@ -233,6 +260,12 @@ canvas {
     left: 0;
     width: 100%;
     height: 120px; /* Increased height for better combined waveform visibility */
+}
+
+/* Override canvas sizing for knob canvases to prevent stretching */
+canvas[id*="blend-knob"] {
+    width: 60px !important;
+    height: 60px !important;
 }
 
 /* Adjustments for Bootstrap form elements */

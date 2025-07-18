@@ -562,7 +562,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         const canvas = blendKnobCanvas;
         const ctx = canvas.getContext('2d');
         
-        // Set canvas size
+        // Set canvas size to match HTML
         canvas.width = 60;
         canvas.height = 60;
         
@@ -572,8 +572,36 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         // Add touch events for mobile
         canvas.addEventListener('touchstart', startDragTouch);
         
+        // Add text input functionality
+        const textInput = document.getElementById('blend-value');
+        if (textInput) {
+            textInput.addEventListener('input', function(e) {
+                let value = parseInt(e.target.value) || 0;
+                value = Math.max(0, Math.min(100, value)); // Clamp between 0-100
+                currentBlendValue = value;
+                drawKnob();
+                updateAudioPreviewAsync();
+            });
+            
+            textInput.addEventListener('blur', function(e) {
+                // Ensure the value is within bounds when focus is lost
+                let value = parseInt(e.target.value) || 0;
+                value = Math.max(0, Math.min(100, value));
+                e.target.value = value;
+                currentBlendValue = value;
+            });
+        }
+        
         // Initial draw
         drawKnob();
+        updateTextInput();
+    }
+    
+    function updateTextInput() {
+        const textInput = document.getElementById('blend-value');
+        if (textInput) {
+            textInput.value = Math.round(currentBlendValue);
+        }
     }
     
     // Dual knob system for stem separation
@@ -588,7 +616,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         
         if (!vocalKnob || !instrumentalKnob) return;
         
-        // Set canvas sizes
+        // Set canvas sizes to match HTML
         vocalKnob.width = 60;
         vocalKnob.height = 60;
         instrumentalKnob.width = 60;
@@ -608,12 +636,63 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         document.addEventListener('touchmove', handleDualKnobMoveTouch);
         document.addEventListener('touchend', stopDualKnobDrag);
         
+        // Add text input functionality for vocal knob
+        const vocalTextInput = document.getElementById('vocal-blend-value');
+        if (vocalTextInput) {
+            vocalTextInput.addEventListener('input', function(e) {
+                let value = parseInt(e.target.value) || 0;
+                value = Math.max(0, Math.min(100, value));
+                currentVocalBlend = value;
+                drawDualKnobs();
+                updateDualStemMix();
+            });
+            
+            vocalTextInput.addEventListener('blur', function(e) {
+                let value = parseInt(e.target.value) || 0;
+                value = Math.max(0, Math.min(100, value));
+                e.target.value = value;
+                currentVocalBlend = value;
+            });
+        }
+        
+        // Add text input functionality for instrumental knob
+        const instrumentalTextInput = document.getElementById('instrumental-blend-value');
+        if (instrumentalTextInput) {
+            instrumentalTextInput.addEventListener('input', function(e) {
+                let value = parseInt(e.target.value) || 0;
+                value = Math.max(0, Math.min(100, value));
+                currentInstrumentalBlend = value;
+                drawDualKnobs();
+                updateDualStemMix();
+            });
+            
+            instrumentalTextInput.addEventListener('blur', function(e) {
+                let value = parseInt(e.target.value) || 0;
+                value = Math.max(0, Math.min(100, value));
+                e.target.value = value;
+                currentInstrumentalBlend = value;
+            });
+        }
+        
         // Initial draw
         drawDualKnobs();
+        updateDualKnobTextInputs();
         
         // Store globally for save function
         window.currentVocalBlend = currentVocalBlend;
         window.currentInstrumentalBlend = currentInstrumentalBlend;
+    }
+    
+    function updateDualKnobTextInputs() {
+        const vocalTextInput = document.getElementById('vocal-blend-value');
+        const instrumentalTextInput = document.getElementById('instrumental-blend-value');
+        
+        if (vocalTextInput) {
+            vocalTextInput.value = Math.round(currentVocalBlend);
+        }
+        if (instrumentalTextInput) {
+            instrumentalTextInput.value = Math.round(currentInstrumentalBlend);
+        }
     }
     
     function startDragVocal(e) {
@@ -660,6 +739,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         }
         
         drawDualKnobs();
+        updateDualKnobTextInputs();
         updateDualStemMix();
     }
     
@@ -680,6 +760,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         }
         
         drawDualKnobs();
+        updateDualKnobTextInputs();
         updateDualStemMix();
     }
     
@@ -702,7 +783,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         const ctx = canvas.getContext('2d');
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
-        const radius = 25;
+        const radius = 24;
         
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -736,11 +817,11 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         ctx.fillStyle = '#fff';
         ctx.fill();
         
-        // Draw percentage text
+        // Draw value text (no percentage sign)
         ctx.fillStyle = '#fff';
-        ctx.font = '10px Arial';
+        ctx.font = '11px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(Math.round(value) + '%', centerX, centerY + 3);
+        ctx.fillText(Math.round(value), centerX, centerY + 4);
     }
     
     function updateDualStemMix() {
@@ -787,6 +868,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         if (newValue !== currentBlendValue) {
             currentBlendValue = Math.round(newValue);
             drawKnob();
+            updateTextInput();
             updateAudioPreviewAsync();
         }
     }
@@ -802,6 +884,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         if (newValue !== currentBlendValue) {
             currentBlendValue = Math.round(newValue);
             drawKnob();
+            updateTextInput();
             updateAudioPreviewAsync();
         }
     }

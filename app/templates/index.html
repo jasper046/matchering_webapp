@@ -112,7 +112,10 @@
                                         <div class="blend-control">
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="text-light small">dry</span>
-                                                <canvas id="blend-knob" width="60" height="60"></canvas>
+                                                <div class="knob-container">
+                                                    <canvas id="blend-knob" width="60" height="60"></canvas>
+                                                    <input type="number" id="blend-value" class="knob-input" min="0" max="100" value="50">
+                                                </div>
                                                 <span class="text-light small">wet</span>
                                             </div>
                                         </div>
@@ -136,7 +139,10 @@
                                         <div class="blend-control">
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="text-light small">dry</span>
-                                                <canvas id="vocal-blend-knob" width="60" height="60"></canvas>
+                                                <div class="knob-container">
+                                                    <canvas id="vocal-blend-knob" width="60" height="60"></canvas>
+                                                    <input type="number" id="vocal-blend-value" class="knob-input" min="0" max="100" value="50">
+                                                </div>
                                                 <span class="text-light small">wet</span>
                                             </div>
                                         </div>
@@ -160,7 +166,10 @@
                                         <div class="blend-control">
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="text-light small">dry</span>
-                                                <canvas id="instrumental-blend-knob" width="60" height="60"></canvas>
+                                                <div class="knob-container">
+                                                    <canvas id="instrumental-blend-knob" width="60" height="60"></canvas>
+                                                    <input type="number" id="instrumental-blend-value" class="knob-input" min="0" max="100" value="50">
+                                                </div>
                                                 <span class="text-light small">wet</span>
                                             </div>
                                         </div>
