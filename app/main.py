@@ -381,7 +381,7 @@ def process_stems_with_reference_sync(
             "instrumental_preset_filename": instrumental_preset_filename
         })
         
-        # Clean up temporary files
+        # Clean up temporary files but KEEP stem files for frontend usage
         os.remove(target_path)
         os.remove(reference_path)
         if os.path.exists(ref_segment_path):
@@ -390,9 +390,13 @@ def process_stems_with_reference_sync(
             os.remove(ref_vocal_path)
         if 'ref_instrumental_path' in locals():
             os.remove(ref_instrumental_path)
-        # Keep stem files for real-time mixing - they will be cleaned up by a separate process
-        # Note: target_vocal_path and target_instrumental_path are kept for waveform display
-        # processed_vocal_path and processed_instrumental_path are kept for real-time blending
+        
+        # IMPORTANT: Keep these files for frontend waveform display and real-time mixing:
+        # - target_vocal_path (original vocal stem for waveform display)
+        # - target_instrumental_path (original instrumental stem for waveform display)
+        # - processed_vocal_path (processed vocal stem for mixing)
+        # - processed_instrumental_path (processed instrumental stem for mixing)
+        # These will be cleaned up by the system's automatic cleanup process
             
     except Exception as e:
         processing_progress[job_id].update({
@@ -561,6 +565,77 @@ async def blend_and_save(
         sf.write(blended_path, blended_audio, sr_orig)
 
         return {"message": "Blended audio saved successfully", "blended_file_path": blended_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/blend_stems_and_save")
+async def blend_stems_and_save(
+    original_vocal_path: str = Form(...),
+    processed_vocal_path: str = Form(...),
+    original_instrumental_path: str = Form(...),
+    processed_instrumental_path: str = Form(...),
+    vocal_blend_ratio: float = Form(...),
+    instrumental_blend_ratio: float = Form(...),
+    apply_limiter: bool = Form(True)
+):
+    """Blend vocal and instrumental stems separately and combine them"""
+    if not (0.0 <= vocal_blend_ratio <= 1.0) or not (0.0 <= instrumental_blend_ratio <= 1.0):
+        raise HTTPException(status_code=400, detail="Blend ratios must be between 0.0 and 1.0.")
+
+    try:
+        # Load all audio files
+        original_vocal, sr_vocal = sf.read(original_vocal_path)
+        processed_vocal, sr_proc_vocal = sf.read(processed_vocal_path)
+        original_instrumental, sr_instrumental = sf.read(original_instrumental_path)
+        processed_instrumental, sr_proc_instrumental = sf.read(processed_instrumental_path)
+
+        # Verify sample rates match
+        if not all(sr == sr_vocal for sr in [sr_proc_vocal, sr_instrumental, sr_proc_instrumental]):
+            raise HTTPException(status_code=400, detail="Sample rates of all audio files must match.")
+        
+        # Ensure all arrays have the same number of channels
+        def ensure_stereo(audio):
+            if audio.ndim == 1:
+                return np.expand_dims(audio, axis=1)
+            return audio
+        
+        original_vocal = ensure_stereo(original_vocal)
+        processed_vocal = ensure_stereo(processed_vocal)
+        original_instrumental = ensure_stereo(original_instrumental)
+        processed_instrumental = ensure_stereo(processed_instrumental)
+
+        # Find the maximum length and pad all arrays to match
+        max_len = max(len(original_vocal), len(processed_vocal), 
+                     len(original_instrumental), len(processed_instrumental))
+        
+        def pad_to_length(audio, target_len):
+            if len(audio) < target_len:
+                return np.pad(audio, ((0, target_len - len(audio)), (0,0)), 'constant')
+            return audio[:target_len]
+        
+        original_vocal = pad_to_length(original_vocal, max_len)
+        processed_vocal = pad_to_length(processed_vocal, max_len)
+        original_instrumental = pad_to_length(original_instrumental, max_len)
+        processed_instrumental = pad_to_length(processed_instrumental, max_len)
+
+        # Blend each stem separately
+        blended_vocal = (original_vocal * (1 - vocal_blend_ratio)) + (processed_vocal * vocal_blend_ratio)
+        blended_instrumental = (original_instrumental * (1 - instrumental_blend_ratio)) + (processed_instrumental * instrumental_blend_ratio)
+
+        # Combine the blended stems
+        combined_audio = blended_vocal + blended_instrumental
+
+        if apply_limiter:
+            # Apply limiter for soft clipping
+            combined_audio = limit(combined_audio, mg.Config())
+
+        # Save the result
+        blended_filename = f"stem_blend_{uuid.uuid4()}.wav"
+        blended_path = os.path.join(OUTPUT_DIR, blended_filename)
+        sf.write(blended_path, combined_audio, sr_vocal)
+
+        return {"message": "Stem blend saved successfully", "blended_file_path": blended_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

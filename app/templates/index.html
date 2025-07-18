@@ -135,19 +135,46 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Shared playback controls -->
                         <div class="d-flex justify-content-center align-items-center gap-3 mt-3">
                             <button type="button" id="play-button" class="btn btn-secondary playback-button">Play</button>
                             <button type="button" id="pause-button" class="btn btn-secondary playback-button">Pause</button>
                             <button type="button" id="stop-button" class="btn btn-secondary playback-button playback-active">Stop</button>
-                            <div class="d-flex align-items-center gap-2 ms-4">
-                                <span class="text-light small">dry</span>
-                                <canvas id="blend-knob" width="60" height="60"></canvas>
-                                <span class="text-light small">wet</span>
-                            </div>
                             <button type="button" id="limiterButton" class="btn limiter-btn limiter-on ms-4">
                                 <span class="limiter-label">LIMITER</span>
                                 <span class="limiter-text">ON</span>
                             </button>
+                        </div>
+                        
+                        <!-- Standard blend controls (non-stem mode) -->
+                        <div id="standard-blend-controls" class="d-flex justify-content-center align-items-center gap-3 mt-3" style="display:none;">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-light small">dry</span>
+                                <canvas id="blend-knob" width="60" height="60"></canvas>
+                                <span class="text-light small">wet</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Stem separation dual blend controls -->
+                        <div id="stem-blend-controls" class="d-flex justify-content-center align-items-center gap-4 mt-3" style="display:none;">
+                            <!-- Vocal blend control -->
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-light small">🎤 Vocal</span>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="text-light small">dry</span>
+                                    <canvas id="vocal-blend-knob" width="60" height="60"></canvas>
+                                    <span class="text-light small">wet</span>
+                                </div>
+                            </div>
+                            <!-- Instrumental blend control -->
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-light small">🎹 Instrumental</span>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="text-light small">dry</span>
+                                    <canvas id="instrumental-blend-knob" width="60" height="60"></canvas>
+                                    <span class="text-light small">wet</span>
+                                </div>
+                            </div>
                         </div>
                         <button type="button" id="save-blend-button" class="btn btn-success mt-3">Keep current blend</button>
                         <div id="save-blend-status" class="mt-3"></div>

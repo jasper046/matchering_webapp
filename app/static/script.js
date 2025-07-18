@@ -317,6 +317,11 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                     
                     // Show results and initialize waveforms
                     singleConversionResults.style.display = 'block';
+                    
+                    // Show stem blend controls and hide standard controls
+                    document.getElementById('standard-blend-controls').style.display = 'none';
+                    document.getElementById('stem-blend-controls').style.display = 'block';
+                    
                     initializeStemWaveforms();
                     
                     // Show preset download links if available
@@ -393,8 +398,9 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             const data = await response.json();
             
             if (response.ok) {
-                // Store stem separation mode
+                // Store stem separation mode and original filename
                 processSingleStatus.dataset.isStemSeparation = useStemSeparation.checked;
+                processSingleStatus.dataset.originalFileName = formData.get('target_file').name;
                 
                 if (useStemSeparation.checked) {
                     // For stem separation, start progress polling if we have a job_id
@@ -402,6 +408,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                         // Show stem waveform container and hide standard container
                         document.getElementById('standard-waveform-container').style.display = 'none';
                         document.getElementById('stem-waveform-container').style.display = 'block';
+                        
+                        // Show stem blend controls and hide standard controls
+                        document.getElementById('standard-blend-controls').style.display = 'none';
+                        document.getElementById('stem-blend-controls').style.display = 'flex';
                         
                         // Start polling for progress (this will update the status immediately)
                         pollProgress(data.job_id);
@@ -412,6 +422,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                         // Show stem waveform container and hide standard container
                         document.getElementById('standard-waveform-container').style.display = 'none';
                         document.getElementById('stem-waveform-container').style.display = 'block';
+                        
+                        // Show stem blend controls and hide standard controls
+                        document.getElementById('standard-blend-controls').style.display = 'none';
+                        document.getElementById('stem-blend-controls').style.display = 'flex';
                         
                         // Store stem-specific paths
                         processSingleStatus.dataset.combinedFilePath = data.combined_file_path;
@@ -429,6 +443,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                     // Show standard waveform container and hide stem container
                     document.getElementById('standard-waveform-container').style.display = 'block';
                     document.getElementById('stem-waveform-container').style.display = 'none';
+                    
+                    // Show standard blend controls and hide stem controls
+                    document.getElementById('standard-blend-controls').style.display = 'flex';
+                    document.getElementById('stem-blend-controls').style.display = 'none';
                     
                     // Store standard paths
                     processSingleStatus.dataset.originalFilePath = data.original_file_path;
@@ -540,6 +558,182 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         
         // Initial draw
         drawKnob();
+    }
+    
+    // Dual knob system for stem separation
+    let currentVocalBlend = 50;
+    let currentInstrumentalBlend = 50;
+    let isDraggingVocal = false;
+    let isDraggingInstrumental = false;
+    
+    function initializeDualKnobs() {
+        const vocalKnob = document.getElementById('vocal-blend-knob');
+        const instrumentalKnob = document.getElementById('instrumental-blend-knob');
+        
+        if (!vocalKnob || !instrumentalKnob) return;
+        
+        // Set canvas sizes
+        vocalKnob.width = 60;
+        vocalKnob.height = 60;
+        instrumentalKnob.width = 60;
+        instrumentalKnob.height = 60;
+        
+        // Add event listeners for vocal knob
+        vocalKnob.addEventListener('mousedown', (e) => startDragVocal(e));
+        vocalKnob.addEventListener('touchstart', (e) => startDragVocalTouch(e));
+        
+        // Add event listeners for instrumental knob
+        instrumentalKnob.addEventListener('mousedown', (e) => startDragInstrumental(e));
+        instrumentalKnob.addEventListener('touchstart', (e) => startDragInstrumentalTouch(e));
+        
+        // Global mouse/touch events for dragging
+        document.addEventListener('mousemove', handleDualKnobMove);
+        document.addEventListener('mouseup', stopDualKnobDrag);
+        document.addEventListener('touchmove', handleDualKnobMoveTouch);
+        document.addEventListener('touchend', stopDualKnobDrag);
+        
+        // Initial draw
+        drawDualKnobs();
+        
+        // Store globally for save function
+        window.currentVocalBlend = currentVocalBlend;
+        window.currentInstrumentalBlend = currentInstrumentalBlend;
+    }
+    
+    function startDragVocal(e) {
+        isDraggingVocal = true;
+        dragStartY = e.clientY;
+        dragStartValue = currentVocalBlend;
+        document.getElementById('vocal-blend-knob').style.cursor = 'grabbing';
+    }
+    
+    function startDragInstrumental(e) {
+        isDraggingInstrumental = true;
+        dragStartY = e.clientY;
+        dragStartValue = currentInstrumentalBlend;
+        document.getElementById('instrumental-blend-knob').style.cursor = 'grabbing';
+    }
+    
+    function startDragVocalTouch(e) {
+        e.preventDefault();
+        isDraggingVocal = true;
+        dragStartY = e.touches[0].clientY;
+        dragStartValue = currentVocalBlend;
+    }
+    
+    function startDragInstrumentalTouch(e) {
+        e.preventDefault();
+        isDraggingInstrumental = true;
+        dragStartY = e.touches[0].clientY;
+        dragStartValue = currentInstrumentalBlend;
+    }
+    
+    function handleDualKnobMove(e) {
+        if (!isDraggingVocal && !isDraggingInstrumental) return;
+        
+        const deltaY = dragStartY - e.clientY;
+        const sensitivity = 0.5;
+        const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY * sensitivity));
+        
+        if (isDraggingVocal) {
+            currentVocalBlend = newValue;
+            window.currentVocalBlend = currentVocalBlend;
+        } else if (isDraggingInstrumental) {
+            currentInstrumentalBlend = newValue;
+            window.currentInstrumentalBlend = currentInstrumentalBlend;
+        }
+        
+        drawDualKnobs();
+        updateDualStemMix();
+    }
+    
+    function handleDualKnobMoveTouch(e) {
+        if (!isDraggingVocal && !isDraggingInstrumental) return;
+        e.preventDefault();
+        
+        const deltaY = dragStartY - e.touches[0].clientY;
+        const sensitivity = 0.5;
+        const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY * sensitivity));
+        
+        if (isDraggingVocal) {
+            currentVocalBlend = newValue;
+            window.currentVocalBlend = currentVocalBlend;
+        } else if (isDraggingInstrumental) {
+            currentInstrumentalBlend = newValue;
+            window.currentInstrumentalBlend = currentInstrumentalBlend;
+        }
+        
+        drawDualKnobs();
+        updateDualStemMix();
+    }
+    
+    function stopDualKnobDrag() {
+        isDraggingVocal = false;
+        isDraggingInstrumental = false;
+        document.getElementById('vocal-blend-knob').style.cursor = 'grab';
+        document.getElementById('instrumental-blend-knob').style.cursor = 'grab';
+    }
+    
+    function drawDualKnobs() {
+        drawKnobOnCanvas('vocal-blend-knob', currentVocalBlend);
+        drawKnobOnCanvas('instrumental-blend-knob', currentInstrumentalBlend);
+    }
+    
+    function drawKnobOnCanvas(canvasId, value) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 25;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw outer circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#444';
+        ctx.fill();
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Draw value arc
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + (value / 100) * 2 * Math.PI;
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 3, startAngle, endAngle);
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        
+        // Draw pointer
+        const pointerAngle = startAngle + (value / 100) * 2 * Math.PI;
+        const pointerX = centerX + Math.cos(pointerAngle) * (radius - 8);
+        const pointerY = centerY + Math.sin(pointerAngle) * (radius - 8);
+        
+        ctx.beginPath();
+        ctx.arc(pointerX, pointerY, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        
+        // Draw percentage text
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.round(value) + '%', centerX, centerY + 3);
+    }
+    
+    function updateDualStemMix() {
+        // Update the mixed buffer with new blend ratios
+        if (window.previewBuffer) {
+            const newMixedBuffer = createMixedBuffer(currentVocalBlend / 100, currentInstrumentalBlend / 100);
+            window.previewBuffer = newMixedBuffer;
+            originalBuffer = newMixedBuffer;
+        }
     }
     
     function startDrag(e) {
@@ -676,8 +870,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         
         if (!buffer) return;
         
-        const data = buffer.getChannelData(0);
-        const step = Math.ceil(data.length / width);
+        // Use max absolute value of left and right channels for better mono representation
+        const leftData = buffer.getChannelData(0);
+        const rightData = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : leftData;
+        const step = Math.ceil(leftData.length / width);
         const amp = height / 2;
         
         ctx.fillStyle = color;
@@ -685,12 +881,17 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         
         for (let i = 0; i < width; i++) {
             const index = i * step;
-            if (index >= data.length) break;
+            if (index >= leftData.length) break;
             
-            // Get max and min values in this section for better visualization
+            // Get max and min values from both channels for better mono representation
             let min = 0, max = 0;
-            for (let j = 0; j < step && index + j < data.length; j++) {
-                const value = data[index + j];
+            for (let j = 0; j < step && index + j < leftData.length; j++) {
+                const leftValue = leftData[index + j];
+                const rightValue = rightData[index + j];
+                // Use max absolute value for better visualization
+                const maxAbsValue = Math.max(Math.abs(leftValue), Math.abs(rightValue));
+                const value = leftValue >= 0 ? maxAbsValue : -maxAbsValue;
+                
                 if (value < min) min = value;
                 if (value > max) max = value;
             }
@@ -777,16 +978,26 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             
             // Redraw the waveform first
             if (isStemSeparation) {
-                // For stem separation, use the combined buffer for all canvases (for now)
-                const activeBuffer = window.previewBuffer || originalBuffer;
-                if (activeBuffer) {
-                    let color = '#007bff';
-                    if (canvas.id.includes('vocal-original')) color = '#007bff';
-                    else if (canvas.id.includes('vocal-processed')) color = '#28a745';
-                    else if (canvas.id.includes('instrumental-original')) color = '#6f42c1';
-                    else if (canvas.id.includes('instrumental-processed')) color = '#fd7e14';
-                    
-                    drawWaveform(canvas, activeBuffer, color);
+                // For stem separation, use the individual stem buffers (STATIC - don't change on blend)
+                let buffer = null;
+                let color = '#007bff';
+                
+                if (canvas.id.includes('vocal-original')) {
+                    buffer = window.targetVocalBuffer;
+                    color = '#007bff';
+                } else if (canvas.id.includes('vocal-processed')) {
+                    buffer = window.processedVocalBuffer;
+                    color = '#28a745';
+                } else if (canvas.id.includes('instrumental-original')) {
+                    buffer = window.targetInstrumentalBuffer;
+                    color = '#6f42c1';
+                } else if (canvas.id.includes('instrumental-processed')) {
+                    buffer = window.processedInstrumentalBuffer;
+                    color = '#fd7e14';
+                }
+                
+                if (buffer) {
+                    drawWaveform(canvas, buffer, color);
                 }
             } else {
                 // Standard waveform redraw
@@ -852,6 +1063,9 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     batchLimiterButton.addEventListener('click', () => {
         batchLimiterEnabled = toggleLimiter(batchLimiterButton, batchLimiterEnabled);
     });
+    
+    // Use shared limiter for both standard and stem modes
+    window.stemLimiterEnabled = true; // Default to enabled
 
     // Function to update audio preview with current blend and limiter settings
     async function updateAudioPreview() {
@@ -1178,11 +1392,8 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             window.previewBuffer = mixedBuffer;
             originalBuffer = mixedBuffer; // For compatibility with existing playback code
 
-            // Initialize knob if not already done
-            if (!blendKnobCanvas.dataset.initialized) {
-                initializeKnob();
-                blendKnobCanvas.dataset.initialized = 'true';
-            }
+            // Initialize dual knobs for stem separation
+            initializeDualKnobs();
 
             // Add click listeners for seeking on stem waveforms
             [vocalOriginalCanvas, vocalProcessedCanvas, instrumentalOriginalCanvas, instrumentalProcessedCanvas].forEach(canvas => {
@@ -1200,30 +1411,72 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     // Save blend button event listener
     saveBlendButton.addEventListener('click', async () => {
         const isStemSeparation = processSingleStatus.dataset.isStemSeparation === 'true';
-        const originalFilePath = processSingleStatus.dataset.originalFilePath;
-        const processedFilePath = processSingleStatus.dataset.processedFilePath;
-        const combinedFilePath = processSingleStatus.dataset.combinedFilePath;
         
         if (isStemSeparation) {
-            // For stem separation, save the combined file directly
-            if (!combinedFilePath) {
-                showStatus(saveBlendStatus, 'Error: No processed files available to save.', true);
+            // For stem separation, use dual blend ratios
+            const targetVocalPath = processSingleStatus.dataset.targetVocalPath;
+            const targetInstrumentalPath = processSingleStatus.dataset.targetInstrumentalPath;
+            const processedVocalPath = processSingleStatus.dataset.processedVocalPath;
+            const processedInstrumentalPath = processSingleStatus.dataset.processedInstrumentalPath;
+            
+            if (!targetVocalPath || !processedVocalPath || !targetInstrumentalPath || !processedInstrumentalPath) {
+                showStatus(saveBlendStatus, 'Error: Missing stem files for blending.', true);
                 return;
             }
             
-            // For stem separation, we don't need to blend - just provide a download link
-            const combinedFileName = combinedFilePath.split('/').pop();
-            const originalFileName = processSingleStatus.dataset.originalFileName;
-            const referenceName = processSingleStatus.dataset.referenceName;
+            // Get blend ratios from dual knobs (defaulting to 50% if not initialized)
+            const vocalBlendRatio = (window.currentVocalBlend || 50) / 100;
+            const instrumentalBlendRatio = (window.currentInstrumentalBlend || 50) / 100;
             
-            // Generate download filename for stem separation
-            const downloadName = `${originalFileName}-stems-${referenceName}.wav`;
+            // Prevent multiple simultaneous save operations
+            if (saveBlendButton.disabled) return;
             
-            showStatus(saveBlendStatus, 
-                `Processed audio ready: <a href="/temp_files/${combinedFileName}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
-            );
+            saveBlendButton.disabled = true;
+            showStatus(saveBlendStatus, 'Saving stem blend...');
+            
+            const formData = new FormData();
+            formData.append('original_vocal_path', targetVocalPath);
+            formData.append('processed_vocal_path', processedVocalPath);
+            formData.append('original_instrumental_path', targetInstrumentalPath);
+            formData.append('processed_instrumental_path', processedInstrumentalPath);
+            formData.append('vocal_blend_ratio', vocalBlendRatio);
+            formData.append('instrumental_blend_ratio', instrumentalBlendRatio);
+            formData.append('apply_limiter', limiterEnabled);
+            
+            try {
+                const response = await fetch('/api/blend_stems_and_save', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const outputFilename = data.blended_file_path.split('/').pop();
+                    
+                    // Create meaningful filename from original target filename
+                    const targetFilename = processSingleStatus.dataset.originalFileName || 'audio';
+                    const baseFilename = targetFilename.replace(/\.[^/.]+$/, ''); // Remove extension
+                    const downloadName = `${baseFilename}_stem_blend_v${Math.round(vocalBlendRatio * 100)}_i${Math.round(instrumentalBlendRatio * 100)}.wav`;
+                    
+                    showStatus(saveBlendStatus, 
+                        `Stem blend saved: <a href="/temp_files/${outputFilename}?download_name=${encodeURIComponent(downloadName)}" target="_blank">${downloadName}</a> (Right Click to Save As)`
+                    );
+                } else {
+                    showStatus(saveBlendStatus, `Error saving stem blend: ${data.detail}`, true);
+                }
+            } catch (error) {
+                showStatus(saveBlendStatus, `Network error: ${error.message}`, true);
+            } finally {
+                saveBlendButton.disabled = false;
+            }
+            
             return;
         }
+        
+        // Standard processing (non-stem separation)
+        const originalFilePath = processSingleStatus.dataset.originalFilePath;
+        const processedFilePath = processSingleStatus.dataset.processedFilePath;
         
         if (!originalFilePath || !processedFilePath) {
             showStatus(saveBlendStatus, 'Error: No processed files available to blend.', true);
