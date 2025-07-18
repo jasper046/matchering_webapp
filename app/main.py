@@ -580,6 +580,14 @@ async def blend_stems_and_save(
     apply_limiter: bool = Form(True)
 ):
     """Blend vocal and instrumental stems separately and combine them"""
+    print(f"DEBUG: Received blend stems request:")
+    print(f"  original_vocal_path: {original_vocal_path}")
+    print(f"  processed_vocal_path: {processed_vocal_path}")
+    print(f"  original_instrumental_path: {original_instrumental_path}")
+    print(f"  processed_instrumental_path: {processed_instrumental_path}")
+    print(f"  vocal_blend_ratio: {vocal_blend_ratio}")
+    print(f"  instrumental_blend_ratio: {instrumental_blend_ratio}")
+    
     if not (0.0 <= vocal_blend_ratio <= 1.0) or not (0.0 <= instrumental_blend_ratio <= 1.0):
         raise HTTPException(status_code=400, detail="Blend ratios must be between 0.0 and 1.0.")
 

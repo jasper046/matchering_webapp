@@ -93,91 +93,120 @@
                     <div id="single-conversion-results" class="mt-4" style="display:none;">
                         <h3>Interactive Blend</h3>
                         
-                        <!-- Standard waveform display (non-stem separation) -->
-                        <div id="standard-waveform-container" class="waveform-container">
-                            <div class="waveform-track-group">
-                                <div class="waveform-label">Original</div>
-                                <canvas id="original-waveform"></canvas>
-                            </div>
-                            <div class="waveform-track-group">
-                                <div class="waveform-label">Matchering Output</div>
-                                <canvas id="processed-waveform"></canvas>
-                            </div>
-                        </div>
-                        
-                        <!-- Stem separation waveform display -->
-                        <div id="stem-waveform-container" class="waveform-container" style="display:none;">
-                            <div class="stem-section">
-                                <div class="stem-header">
-                                    <div class="waveform-label">Vocal Stem</div>
+                        <!-- Channel Container -->
+                        <div id="channel-container" class="mb-4">
+                            
+                            <!-- Standard Mode: Single Audio Channel -->
+                            <div id="standard-channel" class="channel-box mb-3" style="display:none;">
+                                <div class="channel-header">
+                                    <h5 class="channel-title">🎵 Audio Channel</h5>
                                 </div>
-                                <div class="waveform-track-group">
-                                    <div class="waveform-sublabel">Original</div>
-                                    <canvas id="vocal-original-waveform"></canvas>
-                                </div>
-                                <div class="waveform-track-group">
-                                    <div class="waveform-sublabel">Processed</div>
-                                    <canvas id="vocal-processed-waveform"></canvas>
+                                <div class="channel-content">
+                                    <div class="waveform-row">
+                                        <div class="waveform-track-group">
+                                            <div class="waveform-label">Original</div>
+                                            <canvas id="original-waveform"></canvas>
+                                        </div>
+                                        <div class="waveform-track-group">
+                                            <div class="waveform-label">Matchering Output</div>
+                                            <canvas id="processed-waveform"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="channel-controls">
+                                        <div class="blend-control">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="text-light small">dry</span>
+                                                <canvas id="blend-knob" width="60" height="60"></canvas>
+                                                <span class="text-light small">wet</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <div class="stem-section">
-                                <div class="stem-header">
-                                    <div class="waveform-label">Instrumental Stem</div>
+                            <!-- Stem Mode: Vocal Channel -->
+                            <div id="vocal-channel" class="channel-box mb-3" style="display:none;">
+                                <div class="channel-header">
+                                    <h5 class="channel-title">🎤 Vocal Channel</h5>
                                 </div>
-                                <div class="waveform-track-group">
-                                    <div class="waveform-sublabel">Original</div>
-                                    <canvas id="instrumental-original-waveform"></canvas>
-                                </div>
-                                <div class="waveform-track-group">
-                                    <div class="waveform-sublabel">Processed</div>
-                                    <canvas id="instrumental-processed-waveform"></canvas>
+                                <div class="channel-content">
+                                    <div class="waveform-row">
+                                        <div class="waveform-track-group">
+                                            <div class="waveform-label">Original</div>
+                                            <canvas id="vocal-original-waveform"></canvas>
+                                        </div>
+                                        <div class="waveform-track-group">
+                                            <div class="waveform-label">Processed</div>
+                                            <canvas id="vocal-processed-waveform"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="channel-controls">
+                                        <div class="blend-control">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="text-light small">dry</span>
+                                                <canvas id="vocal-blend-knob" width="60" height="60"></canvas>
+                                                <span class="text-light small">wet</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <!-- Shared playback controls -->
-                        <div class="d-flex justify-content-center align-items-center gap-3 mt-3">
-                            <button type="button" id="play-button" class="btn btn-secondary playback-button">Play</button>
-                            <button type="button" id="pause-button" class="btn btn-secondary playback-button">Pause</button>
-                            <button type="button" id="stop-button" class="btn btn-secondary playback-button playback-active">Stop</button>
-                            <button type="button" id="limiterButton" class="btn limiter-btn limiter-on ms-4">
-                                <span class="limiter-label">LIMITER</span>
-                                <span class="limiter-text">ON</span>
-                            </button>
+                            
+                            <!-- Stem Mode: Instrumental Channel -->
+                            <div id="instrumental-channel" class="channel-box mb-3" style="display:none;">
+                                <div class="channel-header">
+                                    <h5 class="channel-title">🎹 Instrumental Channel</h5>
+                                </div>
+                                <div class="channel-content">
+                                    <div class="waveform-row">
+                                        <div class="waveform-track-group">
+                                            <div class="waveform-label">Original</div>
+                                            <canvas id="instrumental-original-waveform"></canvas>
+                                        </div>
+                                        <div class="waveform-track-group">
+                                            <div class="waveform-label">Processed</div>
+                                            <canvas id="instrumental-processed-waveform"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="channel-controls">
+                                        <div class="blend-control">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="text-light small">dry</span>
+                                                <canvas id="instrumental-blend-knob" width="60" height="60"></canvas>
+                                                <span class="text-light small">wet</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                         </div>
                         
-                        <!-- Standard blend controls (non-stem mode) -->
-                        <div id="standard-blend-controls" class="d-flex justify-content-center align-items-center gap-3 mt-3" style="display:none;">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="text-light small">dry</span>
-                                <canvas id="blend-knob" width="60" height="60"></canvas>
-                                <span class="text-light small">wet</span>
+                        <!-- Master Controls Box -->
+                        <div id="master-controls" class="master-controls-box">
+                            <div class="master-controls-header">
+                                <h5 class="master-controls-title">🎛️ Master Controls</h5>
+                            </div>
+                            <div class="master-controls-content">
+                                <div class="playback-controls">
+                                    <button type="button" id="play-button" class="btn btn-secondary playback-button">Play</button>
+                                    <button type="button" id="pause-button" class="btn btn-secondary playback-button">Pause</button>
+                                    <button type="button" id="stop-button" class="btn btn-secondary playback-button playback-active">Stop</button>
+                                </div>
+                                <div class="master-settings">
+                                    <button type="button" id="limiterButton" class="btn limiter-btn limiter-on">
+                                        <span class="limiter-label">LIMITER</span>
+                                        <span class="limiter-text">ON</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
-                        <!-- Stem separation dual blend controls -->
-                        <div id="stem-blend-controls" class="d-flex justify-content-center align-items-center gap-4 mt-3" style="display:none;">
-                            <!-- Vocal blend control -->
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="text-light small">🎤 Vocal</span>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="text-light small">dry</span>
-                                    <canvas id="vocal-blend-knob" width="60" height="60"></canvas>
-                                    <span class="text-light small">wet</span>
-                                </div>
-                            </div>
-                            <!-- Instrumental blend control -->
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="text-light small">🎹 Instrumental</span>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="text-light small">dry</span>
-                                    <canvas id="instrumental-blend-knob" width="60" height="60"></canvas>
-                                    <span class="text-light small">wet</span>
-                                </div>
-                            </div>
+                        <!-- Action Controls -->
+                        <div class="action-controls mt-3">
+                            <button type="button" id="save-blend-button" class="btn btn-success">Keep current blend</button>
+                            <div id="save-blend-status" class="mt-3"></div>
                         </div>
-                        <button type="button" id="save-blend-button" class="btn btn-success mt-3">Keep current blend</button>
-                        <div id="save-blend-status" class="mt-3"></div>
                     </div>
                 </section>
             </div>

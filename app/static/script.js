@@ -318,9 +318,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                     // Show results and initialize waveforms
                     singleConversionResults.style.display = 'block';
                     
-                    // Show stem blend controls and hide standard controls
-                    document.getElementById('standard-blend-controls').style.display = 'none';
-                    document.getElementById('stem-blend-controls').style.display = 'block';
+                    // Stem channels are already visible from the previous logic
                     
                     initializeStemWaveforms();
                     
@@ -405,13 +403,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                 if (useStemSeparation.checked) {
                     // For stem separation, start progress polling if we have a job_id
                     if (data.job_id) {
-                        // Show stem waveform container and hide standard container
-                        document.getElementById('standard-waveform-container').style.display = 'none';
-                        document.getElementById('stem-waveform-container').style.display = 'block';
-                        
-                        // Show stem blend controls and hide standard controls
-                        document.getElementById('standard-blend-controls').style.display = 'none';
-                        document.getElementById('stem-blend-controls').style.display = 'flex';
+                        // Show stem channels and hide standard channel
+                        document.getElementById('standard-channel').style.display = 'none';
+                        document.getElementById('vocal-channel').style.display = 'block';
+                        document.getElementById('instrumental-channel').style.display = 'block';
                         
                         // Start polling for progress (this will update the status immediately)
                         pollProgress(data.job_id);
@@ -419,13 +414,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                         // Fallback for synchronous processing
                         showStatus(processSingleStatus, 'File processed. Adjust blend below.');
                         
-                        // Show stem waveform container and hide standard container
-                        document.getElementById('standard-waveform-container').style.display = 'none';
-                        document.getElementById('stem-waveform-container').style.display = 'block';
-                        
-                        // Show stem blend controls and hide standard controls
-                        document.getElementById('standard-blend-controls').style.display = 'none';
-                        document.getElementById('stem-blend-controls').style.display = 'flex';
+                        // Show stem channels and hide standard channel
+                        document.getElementById('standard-channel').style.display = 'none';
+                        document.getElementById('vocal-channel').style.display = 'block';
+                        document.getElementById('instrumental-channel').style.display = 'block';
                         
                         // Store stem-specific paths
                         processSingleStatus.dataset.combinedFilePath = data.combined_file_path;
@@ -440,13 +432,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                     // For standard processing, show completion immediately
                     showStatus(processSingleStatus, 'File processed. Adjust blend below.');
                     
-                    // Show standard waveform container and hide stem container
-                    document.getElementById('standard-waveform-container').style.display = 'block';
-                    document.getElementById('stem-waveform-container').style.display = 'none';
-                    
-                    // Show standard blend controls and hide stem controls
-                    document.getElementById('standard-blend-controls').style.display = 'flex';
-                    document.getElementById('stem-blend-controls').style.display = 'none';
+                    // Show standard channel and hide stem channels
+                    document.getElementById('standard-channel').style.display = 'block';
+                    document.getElementById('vocal-channel').style.display = 'none';
+                    document.getElementById('instrumental-channel').style.display = 'none';
                     
                     // Store standard paths
                     processSingleStatus.dataset.originalFilePath = data.original_file_path;
@@ -1293,7 +1282,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                 `;
                 
                 // Insert before the waveform section
-                const waveformSection = document.querySelector('.stem-waveform-container') || document.querySelector('.waveform-container');
+                const waveformSection = document.querySelector('.channel-box');
                 if (waveformSection) {
                     waveformSection.parentNode.insertBefore(presetDownloadSection, waveformSection);
                 }
@@ -1444,11 +1433,18 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             formData.append('apply_limiter', limiterEnabled);
             
             try {
+                console.log('Sending blend stems request:', {
+                    targetVocalPath, processedVocalPath, 
+                    targetInstrumentalPath, processedInstrumentalPath,
+                    vocalBlendRatio, instrumentalBlendRatio
+                });
+                
                 const response = await fetch('/api/blend_stems_and_save', {
                     method: 'POST',
                     body: formData,
                 });
                 
+                console.log('Response status:', response.status);
                 const data = await response.json();
                 
                 if (response.ok) {
