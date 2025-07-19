@@ -1,10 +1,15 @@
 # Matchering Web App
 
-This is a web-based application that provides a user-friendly interface for the **[Matchering](https://github.com/sergree/matchering)** audio mastering library by [Sergree](https://github.com/sergree). It allows you to create and blend audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
+This is a web-based application that provides a user-friendly interface for the excellent **[Matchering](https://github.com/sergree/matchering)** audio mastering library by [Sergree](https://github.com/sergree). It allows you to create and blend audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
+There is even an option to process vocals and instruments separately, or just perform stem separation on audio files using the **[Audio Separation](https://github.com/nomadkaraoke/python-audio-separator** library by [nomadkaraoke].
 
 ## About Matchering
 
 Matchering is an open-source audio matching and mastering library that automatically masters your audio tracks by matching them to a reference track. This web interface provides an intuitive way to use the powerful Matchering library without requiring command-line knowledge.
+
+## About python-audio-separator
+
+This project also integrates the **[python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator)** library. It utilizes state-of-the-art AI models to separate audio into distinct stems, such as vocals and instruments. This enables more granular control over the mastering process, allowing you to apply different effects and presets to different parts of your track.
 
 ## Features
 
@@ -16,6 +21,8 @@ Matchering is an open-source audio matching and mastering library that automatic
     *   Interact with a real-time blend slider to mix the original and mastered audio.
     *   Save the blended audio at your desired mix ratio.
 *   **Batch Conversion:** Process multiple target audio files using a single preset, with progress tracking.
+*   **Stem Separation:** Separate audio files into vocal and instrumental tracks using the `python-audio-separator` library.
+*   **Separate Mastering:** Process vocal and instrumental stems independently with different presets and then recombine them.
 
 ## Prerequisites
 
