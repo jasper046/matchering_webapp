@@ -684,6 +684,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial draw
         drawKnob();
         updateTextInput();
+        
+        // Initialize master gain knob for non-stem flow
+        initializeMasterGainKnob();
     }
     
     function updateTextInput() {
@@ -693,21 +696,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function initializeMasterGainKnob() {
+        const masterGainKnob = document.getElementById('master-gain-knob');
+        if (!masterGainKnob) return;
+        
+        // Set canvas size
+        masterGainKnob.width = 60;
+        masterGainKnob.height = 60;
+        
+        // Add mouse event listeners
+        masterGainKnob.addEventListener('mousedown', startDragMasterGain);
+        masterGainKnob.addEventListener('touchstart', startDragMasterGainTouch);
+        
+        // Add wheel event for fine adjustment
+        masterGainKnob.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            currentMasterGain = Math.max(-3, Math.min(3, currentMasterGain + delta));
+            currentMasterGain = Math.round(currentMasterGain * 10) / 10; // Round to 0.1dB
+            document.getElementById('master-gain-value').value = currentMasterGain;
+            drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
+            updatePreview(); // Trigger preview update
+        });
+        
+        // Set cursor
+        masterGainKnob.style.cursor = 'grab';
+        
+        // Add text input functionality
+        const masterGainInput = document.getElementById('master-gain-value');
+        if (masterGainInput) {
+            masterGainInput.addEventListener('input', function(e) {
+                let value = parseFloat(e.target.value) || 0;
+                value = Math.max(-3, Math.min(3, value));
+                value = Math.round(value * 10) / 10; // Round to 0.1dB
+                currentMasterGain = value;
+                drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
+                updatePreview(); // Trigger preview update
+            });
+            
+            masterGainInput.addEventListener('blur', function(e) {
+                let value = parseFloat(e.target.value) || 0;
+                value = Math.max(-3, Math.min(3, value));
+                value = Math.round(value * 10) / 10;
+                e.target.value = value;
+                currentMasterGain = value;
+            });
+        }
+        
+        // Initial draw
+        drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
+    }
+    
     // Dual knob system for stem separation
     let currentVocalBlend = 50;
     let currentInstrumentalBlend = 50;
     let currentVocalGain = 0;
     let currentInstrumentalGain = 0;
+    let currentMasterGain = 0;  // Master gain adjust for limiter input
     let vocalMuted = false;
     let instrumentalMuted = false;
     let isDraggingVocal = false;
     let isDraggingInstrumental = false;
     let isDraggingVocalGain = false;
     let isDraggingInstrumentalGain = false;
+    let isDraggingMasterGain = false;
     let vocalGainDragStartY = 0;
     let instrumentalGainDragStartY = 0;
     let vocalGainDragStartValue = 0;
     let instrumentalGainDragStartValue = 0;
+    let masterGainDragStartY = 0;
+    let masterGainDragStartValue = 0;
     
     function initializeDualKnobs() {
         const vocalKnob = document.getElementById('vocal-blend-knob');
@@ -863,6 +921,9 @@ document.addEventListener('DOMContentLoaded', () => {
         drawDualKnobs();
         updateDualKnobTextInputs();
         
+        // Initialize master gain knob for stem flow
+        initializeMasterGainKnob();
+        
         // Store globally for save function
         window.currentVocalBlend = currentVocalBlend;
         window.currentInstrumentalBlend = currentInstrumentalBlend;
@@ -962,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateDualStemMix();
             }
         }
+        
     }
     
     function handleDualKnobMoveTouch(e) {
@@ -1015,6 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateDualStemMix();
             }
         }
+        
     }
     
     function stopDualKnobDrag() {
@@ -1062,6 +1125,89 @@ document.addEventListener('DOMContentLoaded', () => {
         instrumentalGainDragStartValue = currentInstrumentalGain;
     }
     
+    // Master gain drag functions
+    function startDragMasterGain(e) {
+        isDraggingMasterGain = true;
+        masterGainDragStartY = e.clientY;
+        masterGainDragStartValue = currentMasterGain;
+        document.getElementById('master-gain-knob').style.cursor = 'grabbing';
+        
+        // Add document-level event listeners for master gain
+        document.addEventListener('mousemove', dragMasterGain);
+        document.addEventListener('mouseup', endDragMasterGain);
+        
+        e.preventDefault();
+    }
+    
+    function startDragMasterGainTouch(e) {
+        e.preventDefault();
+        isDraggingMasterGain = true;
+        masterGainDragStartY = e.touches[0].clientY;
+        masterGainDragStartValue = currentMasterGain;
+        
+        // Add document-level touch event listeners for master gain
+        document.addEventListener('touchmove', dragMasterGainTouch);
+        document.addEventListener('touchend', endDragMasterGain);
+    }
+    
+    // Master gain drag functions for dedicated handling
+    function dragMasterGain(e) {
+        if (!isDraggingMasterGain) return;
+        
+        const deltaY = masterGainDragStartY - e.clientY;
+        const sensitivity = 0.05;
+        const newValue = Math.max(-3, Math.min(3, masterGainDragStartValue + deltaY * sensitivity));
+        
+        if (Math.abs(newValue - currentMasterGain) >= 0.05) {
+            currentMasterGain = Math.round(newValue * 10) / 10; // Round to nearest 0.1
+            document.getElementById('master-gain-value').value = currentMasterGain;
+            window.currentMasterGain = currentMasterGain;
+            drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
+            
+            // Update preview based on current flow
+            if (window.currentFlow === 'stem') {
+                updateDualStemMix();
+            } else {
+                generateBlendPreview();
+            }
+        }
+    }
+    
+    function dragMasterGainTouch(e) {
+        if (!isDraggingMasterGain) return;
+        e.preventDefault();
+        
+        const deltaY = masterGainDragStartY - e.touches[0].clientY;
+        const sensitivity = 0.05;
+        const newValue = Math.max(-3, Math.min(3, masterGainDragStartValue + deltaY * sensitivity));
+        
+        if (Math.abs(newValue - currentMasterGain) >= 0.05) {
+            currentMasterGain = Math.round(newValue * 10) / 10; // Round to nearest 0.1
+            document.getElementById('master-gain-value').value = currentMasterGain;
+            window.currentMasterGain = currentMasterGain;
+            drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
+            
+            // Update preview based on current flow
+            if (window.currentFlow === 'stem') {
+                updateDualStemMix();
+            } else {
+                generateBlendPreview();
+            }
+        }
+    }
+    
+    function endDragMasterGain() {
+        isDraggingMasterGain = false;
+        const masterGainKnob = document.getElementById('master-gain-knob');
+        if (masterGainKnob) masterGainKnob.style.cursor = 'grab';
+        
+        // Remove document-level event listeners
+        document.removeEventListener('mousemove', dragMasterGain);
+        document.removeEventListener('mouseup', endDragMasterGain);
+        document.removeEventListener('touchmove', dragMasterGainTouch);
+        document.removeEventListener('touchend', endDragMasterGain);
+    }
+
     function drawDualKnobs() {
         drawKnobOnCanvas('vocal-blend-knob', currentVocalBlend);
         drawKnobOnCanvas('instrumental-blend-knob', currentInstrumentalBlend);
@@ -1129,11 +1275,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Convert gain (-12 to +12) to angle with 0dB at top (-90 degrees)
-        // -12dB = -90 + 135 = 45 degrees (bottom left)
-        // 0dB = -90 degrees (top)
-        // +12dB = -90 - 135 = -225 degrees = 135 degrees (bottom right)
-        const normalizedValue = gainValue / 12; // Convert -12,+12 to -1,+1
+        // Determine range based on knob type
+        const isMasterGain = canvasId === 'master-gain-knob';
+        const gainRange = isMasterGain ? 3 : 12; // Master gain: ±3dB, Channel gain: ±12dB
+        
+        // Convert gain to angle with 0dB at top (-90 degrees)
+        // For master gain: -3dB = -90 + 135 = 45 degrees (bottom left), +3dB = -90 - 135 = -225 degrees = 135 degrees (bottom right)
+        // For channel gain: -12dB = -90 + 135 = 45 degrees (bottom left), +12dB = -90 - 135 = -225 degrees = 135 degrees (bottom right)
+        const normalizedValue = gainValue / gainRange; // Convert to -1,+1 range
         const angle = -90 + (normalizedValue * 135); // -90 degrees is top, range ±135 degrees
         
         // Draw outer circle (match blend knob style)
@@ -1262,6 +1411,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateTextInput();
             generateBlendPreview();
         }
+        
     }
     
     function dragTouch(e) {
@@ -1278,6 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateTextInput();
             generateBlendPreview();
         }
+        
     }
     
     function endDrag() {
@@ -1491,7 +1642,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const blendedBlob = await blendedResponse.blob();
                         
                         limiterFormData.append('input_files', blendedBlob, 'blended.wav');
-                        limiterFormData.append('gain_adjust_db', 0); // No master gain adjustment
+                        limiterFormData.append('gain_adjust_db', currentMasterGain);
                         limiterFormData.append('enable_limiter', limiterEnabled);
                         
                         const limiterResponse = await fetch('/api/process_limiter', {
@@ -1577,7 +1728,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     limiterFormData.append('input_files', vocalBlendedBlob, 'vocal_blended.wav');
                     limiterFormData.append('input_files', instrumentalBlendedBlob, 'instrumental_blended.wav');
-                    limiterFormData.append('gain_adjust_db', 0);
+                    limiterFormData.append('gain_adjust_db', currentMasterGain);
                     limiterFormData.append('enable_limiter', limiterEnabled);
                     
                     const limiterResponse = await fetch('/api/process_limiter', {
@@ -2238,7 +2389,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 limiterFormData.append('input_files', vocalChannelBlob, 'vocal_channel.wav');
                 limiterFormData.append('input_files', instChannelBlob, 'inst_channel.wav');
-                limiterFormData.append('gain_adjust_db', 0); // No master gain adjustment
+                limiterFormData.append('gain_adjust_db', currentMasterGain);
                 limiterFormData.append('enable_limiter', limiterEnabled);
                 
                 const limiterResponse = await fetch('/api/process_limiter', {
@@ -2328,7 +2479,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const blendedBlob = await blendedResponse.blob();
             
             limiterFormData.append('input_files', blendedBlob, 'blended.wav');
-            limiterFormData.append('gain_adjust_db', 0); // No master gain adjustment
+            limiterFormData.append('gain_adjust_db', currentMasterGain);
             limiterFormData.append('enable_limiter', limiterEnabled);
             
             const limiterResponse = await fetch('/api/process_limiter', {

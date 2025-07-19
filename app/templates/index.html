@@ -228,6 +228,17 @@
                                     <button type="button" id="stop-button" class="btn btn-secondary playback-button playback-active">Stop</button>
                                 </div>
                                 <div class="master-settings">
+                                    <div class="gain-control">
+                                        <label class="control-label">Master Gain</label>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="text-light small">-3dB</span>
+                                            <div class="knob-container">
+                                                <canvas id="master-gain-knob" width="60" height="60"></canvas>
+                                                <input type="number" id="master-gain-value" class="knob-input" min="-3" max="3" step="0.1" value="0">
+                                            </div>
+                                            <span class="text-light small">+3dB</span>
+                                        </div>
+                                    </div>
                                     <button type="button" id="limiterButton" class="btn limiter-btn limiter-on">
                                         <span class="limiter-label">LIMITER</span>
                                         <span class="limiter-text">ON</span>
