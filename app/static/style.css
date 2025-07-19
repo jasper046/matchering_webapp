@@ -63,16 +63,70 @@ h1, h2 {
 .channel-controls {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-end;
+    gap: 20px;
     padding: 12px;
     background-color: #1a1a1a;
     border-radius: 6px;
 }
 
-.blend-control {
+.blend-control, .gain-control {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 8px;
+}
+
+.control-label {
+    color: #f8f9fa;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 0;
+    text-align: center;
+}
+
+.enable-control {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.enable-btn {
+    width: 60px;
+    height: 32px;
+    border: 2px solid #ffc107;
+    border-radius: 4px;
+    background-color: #ffc107;
+    color: #000;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.enable-btn:hover {
+    background-color: #ffca2c;
+    border-color: #ffca2c;
+}
+
+.enable-btn[data-enabled="false"] {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.enable-btn[data-enabled="false"]:hover {
+    background-color: #c82333;
+    border-color: #c82333;
+}
+
+.enable-btn .btn-text {
+    font-size: 0.85rem;
+    font-weight: 600;
 }
 
 .knob-container {
@@ -80,6 +134,14 @@ h1, h2 {
     flex-direction: column;
     align-items: center;
     gap: 4px;
+    min-width: 60px;
+    max-width: 60px;
+}
+
+.knob-container canvas {
+    width: 60px !important;
+    height: 60px !important;
+    display: block;
 }
 
 .knob-input {

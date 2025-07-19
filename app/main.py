@@ -16,6 +16,11 @@ import logging
 import torch
 from audio_separator.separator import Separator
 
+# Import our new audio processing modules
+from .audio.channel_processor import process_channel
+from .audio.master_limiter import process_limiter
+from .audio.utils import generate_temp_path, ensure_directory, cleanup_file
+
 app = FastAPI()
 
 # Get the directory where this file is located
@@ -1171,3 +1176,213 @@ async def get_temp_file(filename: str):
         return FileResponse(path=output_file_path, filename=decoded_filename)
     else:
         raise HTTPException(status_code=404, detail="Temporary file not found.")
+
+
+# New Modular Audio Processing Endpoints
+
+@app.post("/api/process_channel")
+async def api_process_channel(
+    original_file: UploadFile = File(...),
+    processed_file: UploadFile = File(...),
+    blend_ratio: float = Form(...),
+    volume_adjust_db: float = Form(0.0),
+    mute: bool = Form(False)
+):
+    """
+    Process a single audio channel with blending, volume adjustment, and muting.
+    
+    This endpoint provides the core channel processing functionality used by both
+    single file and stem processing workflows.
+    """
+    
+    try:
+        # Validate parameters
+        if not (0.0 <= blend_ratio <= 1.0):
+            raise HTTPException(status_code=400, detail="Blend ratio must be between 0.0 and 1.0")
+        
+        if not (-12.0 <= volume_adjust_db <= 12.0):
+            raise HTTPException(status_code=400, detail="Volume adjustment must be between -12.0dB and +12.0dB")
+        
+        # Save uploaded files to temporary locations
+        original_path = os.path.join(UPLOAD_DIR, f"original_{uuid.uuid4()}.wav")
+        processed_path = os.path.join(UPLOAD_DIR, f"processed_{uuid.uuid4()}.wav")
+        
+        with open(original_path, "wb") as f:
+            shutil.copyfileobj(original_file.file, f)
+        with open(processed_path, "wb") as f:
+            shutil.copyfileobj(processed_file.file, f)
+        
+        # Generate output path
+        output_filename = f"channel_output_{uuid.uuid4()}.wav"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        
+        # Process the channel using our modular processor
+        result_path = process_channel(
+            original_path=original_path,
+            processed_path=processed_path,
+            output_path=output_path,
+            blend_ratio=blend_ratio,
+            volume_adjust_db=volume_adjust_db,
+            mute=mute
+        )
+        
+        return {
+            "message": "Channel processing complete",
+            "channel_output_path": result_path,
+            "output_filename": output_filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Clean up temporary input files
+        cleanup_file(original_path)
+        cleanup_file(processed_path)
+
+
+@app.post("/api/process_limiter")
+async def api_process_limiter(
+    input_files: List[UploadFile] = File(...),
+    gain_adjust_db: float = Form(0.0),
+    enable_limiter: bool = Form(True)
+):
+    """
+    Process final master output with optional gain adjustment and limiting.
+    
+    Accepts 1-2 input files for single channel or stem processing workflows.
+    """
+    
+    try:
+        # Validate parameters
+        if not input_files:
+            raise HTTPException(status_code=400, detail="At least one input file must be provided")
+        
+        if len(input_files) > 2:
+            raise HTTPException(status_code=400, detail="Maximum 2 input files supported")
+        
+        if not (-12.0 <= gain_adjust_db <= 12.0):
+            raise HTTPException(status_code=400, detail="Gain adjustment must be between -12.0dB and +12.0dB")
+        
+        # Save uploaded files to temporary locations
+        input_paths = []
+        for i, input_file in enumerate(input_files):
+            temp_path = os.path.join(UPLOAD_DIR, f"limiter_input_{i}_{uuid.uuid4()}.wav")
+            with open(temp_path, "wb") as f:
+                shutil.copyfileobj(input_file.file, f)
+            input_paths.append(temp_path)
+        
+        # Generate output path
+        output_filename = f"master_output_{uuid.uuid4()}.wav"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        
+        # Process through master limiter
+        result_path = process_limiter(
+            input_paths=input_paths,
+            output_path=output_path,
+            gain_adjust_db=gain_adjust_db,
+            enable_limiter=enable_limiter
+        )
+        
+        return {
+            "message": "Master limiter processing complete",
+            "master_output_path": result_path,
+            "output_filename": output_filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Clean up temporary input files
+        for path in input_paths:
+            cleanup_file(path)
+
+
+@app.post("/api/process_stem_channels")
+async def api_process_stem_channels(
+    vocal_original: UploadFile = File(...),
+    vocal_processed: UploadFile = File(...),
+    instrumental_original: UploadFile = File(...),
+    instrumental_processed: UploadFile = File(...),
+    vocal_blend_ratio: float = Form(...),
+    vocal_volume_db: float = Form(0.0),
+    vocal_mute: bool = Form(False),
+    instrumental_blend_ratio: float = Form(...),
+    instrumental_volume_db: float = Form(0.0),
+    instrumental_mute: bool = Form(False)
+):
+    """
+    Process both vocal and instrumental channels simultaneously.
+    
+    This endpoint processes both stem channels and returns their individual outputs,
+    which can then be fed to the master limiter for final processing.
+    """
+    
+    try:
+        # Validate parameters for both channels
+        if not (0.0 <= vocal_blend_ratio <= 1.0):
+            raise HTTPException(status_code=400, detail="Vocal blend ratio must be between 0.0 and 1.0")
+        if not (0.0 <= instrumental_blend_ratio <= 1.0):
+            raise HTTPException(status_code=400, detail="Instrumental blend ratio must be between 0.0 and 1.0")
+        
+        if not (-12.0 <= vocal_volume_db <= 12.0):
+            raise HTTPException(status_code=400, detail="Vocal volume adjustment must be between -12.0dB and +12.0dB")
+        if not (-12.0 <= instrumental_volume_db <= 12.0):
+            raise HTTPException(status_code=400, detail="Instrumental volume adjustment must be between -12.0dB and +12.0dB")
+        
+        # Save uploaded files to temporary locations
+        vocal_orig_path = os.path.join(UPLOAD_DIR, f"vocal_orig_{uuid.uuid4()}.wav")
+        vocal_proc_path = os.path.join(UPLOAD_DIR, f"vocal_proc_{uuid.uuid4()}.wav")
+        inst_orig_path = os.path.join(UPLOAD_DIR, f"inst_orig_{uuid.uuid4()}.wav")
+        inst_proc_path = os.path.join(UPLOAD_DIR, f"inst_proc_{uuid.uuid4()}.wav")
+        
+        with open(vocal_orig_path, "wb") as f:
+            shutil.copyfileobj(vocal_original.file, f)
+        with open(vocal_proc_path, "wb") as f:
+            shutil.copyfileobj(vocal_processed.file, f)
+        with open(inst_orig_path, "wb") as f:
+            shutil.copyfileobj(instrumental_original.file, f)
+        with open(inst_proc_path, "wb") as f:
+            shutil.copyfileobj(instrumental_processed.file, f)
+        
+        # Generate output paths
+        vocal_output_filename = f"vocal_channel_{uuid.uuid4()}.wav"
+        inst_output_filename = f"instrumental_channel_{uuid.uuid4()}.wav"
+        vocal_output_path = os.path.join(OUTPUT_DIR, vocal_output_filename)
+        inst_output_path = os.path.join(OUTPUT_DIR, inst_output_filename)
+        
+        # Process vocal channel
+        vocal_result = process_channel(
+            original_path=vocal_orig_path,
+            processed_path=vocal_proc_path,
+            output_path=vocal_output_path,
+            blend_ratio=vocal_blend_ratio,
+            volume_adjust_db=vocal_volume_db,
+            mute=vocal_mute
+        )
+        
+        # Process instrumental channel
+        inst_result = process_channel(
+            original_path=inst_orig_path,
+            processed_path=inst_proc_path,
+            output_path=inst_output_path,
+            blend_ratio=instrumental_blend_ratio,
+            volume_adjust_db=instrumental_volume_db,
+            mute=instrumental_mute
+        )
+        
+        return {
+            "message": "Stem channels processing complete",
+            "vocal_output_path": vocal_result,
+            "instrumental_output_path": inst_result,
+            "vocal_filename": vocal_output_filename,
+            "instrumental_filename": inst_output_filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Clean up temporary input files
+        cleanup_file(vocal_orig_path)
+        cleanup_file(vocal_proc_path)
+        cleanup_file(inst_orig_path)
+        cleanup_file(inst_proc_path)
