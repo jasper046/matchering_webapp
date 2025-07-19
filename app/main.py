@@ -691,6 +691,8 @@ async def blend_and_save(
 
         blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
 
+        # Simple blend without gain or mute adjustments
+
         if apply_limiter:
             # Apply limiter for soft clipping
             blended_audio = limit(blended_audio, mg.Config())
@@ -712,6 +714,10 @@ async def blend_stems_and_save(
     processed_instrumental_path: str = Form(...),
     vocal_blend_ratio: float = Form(...),
     instrumental_blend_ratio: float = Form(...),
+    vocal_gain_db: float = Form(0.0),
+    instrumental_gain_db: float = Form(0.0),
+    vocal_muted: bool = Form(False),
+    instrumental_muted: bool = Form(False),
     apply_limiter: bool = Form(True)
 ):
     """Blend vocal and instrumental stems separately and combine them"""
@@ -722,9 +728,16 @@ async def blend_stems_and_save(
     print(f"  processed_instrumental_path: {processed_instrumental_path}")
     print(f"  vocal_blend_ratio: {vocal_blend_ratio}")
     print(f"  instrumental_blend_ratio: {instrumental_blend_ratio}")
+    print(f"  vocal_gain_db: {vocal_gain_db}")
+    print(f"  instrumental_gain_db: {instrumental_gain_db}")
+    print(f"  vocal_muted: {vocal_muted}")
+    print(f"  instrumental_muted: {instrumental_muted}")
     
     if not (0.0 <= vocal_blend_ratio <= 1.0) or not (0.0 <= instrumental_blend_ratio <= 1.0):
         raise HTTPException(status_code=400, detail="Blend ratios must be between 0.0 and 1.0.")
+    
+    if not (-12.0 <= vocal_gain_db <= 12.0) or not (-12.0 <= instrumental_gain_db <= 12.0):
+        raise HTTPException(status_code=400, detail="Gain values must be between -12.0dB and +12.0dB.")
 
     try:
         # Load all audio files
@@ -766,7 +779,20 @@ async def blend_stems_and_save(
         blended_vocal = (original_vocal * (1 - vocal_blend_ratio)) + (processed_vocal * vocal_blend_ratio)
         blended_instrumental = (original_instrumental * (1 - instrumental_blend_ratio)) + (processed_instrumental * instrumental_blend_ratio)
 
-        # Combine the blended stems
+        # Apply gain adjustments (convert dB to linear gain)
+        vocal_gain_linear = 10.0 ** (vocal_gain_db / 20.0)
+        instrumental_gain_linear = 10.0 ** (instrumental_gain_db / 20.0)
+        
+        blended_vocal = blended_vocal * vocal_gain_linear
+        blended_instrumental = blended_instrumental * instrumental_gain_linear
+        
+        # Apply mute (set to zero if muted)
+        if vocal_muted:
+            blended_vocal = np.zeros_like(blended_vocal)
+        if instrumental_muted:
+            blended_instrumental = np.zeros_like(blended_instrumental)
+
+        # Combine the processed stems
         combined_audio = blended_vocal + blended_instrumental
 
         if apply_limiter:

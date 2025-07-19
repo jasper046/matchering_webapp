@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     createPresetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // Prevent submission during active processing
+        if (isProcessing) {
+            showStatus(createPresetStatus, 'Please wait for current processing to complete.', true);
+            return;
+        }
+        
         showStatus(createPresetStatus, 'Creating preset...');
         createPresetDownloadDiv.style.display = 'none';
         presetDownloadLinkContainer.innerHTML = ''; // Clear previous link
@@ -63,6 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const blendPresetsStatus = document.getElementById('blend-presets-status');
     blendPresetsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // Prevent submission during active processing
+        if (isProcessing) {
+            showStatus(blendPresetsStatus, 'Please wait for current processing to complete.', true);
+            return;
+        }
+        
         showStatus(blendPresetsStatus, 'Blending presets...');
 
         const formData = new FormData();
@@ -132,6 +146,39 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     let dragStartY = 0;
     let dragStartValue = 0;
     let isUpdatingPreview = false; // Prevent multiple simultaneous preview updates
+    let isProcessing = false; // Global processing state to prevent double submissions and tab switching
+
+    // Processing state management functions
+    function setProcessingState(processing) {
+        isProcessing = processing;
+        
+        // Disable/enable process button
+        processFileButton.disabled = processing;
+        processFileButton.textContent = processing ? 'Processing...' : 'Process File';
+        
+        // Disable/enable tab switching
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            if (processing) {
+                link.style.pointerEvents = 'none';
+                link.style.opacity = '0.5';
+            } else {
+                link.style.pointerEvents = 'auto';
+                link.style.opacity = '1';
+            }
+        });
+        
+        // Disable/enable other form submissions
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            const submitButtons = form.querySelectorAll('button[type="submit"]');
+            submitButtons.forEach(button => {
+                if (button !== processFileButton) {
+                    button.disabled = processing;
+                }
+            });
+        });
+    }
 
     // Function to check and update process button visibility
     function checkProcessButtonVisibility() {
@@ -338,14 +385,23 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                     // Show preset download links if available
                     showPresetDownloadLinks();
                     
+                    // Clear processing state when complete
+                    setProcessingState(false);
+                    
                 } else if (progress.stage === 'error') {
                     clearInterval(pollInterval);
                     showStatus(processSingleStatus, progress.message, true);
+                    
+                    // Clear processing state on error
+                    setProcessingState(false);
                 }
             } catch (error) {
                 console.error('Error polling progress:', error);
                 clearInterval(pollInterval);
                 showStatus(processSingleStatus, 'Error polling progress', true);
+                
+                // Clear processing state on polling error
+                setProcessingState(false);
             }
         };
         
@@ -364,6 +420,15 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     // Process Single File Form Submission
     processSingleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // Prevent double submission
+        if (isProcessing) {
+            console.log('Already processing, ignoring duplicate submission');
+            return;
+        }
+        
+        // Set processing state
+        setProcessingState(true);
         
         // Get system info and show initial processing status
         const systemInfo = await showProcessingStatus();
@@ -436,7 +501,11 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
                         document.getElementById('instrumental-channel').style.display = 'block';
                         
                         // Start polling for progress (this will update the status immediately)
+                        // Note: processing state will be cleared by pollProgress when complete/error
                         pollProgress(data.job_id);
+                        
+                        // Return early to avoid clearing processing state in finally block
+                        return;
                     } else {
                         // Fallback for synchronous processing
                         showStatus(processSingleStatus, 'File processed. Adjust blend below.');
@@ -488,6 +557,9 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             }
         } catch (error) {
             showStatus(processSingleStatus, `Network error: ${error.message}`, true);
+        } finally {
+            // Always clear processing state when done (success, error, or completion)
+            setProcessingState(false);
         }
     });
 
@@ -607,8 +679,18 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     // Dual knob system for stem separation
     let currentVocalBlend = 50;
     let currentInstrumentalBlend = 50;
+    let currentVocalGain = 0;
+    let currentInstrumentalGain = 0;
+    let vocalMuted = false;
+    let instrumentalMuted = false;
     let isDraggingVocal = false;
     let isDraggingInstrumental = false;
+    let isDraggingVocalGain = false;
+    let isDraggingInstrumentalGain = false;
+    let vocalGainDragStartY = 0;
+    let instrumentalGainDragStartY = 0;
+    let vocalGainDragStartValue = 0;
+    let instrumentalGainDragStartValue = 0;
     
     function initializeDualKnobs() {
         const vocalKnob = document.getElementById('vocal-blend-knob');
@@ -674,6 +756,92 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             });
         }
         
+        // Initialize gain knobs
+        const vocalGainKnob = document.getElementById('vocal-gain-knob');
+        const instrumentalGainKnob = document.getElementById('instrumental-gain-knob');
+        
+        if (vocalGainKnob && instrumentalGainKnob) {
+            vocalGainKnob.width = 60;
+            vocalGainKnob.height = 60;
+            instrumentalGainKnob.width = 60;
+            instrumentalGainKnob.height = 60;
+            
+            // Add drag functionality for gain knobs
+            vocalGainKnob.addEventListener('mousedown', (e) => startDragVocalGain(e));
+            vocalGainKnob.addEventListener('touchstart', (e) => startDragVocalGainTouch(e));
+            instrumentalGainKnob.addEventListener('mousedown', (e) => startDragInstrumentalGain(e));
+            instrumentalGainKnob.addEventListener('touchstart', (e) => startDragInstrumentalGainTouch(e));
+            
+            // Add gain knob wheel event listeners
+            vocalGainKnob.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.5 : 0.5;
+                currentVocalGain = Math.max(-12, Math.min(12, currentVocalGain + delta));
+                document.getElementById('vocal-gain-value').value = currentVocalGain;
+                drawGainKnobOnCanvas('vocal-gain-knob', currentVocalGain);
+                updateDualStemMix();
+            });
+            
+            instrumentalGainKnob.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.5 : 0.5;
+                currentInstrumentalGain = Math.max(-12, Math.min(12, currentInstrumentalGain + delta));
+                document.getElementById('instrumental-gain-value').value = currentInstrumentalGain;
+                drawGainKnobOnCanvas('instrumental-gain-knob', currentInstrumentalGain);
+                updateDualStemMix();
+            });
+            
+            // Set initial cursors
+            vocalGainKnob.style.cursor = 'grab';
+            instrumentalGainKnob.style.cursor = 'grab';
+            
+            // Add gain text input functionality
+            const vocalGainInput = document.getElementById('vocal-gain-value');
+            const instrumentalGainInput = document.getElementById('instrumental-gain-value');
+            
+            if (vocalGainInput) {
+                vocalGainInput.addEventListener('input', function(e) {
+                    let value = parseFloat(e.target.value) || 0;
+                    value = Math.max(-12, Math.min(12, value));
+                    currentVocalGain = value;
+                    drawGainKnobOnCanvas('vocal-gain-knob', currentVocalGain);
+                    updateDualStemMix();
+                });
+            }
+            
+            if (instrumentalGainInput) {
+                instrumentalGainInput.addEventListener('input', function(e) {
+                    let value = parseFloat(e.target.value) || 0;
+                    value = Math.max(-12, Math.min(12, value));
+                    currentInstrumentalGain = value;
+                    drawGainKnobOnCanvas('instrumental-gain-knob', currentInstrumentalGain);
+                    updateDualStemMix();
+                });
+            }
+        }
+        
+        // Initialize enable buttons
+        const vocalEnableBtn = document.getElementById('vocal-enable-btn');
+        const instrumentalEnableBtn = document.getElementById('instrumental-enable-btn');
+        
+        if (vocalEnableBtn) {
+            vocalEnableBtn.addEventListener('click', () => {
+                vocalMuted = !vocalMuted;
+                vocalEnableBtn.setAttribute('data-enabled', !vocalMuted);
+                vocalEnableBtn.querySelector('.btn-text').textContent = vocalMuted ? 'Mute' : 'On';
+                updateDualStemMix();
+            });
+        }
+        
+        if (instrumentalEnableBtn) {
+            instrumentalEnableBtn.addEventListener('click', () => {
+                instrumentalMuted = !instrumentalMuted;
+                instrumentalEnableBtn.setAttribute('data-enabled', !instrumentalMuted);
+                instrumentalEnableBtn.querySelector('.btn-text').textContent = instrumentalMuted ? 'Mute' : 'On';
+                updateDualStemMix();
+            });
+        }
+        
         // Initial draw
         drawDualKnobs();
         updateDualKnobTextInputs();
@@ -681,6 +849,10 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         // Store globally for save function
         window.currentVocalBlend = currentVocalBlend;
         window.currentInstrumentalBlend = currentInstrumentalBlend;
+        window.currentVocalGain = currentVocalGain;
+        window.currentInstrumentalGain = currentInstrumentalGain;
+        window.vocalMuted = vocalMuted;
+        window.instrumentalMuted = instrumentalMuted;
     }
     
     function updateDualKnobTextInputs() {
@@ -724,56 +896,160 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     }
     
     function handleDualKnobMove(e) {
-        if (!isDraggingVocal && !isDraggingInstrumental) return;
+        if (!isDraggingVocal && !isDraggingInstrumental && !isDraggingVocalGain && !isDraggingInstrumentalGain) return;
         
-        const deltaY = dragStartY - e.clientY;
-        const sensitivity = 0.5;
-        const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY * sensitivity));
-        
-        if (isDraggingVocal) {
-            currentVocalBlend = newValue;
-            window.currentVocalBlend = currentVocalBlend;
-        } else if (isDraggingInstrumental) {
-            currentInstrumentalBlend = newValue;
-            window.currentInstrumentalBlend = currentInstrumentalBlend;
+        // Handle blend knob dragging
+        if (isDraggingVocal || isDraggingInstrumental) {
+            const deltaY = dragStartY - e.clientY;
+            const sensitivity = 0.5;
+            const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY * sensitivity));
+            
+            if (isDraggingVocal) {
+                currentVocalBlend = newValue;
+                window.currentVocalBlend = currentVocalBlend;
+            } else if (isDraggingInstrumental) {
+                currentInstrumentalBlend = newValue;
+                window.currentInstrumentalBlend = currentInstrumentalBlend;
+            }
+            
+            drawDualKnobs();
+            updateDualKnobTextInputs();
+            updateDualStemMix();
         }
         
-        drawDualKnobs();
-        updateDualKnobTextInputs();
-        updateDualStemMix();
+        // Handle gain knob dragging
+        if (isDraggingVocalGain) {
+            const deltaY = vocalGainDragStartY - e.clientY;
+            const sensitivity = 0.1;
+            const newValue = Math.max(-12, Math.min(12, vocalGainDragStartValue + deltaY * sensitivity));
+            
+            if (Math.abs(newValue - currentVocalGain) >= 0.1) {
+                currentVocalGain = Math.round(newValue * 2) / 2; // Round to nearest 0.5
+                document.getElementById('vocal-gain-value').value = currentVocalGain;
+                window.currentVocalGain = currentVocalGain;
+                drawGainKnobOnCanvas('vocal-gain-knob', currentVocalGain);
+                updateDualStemMix();
+            }
+        }
+        
+        if (isDraggingInstrumentalGain) {
+            const deltaY = instrumentalGainDragStartY - e.clientY;
+            const sensitivity = 0.1;
+            const newValue = Math.max(-12, Math.min(12, instrumentalGainDragStartValue + deltaY * sensitivity));
+            
+            if (Math.abs(newValue - currentInstrumentalGain) >= 0.1) {
+                currentInstrumentalGain = Math.round(newValue * 2) / 2; // Round to nearest 0.5
+                document.getElementById('instrumental-gain-value').value = currentInstrumentalGain;
+                window.currentInstrumentalGain = currentInstrumentalGain;
+                drawGainKnobOnCanvas('instrumental-gain-knob', currentInstrumentalGain);
+                updateDualStemMix();
+            }
+        }
     }
     
     function handleDualKnobMoveTouch(e) {
-        if (!isDraggingVocal && !isDraggingInstrumental) return;
+        if (!isDraggingVocal && !isDraggingInstrumental && !isDraggingVocalGain && !isDraggingInstrumentalGain) return;
         e.preventDefault();
         
-        const deltaY = dragStartY - e.touches[0].clientY;
-        const sensitivity = 0.5;
-        const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY * sensitivity));
-        
-        if (isDraggingVocal) {
-            currentVocalBlend = newValue;
-            window.currentVocalBlend = currentVocalBlend;
-        } else if (isDraggingInstrumental) {
-            currentInstrumentalBlend = newValue;
-            window.currentInstrumentalBlend = currentInstrumentalBlend;
+        // Handle blend knob dragging
+        if (isDraggingVocal || isDraggingInstrumental) {
+            const deltaY = dragStartY - e.touches[0].clientY;
+            const sensitivity = 0.5;
+            const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY * sensitivity));
+            
+            if (isDraggingVocal) {
+                currentVocalBlend = newValue;
+                window.currentVocalBlend = currentVocalBlend;
+            } else if (isDraggingInstrumental) {
+                currentInstrumentalBlend = newValue;
+                window.currentInstrumentalBlend = currentInstrumentalBlend;
+            }
+            
+            drawDualKnobs();
+            updateDualKnobTextInputs();
+            updateDualStemMix();
         }
         
-        drawDualKnobs();
-        updateDualKnobTextInputs();
-        updateDualStemMix();
+        // Handle gain knob dragging
+        if (isDraggingVocalGain) {
+            const deltaY = vocalGainDragStartY - e.touches[0].clientY;
+            const sensitivity = 0.1;
+            const newValue = Math.max(-12, Math.min(12, vocalGainDragStartValue + deltaY * sensitivity));
+            
+            if (Math.abs(newValue - currentVocalGain) >= 0.1) {
+                currentVocalGain = Math.round(newValue * 2) / 2;
+                document.getElementById('vocal-gain-value').value = currentVocalGain;
+                window.currentVocalGain = currentVocalGain;
+                drawGainKnobOnCanvas('vocal-gain-knob', currentVocalGain);
+                updateDualStemMix();
+            }
+        }
+        
+        if (isDraggingInstrumentalGain) {
+            const deltaY = instrumentalGainDragStartY - e.touches[0].clientY;
+            const sensitivity = 0.1;
+            const newValue = Math.max(-12, Math.min(12, instrumentalGainDragStartValue + deltaY * sensitivity));
+            
+            if (Math.abs(newValue - currentInstrumentalGain) >= 0.1) {
+                currentInstrumentalGain = Math.round(newValue * 2) / 2;
+                document.getElementById('instrumental-gain-value').value = currentInstrumentalGain;
+                window.currentInstrumentalGain = currentInstrumentalGain;
+                drawGainKnobOnCanvas('instrumental-gain-knob', currentInstrumentalGain);
+                updateDualStemMix();
+            }
+        }
     }
     
     function stopDualKnobDrag() {
         isDraggingVocal = false;
         isDraggingInstrumental = false;
+        isDraggingVocalGain = false;
+        isDraggingInstrumentalGain = false;
         document.getElementById('vocal-blend-knob').style.cursor = 'grab';
         document.getElementById('instrumental-blend-knob').style.cursor = 'grab';
+        const vocalGainKnob = document.getElementById('vocal-gain-knob');
+        const instrumentalGainKnob = document.getElementById('instrumental-gain-knob');
+        if (vocalGainKnob) vocalGainKnob.style.cursor = 'grab';
+        if (instrumentalGainKnob) instrumentalGainKnob.style.cursor = 'grab';
+    }
+    
+    // Vocal gain drag functions
+    function startDragVocalGain(e) {
+        isDraggingVocalGain = true;
+        vocalGainDragStartY = e.clientY;
+        vocalGainDragStartValue = currentVocalGain;
+        document.getElementById('vocal-gain-knob').style.cursor = 'grabbing';
+        e.preventDefault();
+    }
+    
+    function startDragVocalGainTouch(e) {
+        e.preventDefault();
+        isDraggingVocalGain = true;
+        vocalGainDragStartY = e.touches[0].clientY;
+        vocalGainDragStartValue = currentVocalGain;
+    }
+    
+    // Instrumental gain drag functions  
+    function startDragInstrumentalGain(e) {
+        isDraggingInstrumentalGain = true;
+        instrumentalGainDragStartY = e.clientY;
+        instrumentalGainDragStartValue = currentInstrumentalGain;
+        document.getElementById('instrumental-gain-knob').style.cursor = 'grabbing';
+        e.preventDefault();
+    }
+    
+    function startDragInstrumentalGainTouch(e) {
+        e.preventDefault();
+        isDraggingInstrumentalGain = true;
+        instrumentalGainDragStartY = e.touches[0].clientY;
+        instrumentalGainDragStartValue = currentInstrumentalGain;
     }
     
     function drawDualKnobs() {
         drawKnobOnCanvas('vocal-blend-knob', currentVocalBlend);
         drawKnobOnCanvas('instrumental-blend-knob', currentInstrumentalBlend);
+        drawGainKnobOnCanvas('vocal-gain-knob', currentVocalGain);
+        drawGainKnobOnCanvas('instrumental-gain-knob', currentInstrumentalGain);
     }
     
     function drawKnobOnCanvas(canvasId, value) {
@@ -824,13 +1100,101 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         ctx.fillText(Math.round(value), centerX, centerY + 4);
     }
     
+    function drawGainKnobOnCanvas(canvasId, gainValue) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 24; // Match blend knob radius
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Convert gain (-12 to +12) to angle with 0dB at top (-90 degrees)
+        // -12dB = -90 + 135 = 45 degrees (bottom left)
+        // 0dB = -90 degrees (top)
+        // +12dB = -90 - 135 = -225 degrees = 135 degrees (bottom right)
+        const normalizedValue = gainValue / 12; // Convert -12,+12 to -1,+1
+        const angle = -90 + (normalizedValue * 135); // -90 degrees is top, range ±135 degrees
+        
+        // Draw outer circle (match blend knob style)
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Draw gain range arc (from -135 to +135 degrees relative to top)
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 2, (-90 - 135) * Math.PI / 180, (-90 + 135) * Math.PI / 180);
+        ctx.strokeStyle = '#495057';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        
+        // Draw 0dB mark at top
+        const zeroAngle = -90 * Math.PI / 180;
+        const zeroMarkX = centerX + Math.cos(zeroAngle) * (radius - 1);
+        const zeroMarkY = centerY + Math.sin(zeroAngle) * (radius - 1);
+        ctx.beginPath();
+        ctx.arc(zeroMarkX, zeroMarkY, 2, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffc107';
+        ctx.fill();
+        
+        // Draw pointer
+        const pointerAngle = angle * Math.PI / 180;
+        const pointerX = centerX + Math.cos(pointerAngle) * (radius - 8);
+        const pointerY = centerY + Math.sin(pointerAngle) * (radius - 8);
+        
+        ctx.beginPath();
+        ctx.arc(pointerX, pointerY, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        
+        // Draw gain value text (match blend knob style)
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const displayValue = gainValue >= 0 ? `+${gainValue.toFixed(1)}` : gainValue.toFixed(1);
+        ctx.fillText(displayValue, centerX, centerY);
+    }
+    
     function updateDualStemMix() {
-        // Update the mixed buffer with new blend ratios
+        // Update the mixed buffer with new blend ratios only (gain and mute handled by Web Audio API)
         if (window.previewBuffer) {
-            const newMixedBuffer = createMixedBuffer(currentVocalBlend / 100, currentInstrumentalBlend / 100);
+            const newMixedBuffer = createMixedBuffer(
+                currentVocalBlend / 100, 
+                currentInstrumentalBlend / 100,
+                0, // No gain in buffer - handled by Web Audio API
+                0, // No gain in buffer - handled by Web Audio API  
+                true, // No mute in buffer - handled by Web Audio API
+                true  // No mute in buffer - handled by Web Audio API
+            );
             window.previewBuffer = newMixedBuffer;
             originalBuffer = newMixedBuffer;
+            
+            // Apply gain and mute effects via Web Audio API for real-time control
+            updateStemGainAndMute();
         }
+    }
+    
+    function updateStemGainAndMute() {
+        // Apply gain and mute effects in real-time using Web Audio API
+        if (!audioContext || !gainOriginal) return;
+        
+        // Calculate combined effects from both stems
+        const vocalGainLinear = Math.pow(10, currentVocalGain / 20);
+        const instrumentalGainLinear = Math.pow(10, currentInstrumentalGain / 20);
+        const vocalMultiplier = vocalMuted ? 0 : vocalGainLinear;
+        const instrumentalMultiplier = instrumentalMuted ? 0 : instrumentalGainLinear;
+        
+        // For stem mixing, we apply an average effect since we have one combined audio stream
+        // In a more advanced implementation, we'd have separate gain nodes for each stem
+        const averageMultiplier = (vocalMultiplier + instrumentalMultiplier) / 2;
+        
+        gainOriginal.gain.value = averageMultiplier;
     }
     
     function startDrag(e) {
@@ -900,6 +1264,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         document.removeEventListener('touchend', endDrag);
     }
     
+    
     function drawKnob() {
         const canvas = blendKnobCanvas;
         const ctx = canvas.getContext('2d');
@@ -955,7 +1320,9 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         if (!audioContext || !gainOriginal || !gainProcessed) return;
 
         const blendValue = currentBlendValue / 100; // 0 to 1
-        gainOriginal.gain.value = 1 - blendValue;
+        
+        // Simple blend control without gain or mute
+        gainOriginal.gain.value = (1 - blendValue);
         gainProcessed.gain.value = blendValue;
     }
 
@@ -1358,7 +1725,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
     }
 
     // Create mixed buffer from individual stems
-    function createMixedBuffer(vocalBlend, instrumentalBlend) {
+    function createMixedBuffer(vocalBlend, instrumentalBlend, vocalGainDb = 0, instrumentalGainDb = 0, vocalEnabled = true, instrumentalEnabled = true) {
         if (!window.targetVocalBuffer || !window.processedVocalBuffer || 
             !window.targetInstrumentalBuffer || !window.processedInstrumentalBuffer) {
             return null;
@@ -1368,10 +1735,16 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
         const vocalBuffer = blendStemBuffers(window.targetVocalBuffer, window.processedVocalBuffer, vocalBlend);
         const instrumentalBuffer = blendStemBuffers(window.targetInstrumentalBuffer, window.processedInstrumentalBuffer, instrumentalBlend);
         
-        // Mix vocal and instrumental together
+        // Calculate gain multipliers (convert dB to linear)
+        const vocalGainLinear = Math.pow(10, vocalGainDb / 20);
+        const instrumentalGainLinear = Math.pow(10, instrumentalGainDb / 20);
+        
+        // Apply enable/disable (mute) multipliers
+        const vocalMultiplier = vocalEnabled ? vocalGainLinear : 0;
+        const instrumentalMultiplier = instrumentalEnabled ? instrumentalGainLinear : 0;
+        
+        // Mix vocal and instrumental together with gain and mute
         const mixedBuffer = audioContext.createBuffer(2, vocalBuffer.length, vocalBuffer.sampleRate);
-        const vocalData = vocalBuffer.getChannelData(0);
-        const instrumentalData = instrumentalBuffer.getChannelData(0);
         
         for (let channel = 0; channel < mixedBuffer.numberOfChannels; channel++) {
             const outputData = mixedBuffer.getChannelData(channel);
@@ -1379,7 +1752,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             const instrumentalChannelData = instrumentalBuffer.getChannelData(Math.min(channel, instrumentalBuffer.numberOfChannels - 1));
             
             for (let i = 0; i < outputData.length; i++) {
-                outputData[i] = vocalChannelData[i] + instrumentalChannelData[i];
+                outputData[i] = (vocalChannelData[i] * vocalMultiplier) + (instrumentalChannelData[i] * instrumentalMultiplier);
             }
         }
         
@@ -1528,7 +1901,7 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             gainOriginal.gain.value = 1;
             
             // Create initial mixed buffer for playback (50/50 mix)
-            const mixedBuffer = createMixedBuffer(0.5, 0.5);
+            const mixedBuffer = createMixedBuffer(0.5, 0.5, 0, 0, true, true);
             window.previewBuffer = mixedBuffer;
             originalBuffer = mixedBuffer; // For compatibility with existing playback code
 
@@ -1581,13 +1954,21 @@ const useStemSeparation = document.getElementById('use-stem-separation');    con
             formData.append('processed_instrumental_path', processedInstrumentalPath);
             formData.append('vocal_blend_ratio', vocalBlendRatio);
             formData.append('instrumental_blend_ratio', instrumentalBlendRatio);
+            formData.append('vocal_gain_db', window.currentVocalGain || 0);
+            formData.append('instrumental_gain_db', window.currentInstrumentalGain || 0);
+            formData.append('vocal_muted', window.vocalMuted || false);
+            formData.append('instrumental_muted', window.instrumentalMuted || false);
             formData.append('apply_limiter', limiterEnabled);
             
             try {
                 console.log('Sending blend stems request:', {
                     targetVocalPath, processedVocalPath, 
                     targetInstrumentalPath, processedInstrumentalPath,
-                    vocalBlendRatio, instrumentalBlendRatio
+                    vocalBlendRatio, instrumentalBlendRatio,
+                    vocalGain: window.currentVocalGain || 0,
+                    instrumentalGain: window.currentInstrumentalGain || 0,
+                    vocalMuted: window.vocalMuted || false,
+                    instrumentalMuted: window.instrumentalMuted || false
                 });
                 
                 const response = await fetch('/api/blend_stems_and_save', {

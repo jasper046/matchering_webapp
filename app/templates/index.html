@@ -110,6 +110,7 @@
                                     </div>
                                     <div class="channel-controls">
                                         <div class="blend-control">
+                                            <label class="control-label">Blend</label>
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="text-light small">dry</span>
                                                 <div class="knob-container">
@@ -137,6 +138,7 @@
                                     </div>
                                     <div class="channel-controls">
                                         <div class="blend-control">
+                                            <label class="control-label">Blend</label>
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="text-light small">dry</span>
                                                 <div class="knob-container">
@@ -145,6 +147,23 @@
                                                 </div>
                                                 <span class="text-light small">wet</span>
                                             </div>
+                                        </div>
+                                        <div class="gain-control">
+                                            <label class="control-label">Gain</label>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="text-light small">-12dB</span>
+                                                <div class="knob-container">
+                                                    <canvas id="vocal-gain-knob" width="60" height="60"></canvas>
+                                                    <input type="number" id="vocal-gain-value" class="knob-input" min="-12" max="12" step="0.5" value="0">
+                                                </div>
+                                                <span class="text-light small">+12dB</span>
+                                            </div>
+                                        </div>
+                                        <div class="enable-control">
+                                            <label class="control-label">Channel Enable</label>
+                                            <button id="vocal-enable-btn" class="enable-btn" data-enabled="true">
+                                                <span class="btn-text">On</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -164,6 +183,7 @@
                                     </div>
                                     <div class="channel-controls">
                                         <div class="blend-control">
+                                            <label class="control-label">Blend</label>
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="text-light small">dry</span>
                                                 <div class="knob-container">
@@ -172,6 +192,23 @@
                                                 </div>
                                                 <span class="text-light small">wet</span>
                                             </div>
+                                        </div>
+                                        <div class="gain-control">
+                                            <label class="control-label">Gain</label>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="text-light small">-12dB</span>
+                                                <div class="knob-container">
+                                                    <canvas id="instrumental-gain-knob" width="60" height="60"></canvas>
+                                                    <input type="number" id="instrumental-gain-value" class="knob-input" min="-12" max="12" step="0.5" value="0">
+                                                </div>
+                                                <span class="text-light small">+12dB</span>
+                                            </div>
+                                        </div>
+                                        <div class="enable-control">
+                                            <label class="control-label">Channel Enable</label>
+                                            <button id="instrumental-enable-btn" class="enable-btn" data-enabled="true">
+                                                <span class="btn-text">On</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
