@@ -40,3 +40,27 @@ If you want to consistently use the same GPU for this project, you can add the e
 3.  Save the file.
 
 Now, every time you run `./start_server.sh`, it will automatically use the GPU you specified.
+
+## Example: Running Two Instances on Two GPUs
+
+If you have multiple GPUs, you can run a separate instance of the application for each GPU, allowing you to process multiple files simultaneously without conflict.
+
+First, run `nvidia-smi` to get the device IDs. For example, assume you have:
+*   `GPU 0`: GeForce RTX 3080
+*   `GPU 1`: GeForce GTX 1660
+
+You would then open two separate terminal windows and run the following commands:
+
+**In Terminal 1 (for the RTX 3080):**
+```bash
+# This instance will only see and use the RTX 3080
+CUDA_VISIBLE_DEVICES=0 ./start_server.sh
+```
+
+**In Terminal 2 (for the GTX 1660):**
+```bash
+# This instance will only see and use the GTX 1660
+CUDA_VISIBLE_DEVICES=1 ./start_server.sh
+```
+
+This gives you two independent application instances, each with its own dedicated GPU, ready to process files in parallel.
