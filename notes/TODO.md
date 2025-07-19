@@ -6,6 +6,9 @@
     - Create a test to compare frame-by-frame processing to full wav processing, e.g. frames with 25% overlap with raised cosine crossings.
     - After finding optimal frame based processing, apply it in the webapp
 
+- **Batch processing with stem separation and master limiter setting**
+  - **Description:** Batch processing is still only available for non-stem matchering without master limiting. This functionality should be added.
+    
 - **Add visualization of presets (low prio) **
   - **Description:** Create a graphical representation of the data stored within a preset file. This would likely involve:
     - A **frequency spectrum plot** to visualize the tonal balance (e.g., bass, mids, treble).
