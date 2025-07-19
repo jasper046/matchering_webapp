@@ -1,7 +1,7 @@
 # Matchering Web App
 
 This is a web-based application that provides a user-friendly interface for the excellent **[Matchering](https://github.com/sergree/matchering)** audio mastering library by [Sergree](https://github.com/sergree). It allows you to create and blend audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
-There is even an option to process vocals and instruments separately, or just perform stem separation on audio files using the **[Audio Separation](https://github.com/nomadkaraoke/python-audio-separator** library by [nomadkaraoke].
+There is even an option to process vocals and instruments separately, or just perform stem separation on audio files using the **[python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator)** library by [nomadkaraoke](https://github.com/nomadkaraoke).
 
 ## About Matchering
 
