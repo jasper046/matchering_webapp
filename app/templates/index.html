@@ -39,9 +39,6 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="create-preset-tab" data-bs-toggle="tab" data-bs-target="#create-preset" type="button" role="tab" aria-controls="create-preset" aria-selected="false">Create Preset</button>
             </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="blend-presets-tab" data-bs-toggle="tab" data-bs-target="#blend-presets" type="button" role="tab" aria-controls="blend-presets" aria-selected="false">Blend Presets</button>
-            </li>
         </ul>
         <div class="tab-content" id="myTabContent">
             <div class="tab-pane fade show active" id="single" role="tabpanel" aria-labelledby="single-tab">
@@ -330,23 +327,6 @@
                 </section>
             </div>
 
-            <div class="tab-pane fade" id="blend-presets" role="tabpanel" aria-labelledby="blend-presets-tab">
-                <section class="mt-3">
-                    <h2>Blend Presets</h2>
-                    <form id="blend-presets-form">
-                        <div class="mb-3">
-                            <label for="preset-files" class="form-label">Preset Files (.pkl) (2-5)</label>
-                            <input type="file" class="form-control" id="preset-files" name="preset_files" accept=".pkl" multiple required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="new-preset-name" class="form-label">New Preset Name</label>
-                            <input type="text" class="form-control" id="new-preset-name" name="new_preset_name" placeholder="e.g., MyCustomBlend" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Blend Presets</button>
-                    </form>
-                    <div id="blend-presets-status" class="mt-3"></div>
-                </section>
-            </div>
         </div>
     </div>
 

@@ -65,42 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Blend Presets Section ---
-    const blendPresetsForm = document.getElementById('blend-presets-form');
-    const blendPresetsStatus = document.getElementById('blend-presets-status');
-    blendPresetsForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // Prevent submission during active processing
-        if (isProcessing) {
-            showStatus(blendPresetsStatus, 'Please wait for current processing to complete.', true);
-            return;
-        }
-        
-        showStatus(blendPresetsStatus, 'Blending presets...');
-
-        const formData = new FormData();
-        const presetFiles = document.getElementById('preset-files').files;
-        for (let i = 0; i < presetFiles.length; i++) {
-            formData.append('preset_files', presetFiles[i]);
-        }
-        formData.append('new_preset_name', document.getElementById('new-preset-name').value);
-
-        try {
-            const response = await fetch('/api/blend_presets', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-            if (response.ok) {
-                showStatus(blendPresetsStatus, `Blended preset saved: <a href="/download/preset/${data.blended_preset_path.split('/').pop()}?download_name=${encodeURIComponent(data.blended_preset_path.split('/').pop())}" target="_blank">${data.blended_preset_path.split('/').pop()}</a>`);
-            } else {
-                showStatus(blendPresetsStatus, `Error: ${data.detail}`, true);
-            }
-        } catch (error) {
-            showStatus(blendPresetsStatus, `Network error: ${error.message}`, true);
-        }
-    });
 
     // --- Single File Conversion Section ---
     const processSingleForm = document.getElementById('process-single-form');

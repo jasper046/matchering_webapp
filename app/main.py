@@ -158,29 +158,6 @@ async def create_preset(reference_file: UploadFile = File(...)):
     finally:
         os.remove(file_location)
 
-@app.post("/api/blend_presets")
-async def blend_presets(preset_files: List[UploadFile] = File(...), new_preset_name: str = Form(...)):
-    if not (2 <= len(preset_files) <= 10):
-        raise HTTPException(status_code=400, detail="Please upload between 2 and 10 preset files.")
-
-    uploaded_preset_paths = []
-    for preset_file in preset_files:
-        file_location = os.path.join(UPLOAD_DIR, preset_file.filename)
-        with open(file_location, "wb") as f:
-            shutil.copyfileobj(preset_file.file, f)
-        uploaded_preset_paths.append(file_location)
-
-    blended_preset_filename = f"{new_preset_name}_{uuid.uuid4()}.pkl"
-    blended_preset_path = os.path.join(PRESET_DIR, blended_preset_filename)
-
-    try:
-        mg.blend_presets(preset_paths=uploaded_preset_paths, new_preset_path=blended_preset_path)
-        return {"message": "Presets blended successfully", "blended_preset_path": blended_preset_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        for path in uploaded_preset_paths:
-            os.remove(path)
 
 @app.post("/api/process_stems")
 async def process_stems(

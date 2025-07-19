@@ -1,6 +1,6 @@
 # Matchering Web App
 
-This is a web-based application that provides a user-friendly interface for the excellent **[Matchering](https://github.com/sergree/matchering)** audio mastering library by [Sergree](https://github.com/sergree). It allows you to create and blend audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
+This is a web-based application that provides a user-friendly interface for the excellent **[Matchering](https://github.com/sergree/matchering)** audio mastering library by [Sergree](https://github.com/sergree). It allows you to create audio presets, perform single and batch audio conversions, and interactively blend original and mastered tracks.
 There is even an option to process vocals and instruments separately, or just perform stem separation on audio files using the **[python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator)** library by [nomadkaraoke](https://github.com/nomadkaraoke).
 
 ## About Matchering
@@ -14,7 +14,6 @@ This project also integrates the **[python-audio-separator](https://github.com/n
 ## Features
 
 *   **Create Presets:** Generate reusable audio characteristic presets from reference audio files.
-*   **Blend Presets:** Combine up to 5 existing presets into a new, blended preset.
 *   **Single File Conversion with Interactive Blending:**
     *   Master a single target audio file using either a reference track or a saved preset.
     *   Visually compare original and processed waveforms.
@@ -87,12 +86,6 @@ The web interface is divided into several sections:
 2.  Click "Create Preset".
 3.  The server will analyze the reference and save a `.pkl` preset file. A link to download the preset will appear.
 
-### Blend Presets
-
-1.  Upload **2 to 5 Preset Files** (e.g., `.pkl` files).
-2.  Provide a **New Preset Name**.
-3.  Click "Blend Presets".
-4.  The server will blend the selected presets into a new `.pkl` file. A link to download the blended preset will appear.
 
 ### Single File Conversion
 
