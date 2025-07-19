@@ -543,6 +543,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     originalFilePath = data.original_file_path;
                     processedFilePath = data.processed_file_path;
                     
+                    // Clear waveform cache since we have new processed audio files
+                    clearWaveformCache();
+                    
                     // Store preset information if created from reference
                     if (data.created_preset_path) {
                         processSingleStatus.dataset.createdPresetPath = data.created_preset_path;
@@ -1180,7 +1183,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.vocalOriginalPath && window.vocalProcessedPath && 
             window.instrumentalOriginalPath && window.instrumentalProcessedPath) {
             try {
-                await generateStemBlendPreview();
+                // Don't clear waveform cache - waveforms don't change when blend ratios change
+                // Only the preview audio output changes
+                await generateBlendPreview();
             } catch (error) {
                 console.error('Error updating dual stem mix:', error);
             }
@@ -1443,8 +1448,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateBlendPreview() {
         if (!originalFilePath || !processedFilePath) return;
         
-        // Clear waveform cache since we're generating new blend
-        clearWaveformCache();
+        // Don't clear waveform cache - waveforms don't change when blend ratios change
+        // Only the preview audio output changes
         
         try {
             // Get the blend ratio (0.0 to 1.0)
@@ -1510,13 +1515,85 @@ document.addEventListener('DOMContentLoaded', () => {
                         updatePreviewAudio(data.channel_output_path);
                     }
                     
-                    // Ensure waveform is drawn after successful preview generation
-                    const combinedWaveform = document.getElementById('combined-waveform');
-                    if (combinedWaveform) {
-                        drawCombinedWaveform(combinedWaveform, null, null, '#007bff', '#28a745');
-                    }
+                    // Waveform is already drawn once when processing completed
+                    // No need to redraw it during preview generation
                 } else {
                     console.error('Failed to generate blend preview:', response.statusText);
+                }
+            } else {
+                // Stem mode: generate blended preview using both vocal and instrumental channels
+                console.log('Generating stem blend preview');
+                
+                // Process vocal channel
+                const vocalFormData = new FormData();
+                const vocalOriginalResponse = await fetch(`/temp_files/${encodeURIComponent(window.vocalOriginalPath.split('/').pop())}`);
+                const vocalProcessedResponse = await fetch(`/temp_files/${encodeURIComponent(window.vocalProcessedPath.split('/').pop())}`);
+                
+                const vocalOriginalBlob = await vocalOriginalResponse.blob();
+                const vocalProcessedBlob = await vocalProcessedResponse.blob();
+                
+                vocalFormData.append('original_file', vocalOriginalBlob, 'vocal_original.wav');
+                vocalFormData.append('processed_file', vocalProcessedBlob, 'vocal_processed.wav');
+                vocalFormData.append('blend_ratio', currentVocalBlend / 100);
+                vocalFormData.append('volume_adjust_db', currentVocalGain);
+                vocalFormData.append('mute', vocalMuted);
+                
+                const vocalResponse = await fetch('/api/process_channel', {
+                    method: 'POST',
+                    body: vocalFormData
+                });
+                
+                // Process instrumental channel
+                const instrumentalFormData = new FormData();
+                const instrumentalOriginalResponse = await fetch(`/temp_files/${encodeURIComponent(window.instrumentalOriginalPath.split('/').pop())}`);
+                const instrumentalProcessedResponse = await fetch(`/temp_files/${encodeURIComponent(window.instrumentalProcessedPath.split('/').pop())}`);
+                
+                const instrumentalOriginalBlob = await instrumentalOriginalResponse.blob();
+                const instrumentalProcessedBlob = await instrumentalProcessedResponse.blob();
+                
+                instrumentalFormData.append('original_file', instrumentalOriginalBlob, 'instrumental_original.wav');
+                instrumentalFormData.append('processed_file', instrumentalProcessedBlob, 'instrumental_processed.wav');
+                instrumentalFormData.append('blend_ratio', currentInstrumentalBlend / 100);
+                instrumentalFormData.append('volume_adjust_db', currentInstrumentalGain);
+                instrumentalFormData.append('mute', instrumentalMuted);
+                
+                const instrumentalResponse = await fetch('/api/process_channel', {
+                    method: 'POST',
+                    body: instrumentalFormData
+                });
+                
+                if (vocalResponse.ok && instrumentalResponse.ok) {
+                    const vocalData = await vocalResponse.json();
+                    const instrumentalData = await instrumentalResponse.json();
+                    
+                    // Combine both channels using master limiter
+                    const limiterFormData = new FormData();
+                    
+                    const vocalBlendedResponse = await fetch(`/temp_files/${encodeURIComponent(vocalData.channel_output_path.split('/').pop())}`);
+                    const instrumentalBlendedResponse = await fetch(`/temp_files/${encodeURIComponent(instrumentalData.channel_output_path.split('/').pop())}`);
+                    
+                    const vocalBlendedBlob = await vocalBlendedResponse.blob();
+                    const instrumentalBlendedBlob = await instrumentalBlendedResponse.blob();
+                    
+                    limiterFormData.append('input_files', vocalBlendedBlob, 'vocal_blended.wav');
+                    limiterFormData.append('input_files', instrumentalBlendedBlob, 'instrumental_blended.wav');
+                    limiterFormData.append('gain_adjust_db', 0);
+                    limiterFormData.append('enable_limiter', limiterEnabled);
+                    
+                    const limiterResponse = await fetch('/api/process_limiter', {
+                        method: 'POST',
+                        body: limiterFormData
+                    });
+                    
+                    if (limiterResponse.ok) {
+                        const limiterData = await limiterResponse.json();
+                        updatePreviewAudio(limiterData.master_output_path);
+                        console.log('Stem preview generated with master limiter processing');
+                    } else {
+                        console.error('Failed to apply master limiter to stem preview:', limiterResponse.statusText);
+                    }
+                } else {
+                    console.error('Failed to generate stem blend preview - channel processing failed');
                 }
             }
         } catch (error) {
@@ -2030,6 +2107,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         try {
+            // Clear waveform cache since we have new processed stem files
+            clearWaveformCache();
+            
             // Store file paths for modular processing
             window.vocalOriginalPath = targetVocalPath;
             window.vocalProcessedPath = processedVocalPath;
@@ -2041,6 +2121,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset playback buttons to initial state
             updatePlaybackButtons('stop');
+            
+            // Draw waveforms for vocal and instrumental channels
+            setTimeout(() => {
+                const vocalWaveform = document.getElementById('vocal-combined-waveform');
+                const instrumentalWaveform = document.getElementById('instrumental-combined-waveform');
+                
+                if (vocalWaveform) {
+                    console.log('Drawing vocal waveform');
+                    drawCombinedWaveform(vocalWaveform, targetVocalPath, processedVocalPath, '#007bff', '#28a745');
+                    
+                    // Add click listener for seeking
+                    vocalWaveform.addEventListener('click', seekAudio);
+                } else {
+                    console.error('Vocal waveform canvas not found');
+                }
+                
+                if (instrumentalWaveform) {
+                    console.log('Drawing instrumental waveform');
+                    drawCombinedWaveform(instrumentalWaveform, targetInstrumentalPath, processedInstrumentalPath, '#6f42c1', '#fd7e14');
+                    
+                    // Add click listener for seeking
+                    instrumentalWaveform.addEventListener('click', seekAudio);
+                } else {
+                    console.error('Instrumental waveform canvas not found');
+                }
+            }, 100);
+            
+            // Generate initial preview with default settings (50% blend on both channels)
+            setTimeout(() => {
+                generateBlendPreview();
+            }, 200);
             
             console.log('Stem waveforms initialized for modular processing');
             
