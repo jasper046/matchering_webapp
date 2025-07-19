@@ -27,3 +27,9 @@
     - Remove preset blending tab as we don't know exactly what the effect is of the way we blend presets tpgether
     - Create an option to apply multiple presets sequentially or in parallel (TBD)
 
+- **Multi-instance GPU sharing**
+  - **Context:** Running multiple instances of the application on a single GPU will lead to conflicts, primarily due to VRAM limitations and compute resource contention. This will result in out-of-memory errors and slower processing times.
+  - **Solution:** Implement a job queue system (e.g., using Celery with Redis or RabbitMQ).
+    - A single, dedicated worker process should have exclusive control over the GPU.
+    - Web app instances should add separation tasks as "jobs" to a queue.
+    - The worker process will execute jobs from the queue sequentially, ensuring efficient and conflict-free GPU usage.
