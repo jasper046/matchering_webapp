@@ -12,6 +12,8 @@ soundfile>=0.11.0
 resampy>=0.4.2
 statsmodels>=0.13.2
 
+# Note: Additional test dependencies are in tests/frame_processing/requirements.txt
+
 # Additional dependencies for web framework
 anyio==4.9.0
 click==8.2.1

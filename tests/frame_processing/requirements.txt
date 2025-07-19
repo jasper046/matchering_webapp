@@ -1,0 +1,22 @@
+# Frame Processing Test Dependencies
+# Additional dependencies for comprehensive audio analysis and benchmarking
+
+# Performance monitoring and system resource tracking
+psutil>=5.9.0
+
+# Scientific computing (may need specific versions for advanced features)
+scipy>=1.9.0
+numpy>=1.23.0
+
+# Audio file I/O (should already be in main requirements, but ensuring version)
+soundfile>=0.11.0
+
+# Plotting and visualization for analysis results
+matplotlib>=3.5.0
+
+# Optional: Advanced signal processing
+# librosa>=0.9.0  # Uncomment if advanced audio features are needed
+
+# Development and testing utilities
+# pytest>=7.0.0  # Uncomment if adding unit tests
+# pytest-benchmark>=4.0.0  # Uncomment for pytest integration

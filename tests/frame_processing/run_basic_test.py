@@ -38,6 +38,7 @@ def test_basic_imports():
         print("✓ frame_algorithms imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import frame_algorithms: {e}")
+        print("💡 Tip: Make sure you're running from tests/frame_processing/ directory")
         return False
     
     try:
@@ -45,6 +46,7 @@ def test_basic_imports():
         print("✓ quality_metrics imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import quality_metrics: {e}")
+        print("💡 Tip: Install test dependencies with: pip install -r requirements.txt")
         return False
     
     try:
@@ -52,6 +54,7 @@ def test_basic_imports():
         print("✓ performance_benchmarks imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import performance_benchmarks: {e}")
+        print("💡 Tip: Install test dependencies with: pip install -r requirements.txt")
         return False
     
     return True
