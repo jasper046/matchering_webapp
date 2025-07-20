@@ -573,14 +573,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    function playAudio() {
+    async function playAudio() {
         // Try JIT processing first
         if (window.jitPlayback && window.jitPlayback.isReady()) {
-            window.jitPlayback.play();
-            isPlaying = true;
-            updatePlaybackButtons('play');
-            updatePlayPosition(); // Start position tracking
-            return;
+            const success = await window.jitPlayback.play();
+            if (success) {
+                isPlaying = true;
+                updatePlaybackButtons('play');
+                updatePlayPosition(); // Start position tracking
+                return;
+            } else {
+                console.log('JIT playback failed, falling back to traditional audio');
+            }
         }
         
         // Fallback to traditional audio element

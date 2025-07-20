@@ -33,14 +33,52 @@ class JITPlaybackManager {
     
     async initialize() {
         try {
+            // Check if AudioContext is supported
+            if (!window.AudioContext && !window.webkitAudioContext) {
+                console.error('AudioContext not supported in this browser');
+                return false;
+            }
+            
             // Create audio context
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
+            if (!this.audioContext) {
+                console.error('Failed to create AudioContext');
+                return false;
+            }
+            
+            // Check if AudioWorklet is supported
+            if (!this.audioContext.audioWorklet) {
+                console.error('AudioWorklet not supported in this browser');
+                return false;
+            }
+            
+            console.log('AudioContext created, state:', this.audioContext.state);
+            
+            // Resume context if suspended (requires user interaction)
+            if (this.audioContext.state === 'suspended') {
+                console.log('AudioContext suspended, will resume on user interaction');
+                // Don't fail here - we'll resume when user starts playback
+            }
+            
             // Load AudioWorklet
-            await this.audioContext.audioWorklet.addModule('/static/jit-audio-processor.js');
+            console.log('Loading AudioWorklet module...');
+            try {
+                await this.audioContext.audioWorklet.addModule('/static/jit-audio-processor.js');
+                console.log('✓ AudioWorklet module loaded');
+            } catch (workletError) {
+                console.error('Failed to load AudioWorklet module:', workletError);
+                return false;
+            }
             
             // Create worklet node
-            this.workletNode = new AudioWorkletNode(this.audioContext, 'jit-audio-processor');
+            try {
+                this.workletNode = new AudioWorkletNode(this.audioContext, 'jit-audio-processor');
+                console.log('✓ AudioWorklet node created');
+            } catch (nodeError) {
+                console.error('Failed to create AudioWorklet node:', nodeError);
+                return false;
+            }
             
             // Set up message handling
             this.workletNode.port.onmessage = this.handleWorkletMessage.bind(this);
@@ -121,15 +159,22 @@ class JITPlaybackManager {
         }
     }
     
-    play() {
+    async play() {
         if (!this.workletNode) {
             console.error('JIT audio not initialized');
             return false;
         }
         
-        // Resume audio context if suspended
+        // Resume audio context if suspended (common after page load)
         if (this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
+            console.log('Resuming AudioContext...');
+            try {
+                await this.audioContext.resume();
+                console.log('AudioContext resumed, state:', this.audioContext.state);
+            } catch (error) {
+                console.error('Failed to resume AudioContext:', error);
+                return false;
+            }
         }
         
         this.isPlaying = true;
