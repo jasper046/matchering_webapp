@@ -17,6 +17,10 @@
     - Allows for quick visual comparison and selection of presets.
     - Leads to more informed decisions when blending presets.
 
+- **Add Inflator to Master Stage (Rejected due to complexity of integration)**
+  - **Description:** Integrate an inflator effect into the master processing chain, similar to the RCInflator2_Oxford.jsfx.
+  - **Reason for Rejection:** Detailed feasibility study revealed that direct porting of .jsfx is not possible, and re-implementation in C++ with Python bindings, while technically feasible, is a high-effort task requiring significant DSP expertise and development time, exceeding current project scope.
+
 - **Remove preset blending**
   - **Analysis:** The current preset blending implementation averages the raw audio samples of the `loudest_pieces`. This is suboptimal as it can lead to phase cancellation and other artifacts. A better approach is to concatenate the `loudest_pieces` from the selected presets, as the matchering algorithm's use of STFT allows it to handle variable data lengths.
   - **How to move forward:**
