@@ -58,6 +58,7 @@ Follow these steps to set up and run the Matchering Web App:
     ```bash
     pip install -r requirements.txt
     pip install ./matchering-fork
+    pip install ./python-audio-separator
     ```
 
 ## Running the Application
