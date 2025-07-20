@@ -442,9 +442,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reset limiter button state
         if (limiterButton) {
-            limiterButton.textContent = 'Limiter: ON';
-            limiterButton.classList.remove('btn-outline-secondary');
-            limiterButton.classList.add('btn-success');
+            const limiterText = limiterButton.querySelector('.limiter-text');
+            limiterButton.classList.remove('limiter-bypassed');
+            limiterButton.classList.add('limiter-on');
+            if (limiterText) {
+                limiterText.textContent = 'ON';
+            }
         }
         
         // Redraw gain knobs at default positions
@@ -2456,6 +2459,28 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePreview();
         }
     });
+    
+    // Function to update non-stem mode preview parameters
+    async function updatePreview() {
+        // Check if JIT processing is available and ready for non-stem mode
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            // Use JIT processing - just update parameters, no file generation needed
+            const params = {
+                isStemMode: false,
+                blendRatio: currentBlendValue / 100.0,
+                masterGain: currentMasterGain,
+                limiterEnabled: limiterEnabled
+            };
+            
+            window.jitPlayback.updateParameters(params);
+            return;
+        }
+        
+        // Fallback: If JIT isn't ready but we have files loaded, generate a new preview
+        if (originalFilePath && processedFilePath) {
+            await generateBlendPreview();
+        }
+    }
 
     batchLimiterButton.addEventListener('click', () => {
         batchLimiterEnabled = toggleLimiter(batchLimiterButton, batchLimiterEnabled);

@@ -45,24 +45,54 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "app", "static
 # Configure Jinja2Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "app", "templates"))
 
-# Create PID-specific directories for uploads, presets, and outputs
-PID = os.getpid()
-UPLOAD_DIR = os.path.join(BASE_DIR, f"uploads_{PID}")
-PRESET_DIR = os.path.join(BASE_DIR, f"presets_{PID}")
-OUTPUT_DIR = os.path.join(BASE_DIR, f"outputs_{PID}")
+# Create standard directories for uploads, presets, and outputs
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+PRESET_DIR = os.path.join(BASE_DIR, "presets")
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 
+# Create directories
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PRESET_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Cleanup function to remove PID-specific directories on exit
-def cleanup_pid_directories():
-    for directory in [UPLOAD_DIR, PRESET_DIR, OUTPUT_DIR]:
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
+def cleanup_directory_contents(directory_path: str, preserve_files: list = None):
+    """Clean up directory contents, optionally preserving specific files"""
+    if not os.path.exists(directory_path):
+        return
+    
+    preserve_files = preserve_files or []
+    
+    for item in os.listdir(directory_path):
+        item_path = os.path.join(directory_path, item)
+        
+        # Skip preserved files
+        if item in preserve_files:
+            continue
+            
+        try:
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+        except Exception as e:
+            logging.warning(f"Failed to remove {item_path}: {e}")
 
-# Register cleanup function
-atexit.register(cleanup_pid_directories)
+def cleanup_all_temp_directories():
+    """Clean up all temporary directories on startup"""
+    logging.info("Cleaning up temporary directories on startup...")
+    cleanup_directory_contents(UPLOAD_DIR)
+    cleanup_directory_contents(OUTPUT_DIR)
+    # Keep presets as they might be valuable to users
+    logging.info("Startup cleanup completed")
+
+def cleanup_processing_files(preserve_files: list = None):
+    """Clean up processing files, preserving specified files"""
+    preserve_files = preserve_files or []
+    cleanup_directory_contents(UPLOAD_DIR, preserve_files)
+    # Don't clean OUTPUT_DIR during processing as files might be in use
+
+# Perform startup cleanup
+cleanup_all_temp_directories()
 
 # Initialize the audio separator
 use_cuda = torch.cuda.is_available()
@@ -153,6 +183,9 @@ async def get_progress(job_id: str):
 
 @app.post("/api/create_preset")
 async def create_preset(reference_file: UploadFile = File(...)):
+    # Clean up processing files, preserving the current upload
+    cleanup_processing_files([reference_file.filename])
+    
     original_filename_base = os.path.splitext(reference_file.filename)[0]
     file_location = os.path.join(UPLOAD_DIR, reference_file.filename)
     with open(file_location, "wb") as f:
@@ -501,6 +534,22 @@ async def process_single(
     vocal_preset_file: Optional[UploadFile] = File(None),
     instrumental_preset_file: Optional[UploadFile] = File(None),
 ):
+    # Clean up previous processing files at start of new processing
+    # We'll preserve the files we're about to upload
+    files_to_preserve = []
+    if target_file:
+        files_to_preserve.append(target_file.filename)
+    if reference_file:
+        files_to_preserve.append(reference_file.filename)
+    if preset_file:
+        files_to_preserve.append(preset_file.filename)
+    if vocal_preset_file:
+        files_to_preserve.append(vocal_preset_file.filename)
+    if instrumental_preset_file:
+        files_to_preserve.append(instrumental_preset_file.filename)
+    
+    # Clean up old uploads and outputs from previous processing
+    cleanup_processing_files(files_to_preserve)
     if use_stem_separation:
         if reference_file:
             # Stem separation with reference file - create presets from separated reference
@@ -781,6 +830,11 @@ async def process_batch(
 ):
     if not (1 <= len(target_files) <= 20):
         raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
+
+    # Clean up previous processing files at start of batch processing
+    files_to_preserve = [preset_file.filename]
+    files_to_preserve.extend([f.filename for f in target_files])
+    cleanup_processing_files(files_to_preserve)
 
     batch_id = str(uuid.uuid4())
     batch_jobs[batch_id] = {"status": "pending", "processed_count": 0, "total_count": len(target_files), "output_files": []}
@@ -1102,6 +1156,9 @@ async def separate_stems(
     
     # Save uploaded file
     audio_filename = f"stem_input_{uuid.uuid4()}.wav"
+    # Clean up processing files, preserving the current upload
+    cleanup_processing_files([audio_filename])
+    
     audio_path = os.path.join(UPLOAD_DIR, audio_filename)
     with open(audio_path, "wb") as f:
         shutil.copyfileobj(audio_file.file, f)
