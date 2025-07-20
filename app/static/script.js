@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (success) {
                 isPlaying = true;
                 updatePlaybackButtons('play');
-                updatePlayPosition(); // Start position tracking
+                // Don't call updatePlayPosition() - JIT handles position updates via callbacks
                 return;
             } else {
                 console.log('JIT playback failed, falling back to traditional audio');
@@ -593,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
         previewAudioElement.play();
         isPlaying = true;
         updatePlaybackButtons('play');
-        updatePlayPosition();
+        updatePlayPosition(); // Only for traditional audio
     }
 
     function pauseAudio() {
@@ -602,9 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.jitPlayback.pause();
             isPlaying = false;
             updatePlaybackButtons('pause');
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
+            // JIT doesn't use animation frames, position updates stop automatically
             return;
         }
         
@@ -626,9 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.jitPlayback.stop();
             isPlaying = false;
             updatePlaybackButtons('stop');
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
+            // JIT doesn't use animation frames, but we still need to reset position visually
             drawPlayPosition(0);
             return;
         }
@@ -2208,13 +2204,29 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Cleared waveform image cache');
     }
 
-    // Update play position during playback using HTML5 audio
+    // Update play position during playback 
     function updatePlayPosition() {
-        if (!isPlaying || !previewAudioElement) return;
+        if (!isPlaying) return;
         
-        const position = previewAudioElement.currentTime / previewAudioElement.duration;
+        let position = 0;
+        let ended = false;
         
-        if (previewAudioElement.ended) {
+        // Get position from JIT processor if available
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            const state = window.jitPlayback.getState();
+            if (state.duration > 0) {
+                position = state.currentTime / state.duration;
+                ended = state.currentTime >= state.duration;
+            }
+        } else if (previewAudioElement) {
+            // Fallback to traditional audio element
+            if (previewAudioElement.duration > 0) {
+                position = previewAudioElement.currentTime / previewAudioElement.duration;
+                ended = previewAudioElement.ended;
+            }
+        }
+        
+        if (ended) {
             // Reached end, stop playback
             stopAudio();
             return;
