@@ -393,6 +393,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
+        // Check if frame processing is available and should be used
+        const useFrameProcessing = window.frameProcessing && window.frameProcessing.isAvailable();
+        
+        if (useFrameProcessing) {
+            // Dispatch custom event for frame processing
+            const customEvent = new CustomEvent('processButtonClick', {
+                detail: { originalEvent: e }
+            });
+            document.dispatchEvent(customEvent);
+            
+            // If frame processing handles it, return early
+            if (customEvent.defaultPrevented) {
+                return;
+            }
+        }
+        
         // Set processing state
         setProcessingState(true);
         
@@ -1565,6 +1581,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Don't clear waveform cache - waveforms don't change when blend ratios change
         // Only the preview audio output changes
+        
+        // Check if frame processing should handle this
+        if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
+            // Dispatch parameter change event for frame processing
+            const params = {
+                vocal_gain_db: 0, // Will be handled by blend ratio
+                instrumental_gain_db: 0,
+                master_gain_db: currentMasterGain,
+                limiter_enabled: limiterEnabled,
+                is_stem_mode: isCurrentlyStemMode()
+            };
+            
+            const event = new CustomEvent('parameterChange', { detail: params });
+            document.dispatchEvent(event);
+            return; // Frame processing will handle the preview
+        }
         
         try {
             // Get the blend ratio (0.0 to 1.0)

@@ -21,7 +21,20 @@ from .audio.channel_processor import process_channel
 from .audio.master_limiter import process_limiter
 from .audio.utils import generate_temp_path, ensure_directory, cleanup_file
 
+# Import frame processing API
+try:
+    from .api.frame_endpoints import frame_router
+    FRAME_API_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Frame processing API not available: {e}")
+    FRAME_API_AVAILABLE = False
+
 app = FastAPI()
+
+# Include frame processing router if available
+if FRAME_API_AVAILABLE:
+    app.include_router(frame_router)
+    logging.info("Frame processing API endpoints enabled")
 
 # Get the directory where this file is located
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
