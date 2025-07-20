@@ -535,6 +535,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Initialize knob controls and waveform display
                     initializeKnob();
                     
+                    // Initialize JIT processing with the processed audio files
+                    initializeJITProcessing(data.original_file_path, data.processed_file_path);
+                    
                     // Draw simplified waveform display after a brief delay to ensure visibility
                     setTimeout(() => {
                         const combinedWaveform = document.getElementById('combined-waveform');
@@ -571,30 +574,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function playAudio() {
+        // Try JIT processing first
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            window.jitPlayback.play();
+            isPlaying = true;
+            updatePlaybackButtons('play');
+            updatePlayPosition(); // Start position tracking
+            return;
+        }
+        
+        // Fallback to traditional audio element
         if (!previewAudioElement || !currentPreviewPath) return;
         
         previewAudioElement.play();
         isPlaying = true;
         updatePlaybackButtons('play');
-        
-        // Start position tracking animation
         updatePlayPosition();
     }
 
     function pauseAudio() {
+        // Try JIT processing first
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            window.jitPlayback.pause();
+            isPlaying = false;
+            updatePlaybackButtons('pause');
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            return;
+        }
+        
+        // Fallback to traditional audio element
         if (!previewAudioElement) return;
         
         previewAudioElement.pause();
         isPlaying = false;
         updatePlaybackButtons('pause');
         
-        // Stop position tracking animation
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
     }
 
     function stopAudio() {
+        // Try JIT processing first
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            window.jitPlayback.stop();
+            isPlaying = false;
+            updatePlaybackButtons('stop');
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            drawPlayPosition(0);
+            return;
+        }
+        
+        // Fallback to traditional audio element
         if (!previewAudioElement) return;
         
         previewAudioElement.pause();
@@ -602,12 +637,10 @@ document.addEventListener('DOMContentLoaded', () => {
         isPlaying = false;
         updatePlaybackButtons('stop');
         
-        // Stop position tracking animation
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
         
-        // Reset visual position to start
         drawPlayPosition(0);
     }
 
@@ -1485,6 +1518,86 @@ document.addEventListener('DOMContentLoaded', () => {
     function isCurrentlyStemMode() {
         return document.getElementById('vocal-channel').style.display !== 'none';
     }
+
+    // Initialize JIT processing for real-time preview
+    async function initializeJITProcessing(originalFilePath, processedFilePath) {
+        try {
+            console.log('Initializing JIT processing...');
+            
+            // Initialize JIT system
+            const initialized = await window.jitPlayback.initialize();
+            if (!initialized) {
+                console.log('JIT processing not available, using fallback');
+                return false;
+            }
+            
+            // Convert file paths to proper URLs
+            const originalUrl = `/temp_files/${encodeURIComponent(originalFilePath.split('/').pop())}`;
+            const processedUrl = `/temp_files/${encodeURIComponent(processedFilePath.split('/').pop())}`;
+            
+            // Load audio files
+            const audioLoaded = await window.jitPlayback.loadAudio(originalUrl, processedUrl);
+            if (!audioLoaded) {
+                console.log('Failed to load audio for JIT processing');
+                return false;
+            }
+            
+            // Set up position updates for waveform display
+            window.jitPlaybackManager.onPositionUpdate = (currentTime, duration) => {
+                if (duration > 0) {
+                    const progress = currentTime / duration;
+                    drawPlayPosition(progress);
+                }
+            };
+            
+            // Set up playback end handler
+            window.jitPlaybackManager.onPlaybackEnd = () => {
+                isPlaying = false;
+                updatePlaybackButtons('stop');
+                drawPlayPosition(0);
+            };
+            
+            console.log('✓ JIT processing initialized successfully');
+            
+            // Show JIT status indicator
+            showJITStatus('🚀 Real-time processing enabled', false);
+            
+            return true;
+            
+        } catch (error) {
+            console.error('JIT initialization failed:', error);
+            showJITStatus('⚠ Using fallback processing', true);
+            return false;
+        }
+    }
+    
+    // Show JIT processing status
+    function showJITStatus(message, isWarning = false) {
+        // Find or create status indicator
+        let indicator = document.getElementById('jit-status-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'jit-status-indicator';
+            indicator.className = 'alert alert-info mt-2';
+            
+            // Insert after the process button
+            const processButton = document.getElementById('process-file-button');
+            if (processButton) {
+                processButton.parentNode.insertBefore(indicator, processButton.nextSibling);
+            }
+        }
+        
+        indicator.textContent = message;
+        indicator.className = `alert ${isWarning ? 'alert-warning' : 'alert-info'} mt-2`;
+        indicator.style.display = 'block';
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+        }, 3000);
+    }
     
     // Update the preview audio element with new processed audio
     function updatePreviewAudio(audioPath) {
@@ -1575,27 +1688,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Generate a new blend preview using our modular channel processor
+    // Generate a new blend preview using JIT processing or fallback to modular approach
     async function generateBlendPreview() {
         if (!originalFilePath || !processedFilePath) return;
         
-        // Don't clear waveform cache - waveforms don't change when blend ratios change
-        // Only the preview audio output changes
-        
-        // Check if frame processing should handle this
-        if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
-            // Dispatch parameter change event for frame processing
+        // Check if JIT processing is available and ready
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            // Use JIT processing - just update parameters, no file generation needed
             const params = {
-                vocal_gain_db: 0, // Will be handled by blend ratio
-                instrumental_gain_db: 0,
-                master_gain_db: currentMasterGain,
-                limiter_enabled: limiterEnabled,
-                is_stem_mode: isCurrentlyStemMode()
+                blendRatio: currentBlendValue / 100.0,
+                masterGain: currentMasterGain,
+                limiterEnabled: limiterEnabled
             };
             
-            const event = new CustomEvent('parameterChange', { detail: params });
-            document.dispatchEvent(event);
-            return; // Frame processing will handle the preview
+            window.jitPlayback.updateParameters(params);
+            console.log('JIT parameters updated:', params);
+            return; // JIT processing handles everything in real-time
         }
         
         try {
@@ -1960,12 +2068,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Seek audio to specific position
     function seekAudio(event) {
-        if (!previewAudioElement || !previewAudioElement.duration) return;
-        
         const canvas = event.target;
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const clickPosition = x / canvas.offsetWidth;
+        
+        // Try JIT processing first
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            const state = window.jitPlayback.getState();
+            if (state.duration > 0) {
+                const newTime = clickPosition * state.duration;
+                window.jitPlayback.seek(newTime);
+                drawPlayPosition(clickPosition);
+            }
+            return;
+        }
+        
+        // Fallback to traditional audio element
+        if (!previewAudioElement || !previewAudioElement.duration) return;
         
         // Calculate new playback time
         const newTime = clickPosition * previewAudioElement.duration;
