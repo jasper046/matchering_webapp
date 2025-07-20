@@ -70,7 +70,6 @@ port=${port:-8000}
 
 # Create or modify docker-compose override
 cat > docker-compose.override.yml << EOF
-version: '3.8'
 services:
   matchering-webapp:
     ports:

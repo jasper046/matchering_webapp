@@ -2,3 +2,4 @@ __pycache__/
 outputs/
 presets/
 uploads/
+docker-compose.override.yml

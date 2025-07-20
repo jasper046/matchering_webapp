@@ -84,71 +84,97 @@ docker-compose --profile gpu up --build matchering-webapp-gpu
 
 ## Running Multiple Instances (For Beta Testing)
 
-If you want to run several instances for different users/testers, here's how:
+If you want to run several instances for different users/testers, here's a more efficient way than running the `./deploy.sh` script multiple times.
 
-### Method 1: Different Ports (Simplest)
+### Method 1: Different Ports (Recommended)
+
+This method builds the Docker image once and then starts multiple containers from it, which is much faster and saves disk space.
+
+**Step 1: Build the Docker Image**
+
+First, build the image for the web application. You only need to do this once.
 
 ```bash
-# Instance 1 (default)
-./deploy.sh
-# Choose port 8000
+# Build the image for the CPU-only service
+docker-compose build matchering-webapp
 
-# Instance 2 
-./deploy.sh  
-# Choose port 8001
+# Or, if you have a GPU and want to use it:
+docker-compose --profile gpu build matchering-webapp-gpu
+```
 
-# Instance 3
-./deploy.sh
-# Choose port 8002
+**Step 2: Run Multiple Instances**
+
+Now, you can start as many instances as you need on different ports. The command `docker-compose run` starts a one-off container that is not managed by `docker-compose up/down`.
+
+```bash
+# Start instance 1 on port 8000
+docker-compose run -d --name matchering-8000 -p 8000:8000 matchering-webapp
+
+# Start instance 2 on port 8001
+docker-compose run -d --name matchering-8001 -p 8001:8000 matchering-webapp
+
+# Start instance 3 on port 8002
+docker-compose run -d --name matchering-8002 -p 8002:8000 matchering-webapp
 ```
 
 Then your users access:
 - User 1: `http://yourserver.com:8000`
-- User 2: `http://yourserver.com:8001` 
+- User 2: `http://yourserver.com:8001`
 - User 3: `http://yourserver.com:8002`
+
+**Note:** For GPU instances, replace `matchering-webapp` with `matchering-webapp-gpu` in the `docker-compose run` commands.
 
 ### Method 2: Subdomains (More Professional)
 
-1. **Run instances on different ports** (as above)
+1.  **Run instances on different ports** (as described in Method 1).
 
-2. **Set up nginx or similar** to route subdomains:
-   ```nginx
-   # Example nginx config
-   server {
-       listen 80;
-       server_name user1.yourproject.com;
-       location / {
-           proxy_pass http://localhost:8000;
-       }
-   }
-   
-   server {
-       listen 80; 
-       server_name user2.yourproject.com;
-       location / {
-           proxy_pass http://localhost:8001;
-       }
-   }
-   ```
+2.  **Set up a reverse proxy** (like nginx or traefik) to route subdomains to the correct container port.
 
-3. **Point DNS subdomains** to your server
+    ```nginx
+    # Example nginx config
+    server {
+        listen 80;
+        server_name user1.yourproject.com;
+        location / {
+            proxy_pass http://localhost:8000;
+        }
+    }
 
-Result: Clean URLs like `user1.yourproject.com`, `user2.yourproject.com`
+    server {
+        listen 80;
+        server_name user2.yourproject.com;
+        location / {
+            proxy_pass http://localhost:8001;
+        }
+    }
+    ```
+
+3.  **Point your DNS subdomains** to your server's IP address.
+
+This results in clean URLs like `user1.yourproject.com` and `user2.yourproject.com`.
 
 ### Managing Multiple Instances
 
+Since the instances are run as separate, named containers, you can manage them individually using standard Docker commands.
+
 ```bash
-# See all running containers
+# See all running containers (including your named instances)
 docker ps
 
-# Stop specific instance
-docker-compose -f docker-compose.yml down
+# Stop a specific instance
+docker stop matchering-8000
 
-# View logs for troubleshooting
-docker-compose logs -f
+# Start a stopped instance
+docker start matchering-8000
 
-# Restart all instances
-docker restart $(docker ps -q)
+# View logs for a specific instance
+docker logs -f matchering-8000
+
+# Stop and remove a specific instance
+docker rm -f matchering-8000
+
+# To stop all running matchering instances at once
+docker stop $(docker ps -q --filter "name=matchering-")
 ```
 
 ## Configuration Options
