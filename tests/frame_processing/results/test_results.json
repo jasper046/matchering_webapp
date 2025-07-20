@@ -1,0 +1,181 @@
+[
+  {
+    "config_name": "A",
+    "audio_file": "results/generated_test_audio.wav",
+    "quality_metrics": {
+      "rms_difference_db": 1.5453311264610936,
+      "rms_reference_db": -13.033052772173612,
+      "rms_test_db": -11.487721645712519,
+      "peak_difference_db": 2.4075509120355694,
+      "crest_factor_difference_db": 0.8622197855744764,
+      "mean_absolute_difference": 0.02863616223670458,
+      "max_absolute_difference": 0.473907470703125,
+      "spectral_difference_db": 0.0,
+      "sub_bass_power_difference_db": 0.0,
+      "bass_power_difference_db": 0.0,
+      "low_mids_power_difference_db": 0.0,
+      "mids_power_difference_db": 0.0,
+      "high_mids_power_difference_db": 0.0,
+      "presence_power_difference_db": 0.0,
+      "brilliance_power_difference_db": 0.0,
+      "spectral_centroid_difference_hz": 0.0,
+      "spectral_rolloff_difference_hz": 0.0,
+      "a_weighted_difference_db": 1.5486142484605385,
+      "zero_crossing_rate_difference": 0.0,
+      "short_time_energy_difference_db": 1.5504502137190734,
+      "pearson_correlation": 0.9675053677569488,
+      "max_cross_correlation": 0.9675053669600202,
+      "artifact_energy_db": -22.404867902218342,
+      "high_freq_artifact_db": -100.0,
+      "click_detection_metric": 0.307220458984375,
+      "overall_score": 90.41332038297796
+    },
+    "performance_metrics": {
+      "monolithic_time": 0.035379886627197266,
+      "frame_time": 0.027208566665649414,
+      "speedup_factor": 1.3003215884894104,
+      "frame_processing_overhead": 3.681659698486328
+    },
+    "processing_time": 0.027208566665649414,
+    "artifacts_detected": [
+      "Clipping detected: 0.08% of samples",
+      "Large discontinuity detected: 0.3901",
+      "Spectral peaks detected",
+      "Spectral notches detected"
+    ]
+  },
+  {
+    "config_name": "B",
+    "audio_file": "results/generated_test_audio.wav",
+    "quality_metrics": {
+      "rms_difference_db": 3.7237962474150526,
+      "rms_reference_db": -13.033052772173612,
+      "rms_test_db": -9.30925652475856,
+      "peak_difference_db": 2.4075509120355694,
+      "crest_factor_difference_db": -1.3162453353794827,
+      "mean_absolute_difference": 0.09055020826690051,
+      "max_absolute_difference": 0.474395751953125,
+      "spectral_difference_db": 0.0,
+      "sub_bass_power_difference_db": 0.0,
+      "bass_power_difference_db": 0.0,
+      "low_mids_power_difference_db": 0.0,
+      "mids_power_difference_db": 0.0,
+      "high_mids_power_difference_db": 0.0,
+      "presence_power_difference_db": 0.0,
+      "brilliance_power_difference_db": 0.0,
+      "spectral_centroid_difference_hz": 0.0,
+      "spectral_rolloff_difference_hz": 0.0,
+      "a_weighted_difference_db": 3.7280572914349976,
+      "zero_crossing_rate_difference": 0.0,
+      "short_time_energy_difference_db": 3.718116315333467,
+      "pearson_correlation": 0.9729971885877362,
+      "max_cross_correlation": 0.9729971878672818,
+      "artifact_energy_db": -17.357357856911463,
+      "high_freq_artifact_db": -100.0,
+      "click_detection_metric": 0.451416015625,
+      "overall_score": 83.68164760417409
+    },
+    "performance_metrics": {
+      "monolithic_time": 0.028277873992919922,
+      "frame_time": 0.03160738945007324,
+      "speedup_factor": 0.894660219806745,
+      "frame_processing_overhead": 5.29789924621582
+    },
+    "processing_time": 0.03160738945007324,
+    "artifacts_detected": [
+      "Clipping detected: 0.26% of samples",
+      "Large discontinuity detected: 0.4581",
+      "Spectral peaks detected",
+      "Spectral notches detected"
+    ]
+  },
+  {
+    "config_name": "C",
+    "audio_file": "results/generated_test_audio.wav",
+    "quality_metrics": {
+      "rms_difference_db": 0.7118158780289645,
+      "rms_reference_db": -13.033052772173612,
+      "rms_test_db": -12.321236894144647,
+      "peak_difference_db": 2.4075509120355694,
+      "crest_factor_difference_db": 1.695735034006605,
+      "mean_absolute_difference": 0.011830658028185233,
+      "max_absolute_difference": 0.47418212890625,
+      "spectral_difference_db": 0.0,
+      "sub_bass_power_difference_db": 0.0,
+      "bass_power_difference_db": 0.0,
+      "low_mids_power_difference_db": 0.0,
+      "mids_power_difference_db": 0.0,
+      "high_mids_power_difference_db": 0.0,
+      "presence_power_difference_db": 0.0,
+      "brilliance_power_difference_db": 0.0,
+      "spectral_centroid_difference_hz": 0.0,
+      "spectral_rolloff_difference_hz": 0.0,
+      "a_weighted_difference_db": 0.7110891723742573,
+      "zero_crossing_rate_difference": 0.0,
+      "short_time_energy_difference_db": 0.7144013415513588,
+      "pearson_correlation": 0.9812527582190501,
+      "max_cross_correlation": 0.9812527573737023,
+      "artifact_energy_db": -26.22147280702505,
+      "high_freq_artifact_db": -100.0,
+      "click_detection_metric": 0.42669677734375,
+      "overall_score": 93.10783251980318
+    },
+    "performance_metrics": {
+      "monolithic_time": 0.028538942337036133,
+      "frame_time": 0.020890474319458008,
+      "speedup_factor": 1.366122276623184,
+      "frame_processing_overhead": 3.0744075775146484
+    },
+    "processing_time": 0.020890474319458008,
+    "artifacts_detected": [
+      "Clipping detected: 0.05% of samples",
+      "Large discontinuity detected: 0.4443",
+      "Spectral peaks detected",
+      "Spectral notches detected"
+    ]
+  },
+  {
+    "config_name": "D",
+    "audio_file": "results/generated_test_audio.wav",
+    "quality_metrics": {
+      "rms_difference_db": 0.0,
+      "rms_reference_db": -13.033052772173612,
+      "rms_test_db": -13.033052772173612,
+      "peak_difference_db": 0.0,
+      "crest_factor_difference_db": 0.0,
+      "mean_absolute_difference": 0.0,
+      "max_absolute_difference": 0.0,
+      "spectral_difference_db": 0.0,
+      "sub_bass_power_difference_db": 0.0,
+      "bass_power_difference_db": 0.0,
+      "low_mids_power_difference_db": 0.0,
+      "mids_power_difference_db": 0.0,
+      "high_mids_power_difference_db": 0.0,
+      "presence_power_difference_db": 0.0,
+      "brilliance_power_difference_db": 0.0,
+      "spectral_centroid_difference_hz": 0.0,
+      "spectral_rolloff_difference_hz": 0.0,
+      "a_weighted_difference_db": 0.0,
+      "zero_crossing_rate_difference": 0.0,
+      "short_time_energy_difference_db": 0.0,
+      "pearson_correlation": 1.0,
+      "max_cross_correlation": 0.999999999103222,
+      "artifact_energy_db": -100.0,
+      "high_freq_artifact_db": -100.0,
+      "click_detection_metric": 0.0,
+      "overall_score": 85.0
+    },
+    "performance_metrics": {
+      "monolithic_time": 0.046875,
+      "frame_time": 0.028970956802368164,
+      "speedup_factor": 1.617999720194547,
+      "frame_processing_overhead": 3.2536983489990234
+    },
+    "processing_time": 0.028970956802368164,
+    "artifacts_detected": [
+      "Large discontinuity detected: 0.1303",
+      "Spectral peaks detected",
+      "Spectral notches detected"
+    ]
+  }
+]

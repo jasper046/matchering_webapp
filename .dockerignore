@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+.env
+
+# Project specific
+uploads/
+outputs/
+presets/
+server.log
+.coverage
+*.wav
+*.pkl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation and notes
+notes/
+*.md
+GAMEPLAN.md
+STEM_SEPARATION_WORKFLOW.md
+
+# Test files and outputs
+test_*.py
+tests/frame_processing/results/
+outputs_*/

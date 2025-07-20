@@ -1,0 +1,28 @@
+nvidia-smi not found. Running on CPU.
+INFO:audio_separator.separator.separator:Separator version 0.35.0 instantiating with output_dir: /home/jasper/Music/matchering/matchering_webapp/outputs_339304, output_format: WAV
+INFO:audio_separator.separator.separator:Using model directory from model_file_dir parameter: /tmp/audio-separator-models
+INFO:audio_separator.separator.separator:Operating System: Linux #1 SMP PREEMPT_DYNAMIC Mon, 14 Jul 2025 15:37:06 +0000
+INFO:audio_separator.separator.separator:System: Linux Node: furby Release: 6.12.38-1-MANJARO Machine: x86_64 Proc: 
+INFO:audio_separator.separator.separator:Python Version: 3.13.5
+INFO:audio_separator.separator.separator:PyTorch Version: 2.7.1+cu126
+INFO:audio_separator.separator.separator:FFmpeg installed: ffmpeg version n7.1.1 Copyright (c) 2000-2025 the FFmpeg developers
+INFO:audio_separator.separator.separator:ONNX Runtime CPU package installed with version: 1.22.1
+INFO:audio_separator.separator.separator:No hardware acceleration could be configured, running in CPU mode
+INFO:     Started server process [339304]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53228 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53238 - "GET /static/bootstrap.min.lux.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53252 - "GET /static/Code_of_the_Geeks_Logo_White.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53228 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53252 - "GET /static/jit-playback-manager.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53238 - "GET /static/jit-fallback-processor.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53228 - "GET /static/frame_processing.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53264 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53264 - "GET /api/frame/availability HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [339304]
+Terminated                 uvicorn app.main:app --host 0.0.0.0 --port $PORT
