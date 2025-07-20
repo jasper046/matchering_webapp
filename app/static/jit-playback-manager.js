@@ -28,7 +28,50 @@ class JITPlaybackManager {
         this.onPositionUpdate = null;
         this.onPlaybackEnd = null;
         
+        // Fallback processor for browsers without AudioWorklet
+        this.fallbackProcessor = null;
+        this.usingFallback = false;
+        
         console.log('JIT Playback Manager initialized');
+    }
+    
+    async initializeFallback() {
+        try {
+            if (!window.JITFallbackProcessor) {
+                console.error('Fallback processor not available');
+                return false;
+            }
+            
+            this.fallbackProcessor = new window.JITFallbackProcessor();
+            const success = await this.fallbackProcessor.initialize();
+            
+            if (success) {
+                this.usingFallback = true;
+                
+                // Set up callbacks
+                this.fallbackProcessor.onPositionUpdate = (currentTime, duration) => {
+                    if (this.onPositionUpdate) {
+                        this.onPositionUpdate(currentTime, duration);
+                    }
+                };
+                
+                this.fallbackProcessor.onPlaybackEnd = () => {
+                    if (this.onPlaybackEnd) {
+                        this.onPlaybackEnd();
+                    }
+                };
+                
+                console.log('✓ Fallback processor initialized successfully');
+                return true;
+            } else {
+                console.error('Failed to initialize fallback processor');
+                return false;
+            }
+            
+        } catch (error) {
+            console.error('Fallback initialization error:', error);
+            return false;
+        }
     }
     
     async initialize() {
@@ -49,8 +92,8 @@ class JITPlaybackManager {
             
             // Check if AudioWorklet is supported
             if (!this.audioContext.audioWorklet) {
-                console.error('AudioWorklet not supported in this browser');
-                return false;
+                console.log('AudioWorklet not supported, trying fallback processor...');
+                return await this.initializeFallback();
             }
             
             console.log('AudioContext created, state:', this.audioContext.state);
@@ -119,6 +162,10 @@ class JITPlaybackManager {
         try {
             console.log('Loading audio for JIT processing...', originalPath, processedPath);
             
+            if (this.usingFallback) {
+                return await this.fallbackProcessor.loadAudio(originalPath, processedPath);
+            }
+            
             // Load audio files
             const [originalResponse, processedResponse] = await Promise.all([
                 fetch(originalPath),
@@ -160,6 +207,10 @@ class JITPlaybackManager {
     }
     
     async play() {
+        if (this.usingFallback) {
+            return await this.fallbackProcessor.play();
+        }
+        
         if (!this.workletNode) {
             console.error('JIT audio not initialized');
             return false;
@@ -185,6 +236,10 @@ class JITPlaybackManager {
     }
     
     pause() {
+        if (this.usingFallback) {
+            return this.fallbackProcessor.pause();
+        }
+        
         if (!this.workletNode) return false;
         
         this.isPlaying = false;
@@ -195,6 +250,10 @@ class JITPlaybackManager {
     }
     
     stop() {
+        if (this.usingFallback) {
+            return this.fallbackProcessor.stop();
+        }
+        
         if (!this.workletNode) return false;
         
         this.isPlaying = false;
@@ -206,6 +265,10 @@ class JITPlaybackManager {
     }
     
     seek(time) {
+        if (this.usingFallback) {
+            return this.fallbackProcessor.seek(time);
+        }
+        
         if (!this.workletNode) return false;
         
         const sample = Math.floor(time * this.audioContext.sampleRate);
@@ -220,6 +283,11 @@ class JITPlaybackManager {
     }
     
     updateParameters(params) {
+        if (this.usingFallback) {
+            this.fallbackProcessor.updateParameters(params);
+            return;
+        }
+        
         if (!this.workletNode) return;
         
         // Update current parameters
@@ -243,6 +311,10 @@ class JITPlaybackManager {
     }
     
     getPlaybackState() {
+        if (this.usingFallback) {
+            return this.fallbackProcessor.getPlaybackState();
+        }
+        
         return {
             isPlaying: this.isPlaying,
             currentTime: this.currentTime,
@@ -251,10 +323,18 @@ class JITPlaybackManager {
     }
     
     isInitialized() {
+        if (this.usingFallback) {
+            return this.fallbackProcessor.isInitialized();
+        }
+        
         return this.audioContext !== null && this.workletNode !== null;
     }
     
     hasAudioLoaded() {
+        if (this.usingFallback) {
+            return this.fallbackProcessor.hasAudioLoaded();
+        }
+        
         return this.originalBuffer !== null && this.processedBuffer !== null;
     }
     
