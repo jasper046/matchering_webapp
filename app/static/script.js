@@ -348,6 +348,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     initializeStemWaveforms();
                     
+                    // Initialize JIT processing for stem mode if paths are available
+                    if (progress.target_vocal_path && progress.processed_vocal_path && 
+                        progress.target_instrumental_path && progress.processed_instrumental_path) {
+                        initializeStemJITProcessing(
+                            progress.target_vocal_path,
+                            progress.processed_vocal_path,
+                            progress.target_instrumental_path,
+                            progress.processed_instrumental_path
+                        );
+                    }
+                    
                     // Show preset download links if available
                     showPresetDownloadLinks();
                     
@@ -916,7 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
             vocalEnableBtn.addEventListener('click', () => {
                 vocalMuted = !vocalMuted;
                 vocalEnableBtn.setAttribute('data-enabled', !vocalMuted);
-                vocalEnableBtn.querySelector('.btn-text').textContent = vocalMuted ? 'Mute' : 'On';
+                vocalEnableBtn.querySelector('.btn-text').textContent = vocalMuted ? 'MUTE' : 'ON';
                 updateDualStemMix();
             });
         }
@@ -925,7 +936,7 @@ document.addEventListener('DOMContentLoaded', () => {
             instrumentalEnableBtn.addEventListener('click', () => {
                 instrumentalMuted = !instrumentalMuted;
                 instrumentalEnableBtn.setAttribute('data-enabled', !instrumentalMuted);
-                instrumentalEnableBtn.querySelector('.btn-text').textContent = instrumentalMuted ? 'Mute' : 'On';
+                instrumentalEnableBtn.querySelector('.btn-text').textContent = instrumentalMuted ? 'MUTE' : 'ON';
                 updateDualStemMix();
             });
         }
@@ -1552,11 +1563,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             console.log('✓ Audio files loaded for JIT processing');
             
-            // Set up position updates for waveform display
+            // Set up position update callback
             window.jitPlaybackManager.onPositionUpdate = (currentTime, duration) => {
                 if (duration > 0) {
-                    const progress = currentTime / duration;
-                    drawPlayPosition(progress);
+                    const position = currentTime / duration;
+                    try {
+                        drawPlayPosition(position);
+                    } catch (error) {
+                        console.warn('Position update error:', error);
+                    }
                 }
             };
             
@@ -1577,6 +1592,77 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('JIT initialization failed:', error);
             showJITStatus('⚠ Using fallback processing', true);
+            return false;
+        }
+    }
+    
+    // Initialize JIT processing for stem mode
+    async function initializeStemJITProcessing(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath) {
+        try {
+            console.log('🔧 Initializing stem JIT processing...', { 
+                vocalOriginalPath, vocalProcessedPath, 
+                instrumentalOriginalPath, instrumentalProcessedPath 
+            });
+            
+            // Check if JIT playback is available
+            if (!window.jitPlayback) {
+                console.error('❌ window.jitPlayback not available');
+                return false;
+            }
+            
+            // Initialize JIT system
+            console.log('🔧 Initializing JIT system...');
+            const initialized = await window.jitPlayback.initialize();
+            if (!initialized) {
+                console.error('❌ JIT initialization failed');
+                return false;
+            }
+            console.log('✓ JIT system initialized');
+            
+            // Convert file paths to accessible URLs
+            const vocalOriginalUrl = `/temp_files/${encodeURIComponent(vocalOriginalPath.split('/').pop())}`;
+            const vocalProcessedUrl = `/temp_files/${encodeURIComponent(vocalProcessedPath.split('/').pop())}`;
+            const instrumentalOriginalUrl = `/temp_files/${encodeURIComponent(instrumentalOriginalPath.split('/').pop())}`;
+            const instrumentalProcessedUrl = `/temp_files/${encodeURIComponent(instrumentalProcessedPath.split('/').pop())}`;
+            
+            // Load stem audio files into JIT system
+            const audioLoaded = await window.jitPlayback.loadStemAudio(
+                vocalOriginalUrl, vocalProcessedUrl, 
+                instrumentalOriginalUrl, instrumentalProcessedUrl
+            );
+            if (!audioLoaded) {
+                console.error('❌ Failed to load stem audio for JIT processing');
+                return false;
+            }
+            console.log('✓ Stem audio files loaded for JIT processing');
+            
+            // Set up position update callback
+            window.jitPlaybackManager.onPositionUpdate = (currentTime, duration) => {
+                if (duration > 0) {
+                    const position = currentTime / duration;
+                    try {
+                        drawPlayPosition(position);
+                    } catch (error) {
+                        console.warn('Position update error:', error);
+                    }
+                }
+            };
+            
+            // Set up playback end callback
+            window.jitPlaybackManager.onPlaybackEnd = () => {
+                stopAudio();
+            };
+            
+            console.log('✓ Stem JIT processing initialized successfully');
+            
+            // Show JIT status indicator
+            showJITStatus('🚀 Real-time stem processing enabled', false);
+            
+            return true;
+            
+        } catch (error) {
+            console.error('Stem JIT initialization failed:', error);
+            showJITStatus('⚠ Using fallback stem processing', true);
             return false;
         }
     }
@@ -1710,15 +1796,37 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if JIT processing is available and ready
         if (window.jitPlayback && window.jitPlayback.isReady()) {
             // Use JIT processing - just update parameters, no file generation needed
-            const params = {
-                blendRatio: currentBlendValue / 100.0,
-                masterGain: currentMasterGain,
-                limiterEnabled: limiterEnabled
-            };
             
-            window.jitPlayback.updateParameters(params);
-            console.log('✓ JIT parameters updated (no file processing):', params);
-            return; // JIT processing handles everything in real-time
+            if (isCurrentlyStemMode()) {
+                // Stem mode parameters
+                const params = {
+                    isStemMode: true,
+                    vocalBlendRatio: currentVocalBlend / 100.0,
+                    vocalGain: currentVocalGain,
+                    vocalMuted: vocalMuted,
+                    instrumentalBlendRatio: currentInstrumentalBlend / 100.0,
+                    instrumentalGain: currentInstrumentalGain,
+                    instrumentalMuted: instrumentalMuted,
+                    masterGain: currentMasterGain,
+                    limiterEnabled: limiterEnabled
+                };
+                
+                window.jitPlayback.updateStemParameters(params);
+                console.log('✓ JIT stem parameters updated (no file processing):', params);
+                return;
+            } else {
+                // Non-stem mode parameters
+                const params = {
+                    isStemMode: false,
+                    blendRatio: currentBlendValue / 100.0,
+                    masterGain: currentMasterGain,
+                    limiterEnabled: limiterEnabled
+                };
+                
+                window.jitPlayback.updateParameters(params);
+                console.log('✓ JIT parameters updated (no file processing):', params);
+                return;
+            }
         }
         
         console.warn('⚠ Falling back to file-based processing (JIT not ready)');
@@ -2121,6 +2229,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawPlayPosition(position) {
         const isStemSeparation = processSingleStatus.dataset.isStemSeparation === 'true';
         
+        console.log('Drawing position:', position, 'isStemSeparation:', isStemSeparation);
+        
         let canvases = [];
         
         if (isStemSeparation) {
@@ -2135,6 +2245,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('combined-waveform')
             ];
         }
+        
+        console.log('Found canvases:', canvases.map(c => c ? c.id : 'null'));
         
         canvases.forEach(canvas => {
             if (!canvas) return;

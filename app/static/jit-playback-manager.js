@@ -11,6 +11,7 @@ class JITPlaybackManager {
         this.workletNode = null;
         this.originalBuffer = null;
         this.processedBuffer = null;
+        this.hasStemAudioLoaded = false;
         
         // Playback state
         this.isPlaying = false;
@@ -186,6 +187,7 @@ class JITPlaybackManager {
             this.originalBuffer = originalBuffer;
             this.processedBuffer = processedBuffer;
             this.duration = Math.min(originalBuffer.duration, processedBuffer.duration);
+            this.hasStemAudioLoaded = false;
             
             // Send buffers to worklet
             this.workletNode.port.postMessage({
@@ -202,6 +204,55 @@ class JITPlaybackManager {
             
         } catch (error) {
             console.error('Failed to load audio for JIT processing:', error);
+            return false;
+        }
+    }
+    
+    async loadStemAudio(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath) {
+        try {
+            console.log('Loading stem audio for JIT processing...', { vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath });
+            
+            if (this.usingFallback) {
+                return await this.fallbackProcessor.loadStemAudio(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath);
+            }
+            
+            // Load all four audio files
+            const responses = await Promise.all([
+                fetch(vocalOriginalPath),
+                fetch(vocalProcessedPath),
+                fetch(instrumentalOriginalPath),
+                fetch(instrumentalProcessedPath)
+            ]);
+            
+            const arrayBuffers = await Promise.all(responses.map(r => r.arrayBuffer()));
+            
+            // Decode all audio data
+            const [vocalOriginal, vocalProcessed, instrumentalOriginal, instrumentalProcessed] = 
+                await Promise.all(arrayBuffers.map(buffer => this.audioContext.decodeAudioData(buffer)));
+            
+            this.duration = Math.min(
+                vocalOriginal.duration, vocalProcessed.duration,
+                instrumentalOriginal.duration, instrumentalProcessed.duration
+            );
+            
+            // Send stem buffers to worklet
+            this.workletNode.port.postMessage({
+                type: 'loadStemBuffers',
+                data: {
+                    vocalOriginal: vocalOriginal,
+                    vocalProcessed: vocalProcessed,
+                    instrumentalOriginal: instrumentalOriginal,
+                    instrumentalProcessed: instrumentalProcessed,
+                    sampleRate: this.audioContext.sampleRate
+                }
+            });
+            
+            this.hasStemAudioLoaded = true;
+            console.log(`JIT stem audio loaded: ${this.duration.toFixed(2)}s`);
+            return true;
+            
+        } catch (error) {
+            console.error('Failed to load stem audio for JIT processing:', error);
             return false;
         }
     }
@@ -306,6 +357,23 @@ class JITPlaybackManager {
         // console.log('JIT parameters updated:', this.currentParams);
     }
     
+    updateStemParameters(params) {
+        if (this.usingFallback) {
+            this.fallbackProcessor.updateParameters(params);
+            return;
+        }
+        
+        if (!this.workletNode) return;
+        
+        // Send stem parameters to worklet for immediate effect
+        this.workletNode.port.postMessage({
+            type: 'updateStemParams',
+            data: params
+        });
+        
+        // console.log('JIT stem parameters updated:', params);
+    }
+    
     getCurrentParameters() {
         return { ...this.currentParams };
     }
@@ -335,7 +403,13 @@ class JITPlaybackManager {
             return this.fallbackProcessor.hasAudioLoaded();
         }
         
-        return this.originalBuffer !== null && this.processedBuffer !== null;
+        // Check for standard mode audio
+        const hasStandardAudio = this.originalBuffer !== null && this.processedBuffer !== null;
+        
+        // Check for stem mode audio
+        const hasStemAudio = this.hasStemAudioLoaded;
+        
+        return hasStandardAudio || hasStemAudio;
     }
     
     cleanup() {
@@ -351,6 +425,7 @@ class JITPlaybackManager {
         
         this.originalBuffer = null;
         this.processedBuffer = null;
+        this.hasStemAudioLoaded = false;
         this.isPlaying = false;
         this.currentTime = 0;
         
@@ -373,6 +448,11 @@ window.jitPlayback = {
         return await window.jitPlaybackManager.loadAudio(originalPath, processedPath);
     },
     
+    // Load stem audio for JIT processing
+    loadStemAudio: async (vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath) => {
+        return await window.jitPlaybackManager.loadStemAudio(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath);
+    },
+    
     // Playback controls
     play: () => window.jitPlaybackManager.play(),
     pause: () => window.jitPlaybackManager.pause(),
@@ -381,6 +461,9 @@ window.jitPlayback = {
     
     // Parameter updates (called when knobs move)
     updateParameters: (params) => window.jitPlaybackManager.updateParameters(params),
+    
+    // Stem parameter updates
+    updateStemParameters: (params) => window.jitPlaybackManager.updateStemParameters(params),
     
     // State queries
     isReady: () => window.jitPlaybackManager.isInitialized() && window.jitPlaybackManager.hasAudioLoaded(),

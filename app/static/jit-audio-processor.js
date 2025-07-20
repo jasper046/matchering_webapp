@@ -15,6 +15,13 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         this.processedBuffer = null;
         this.sampleRate = 44100;
         
+        // Stem mode buffers
+        this.vocalOriginalBuffer = null;
+        this.vocalProcessedBuffer = null;
+        this.instrumentalOriginalBuffer = null;
+        this.instrumentalProcessedBuffer = null;
+        this.isStemMode = false;
+        
         // Playback state
         this.currentSample = 0;
         this.isPlaying = false;
@@ -25,6 +32,14 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         this.masterGain = 0.0;           // dB
         this.limiterEnabled = true;
         this.isPlaying = false;
+        
+        // Stem mode parameters
+        this.vocalBlendRatio = 0.5;
+        this.vocalGain = 0.0;
+        this.vocalMuted = false;
+        this.instrumentalBlendRatio = 0.5;
+        this.instrumentalGain = 0.0;
+        this.instrumentalMuted = false;
         
         // Frame-aware limiter state
         this.limiterState = this.initializeLimiterState();
@@ -68,13 +83,42 @@ class JITAudioProcessor extends AudioWorkletProcessor {
                     this.processedBuffer.length
                 );
                 this.sampleRate = data.sampleRate || 44100;
+                this.isStemMode = false;
                 console.log(`Buffers loaded: ${this.totalSamples} samples at ${this.sampleRate}Hz`);
+                break;
+                
+            case 'loadStemBuffers':
+                this.vocalOriginalBuffer = data.vocalOriginal;
+                this.vocalProcessedBuffer = data.vocalProcessed;
+                this.instrumentalOriginalBuffer = data.instrumentalOriginal;
+                this.instrumentalProcessedBuffer = data.instrumentalProcessed;
+                this.totalSamples = Math.min(
+                    this.vocalOriginalBuffer.length, 
+                    this.vocalProcessedBuffer.length,
+                    this.instrumentalOriginalBuffer.length,
+                    this.instrumentalProcessedBuffer.length
+                );
+                this.sampleRate = data.sampleRate || 44100;
+                this.isStemMode = true;
+                console.log(`Stem buffers loaded: ${this.totalSamples} samples at ${this.sampleRate}Hz`);
                 break;
                 
             case 'updateParams':
                 this.blendRatio = data.blendRatio;
                 this.masterGain = data.masterGain;
                 this.limiterEnabled = data.limiterEnabled;
+                // Parameters take effect on next process() call
+                break;
+                
+            case 'updateStemParams':
+                if (data.vocalBlendRatio !== undefined) this.vocalBlendRatio = data.vocalBlendRatio;
+                if (data.vocalGain !== undefined) this.vocalGain = data.vocalGain;
+                if (data.vocalMuted !== undefined) this.vocalMuted = data.vocalMuted;
+                if (data.instrumentalBlendRatio !== undefined) this.instrumentalBlendRatio = data.instrumentalBlendRatio;
+                if (data.instrumentalGain !== undefined) this.instrumentalGain = data.instrumentalGain;
+                if (data.instrumentalMuted !== undefined) this.instrumentalMuted = data.instrumentalMuted;
+                if (data.masterGain !== undefined) this.masterGain = data.masterGain;
+                if (data.limiterEnabled !== undefined) this.limiterEnabled = data.limiterEnabled;
                 // Parameters take effect on next process() call
                 break;
                 
@@ -102,7 +146,11 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         const frameSize = output[0].length; // Usually 128 samples
         
         // Check if we have audio to process
-        if (!this.originalBuffer || !this.processedBuffer || !this.isPlaying) {
+        const hasStandardAudio = this.originalBuffer && this.processedBuffer;
+        const hasStemAudio = this.vocalOriginalBuffer && this.vocalProcessedBuffer && 
+                           this.instrumentalOriginalBuffer && this.instrumentalProcessedBuffer;
+        
+        if ((!hasStandardAudio && !hasStemAudio) || !this.isPlaying) {
             // Output silence
             for (let channel = 0; channel < output.length; channel++) {
                 output[channel].fill(0);
@@ -149,30 +197,111 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         const channelsOut = output.length;
         const samplesNeeded = Math.min(frameSize, this.totalSamples - this.currentSample);
         
-        // Extract frames from source buffers
-        const originalFrame = this.extractFrame(this.originalBuffer, samplesNeeded);
-        const processedFrame = this.extractFrame(this.processedBuffer, samplesNeeded);
+        let finalFrame;
         
-        // Blend original and processed audio
-        const blendedFrame = this.blendFrames(originalFrame, processedFrame);
+        if (this.isStemMode) {
+            // Stem mode processing
+            finalFrame = this.processStemFrame(samplesNeeded);
+        } else {
+            // Standard mode processing
+            const originalFrame = this.extractFrame(this.originalBuffer, samplesNeeded);
+            const processedFrame = this.extractFrame(this.processedBuffer, samplesNeeded);
+            const blendedFrame = this.blendFrames(originalFrame, processedFrame);
+            finalFrame = blendedFrame;
+        }
         
         // Apply master gain
-        const gainedFrame = this.applyMasterGain(blendedFrame);
+        const gainedFrame = this.applyMasterGain(finalFrame);
         
         // Apply limiter if enabled
-        const finalFrame = this.limiterEnabled ? 
+        const limitedFrame = this.limiterEnabled ? 
             this.applyFrameLimiter(gainedFrame) : gainedFrame;
         
         // Output to speakers
-        for (let channel = 0; channel < channelsOut && channel < finalFrame.length; channel++) {
+        for (let channel = 0; channel < channelsOut && channel < limitedFrame.length; channel++) {
             for (let i = 0; i < samplesNeeded; i++) {
-                output[channel][i] = finalFrame[channel][i];
+                output[channel][i] = limitedFrame[channel][i];
             }
             // Fill remaining samples with silence if needed
             for (let i = samplesNeeded; i < frameSize; i++) {
                 output[channel][i] = 0;
             }
         }
+    }
+    
+    processStemFrame(frameSize) {
+        // Extract vocal frames
+        const vocalOriginalFrame = this.extractFrame(this.vocalOriginalBuffer, frameSize);
+        const vocalProcessedFrame = this.extractFrame(this.vocalProcessedBuffer, frameSize);
+        
+        // Extract instrumental frames  
+        const instrumentalOriginalFrame = this.extractFrame(this.instrumentalOriginalBuffer, frameSize);
+        const instrumentalProcessedFrame = this.extractFrame(this.instrumentalProcessedBuffer, frameSize);
+        
+        // Blend vocal stems
+        const vocalBlendedFrame = this.blendFrames(vocalOriginalFrame, vocalProcessedFrame, this.vocalBlendRatio);
+        
+        // Blend instrumental stems
+        const instrumentalBlendedFrame = this.blendFrames(instrumentalOriginalFrame, instrumentalProcessedFrame, this.instrumentalBlendRatio);
+        
+        // Apply individual stem gains and muting
+        const vocalGainedFrame = this.vocalMuted ? 
+            this.createSilentFrame(frameSize, vocalBlendedFrame.length) :
+            this.applyStemGain(vocalBlendedFrame, this.vocalGain);
+            
+        const instrumentalGainedFrame = this.instrumentalMuted ? 
+            this.createSilentFrame(frameSize, instrumentalBlendedFrame.length) :
+            this.applyStemGain(instrumentalBlendedFrame, this.instrumentalGain);
+        
+        // Sum vocal and instrumental stems
+        return this.sumFrames(vocalGainedFrame, instrumentalGainedFrame);
+    }
+    
+    createSilentFrame(frameSize, channelCount) {
+        const frame = [];
+        for (let ch = 0; ch < channelCount; ch++) {
+            frame.push(new Float32Array(frameSize));
+        }
+        return frame;
+    }
+    
+    sumFrames(frame1, frame2) {
+        const channels = Math.max(frame1.length, frame2.length);
+        const frameSize = Math.max(frame1[0] ? frame1[0].length : 0, frame2[0] ? frame2[0].length : 0);
+        const summedFrame = [];
+        
+        for (let ch = 0; ch < channels; ch++) {
+            const summedChannel = new Float32Array(frameSize);
+            const ch1 = frame1[ch] || new Float32Array(frameSize);
+            const ch2 = frame2[ch] || new Float32Array(frameSize);
+            
+            for (let i = 0; i < frameSize; i++) {
+                summedChannel[i] = ch1[i] + ch2[i];
+            }
+            
+            summedFrame.push(summedChannel);
+        }
+        
+        return summedFrame;
+    }
+    
+    applyStemGain(frame, gainDb) {
+        if (gainDb === 0.0) return frame;
+        
+        const gainLinear = Math.pow(10, gainDb / 20.0);
+        const gainedFrame = [];
+        
+        for (let ch = 0; ch < frame.length; ch++) {
+            const gainedChannel = new Float32Array(frame[ch].length);
+            
+            for (let i = 0; i < frame[ch].length; i++) {
+                gainedChannel[i] = frame[ch][i] * gainLinear;
+            }
+            
+            gainedFrame.push(gainedChannel);
+        }
+        
+        return gainedFrame;
     }
     
     extractFrame(buffer, frameSize) {
@@ -195,7 +324,7 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         return frame;
     }
     
-    blendFrames(originalFrame, processedFrame) {
+    blendFrames(originalFrame, processedFrame, blendRatio = this.blendRatio) {
         const channels = Math.min(originalFrame.length, processedFrame.length);
         const frameSize = originalFrame[0].length;
         const blendedFrame = [];
@@ -205,8 +334,8 @@ class JITAudioProcessor extends AudioWorkletProcessor {
             
             for (let i = 0; i < frameSize; i++) {
                 blendedChannel[i] = 
-                    originalFrame[ch][i] * (1.0 - this.blendRatio) +
-                    processedFrame[ch][i] * this.blendRatio;
+                    originalFrame[ch][i] * (1.0 - blendRatio) +
+                    processedFrame[ch][i] * blendRatio;
             }
             
             blendedFrame.push(blendedChannel);
