@@ -1189,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
             
             // Update preview based on current flow
-            if (window.currentFlow === 'stem') {
+            if (isCurrentlyStemMode()) {
                 updateDualStemMix();
             } else {
                 generateBlendPreview();
@@ -1212,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
             
             // Update preview based on current flow
-            if (window.currentFlow === 'stem') {
+            if (isCurrentlyStemMode()) {
                 updateDualStemMix();
             } else {
                 generateBlendPreview();
@@ -1352,7 +1352,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function updateDualStemMix() {
-        // Generate new preview using modular pipeline
+        // Check if JIT processing is available and ready for stem mode
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            // Use JIT processing - just update parameters, no file generation needed
+            const params = {
+                isStemMode: true,
+                vocalBlendRatio: currentVocalBlend / 100.0,
+                vocalGain: currentVocalGain,
+                vocalMuted: vocalMuted,
+                instrumentalBlendRatio: currentInstrumentalBlend / 100.0,
+                instrumentalGain: currentInstrumentalGain,
+                instrumentalMuted: instrumentalMuted,
+                masterGain: currentMasterGain,
+                limiterEnabled: limiterEnabled
+            };
+            
+            window.jitPlayback.updateStemParameters(params);
+            console.log('✓ JIT stem parameters updated (no file processing):', params);
+            return;
+        }
+        
+        // Fallback: Generate new preview using modular pipeline
         if (window.vocalOriginalPath && window.vocalProcessedPath && 
             window.instrumentalOriginalPath && window.instrumentalProcessedPath) {
             try {
@@ -2367,8 +2387,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     limiterButton.addEventListener('click', () => {
         limiterEnabled = toggleLimiter(limiterButton, limiterEnabled);
-        // Update the audio preview when limiter state changes
-        updateAudioPreviewAsync();
+        // Update the audio preview when limiter state changes based on current mode
+        if (isCurrentlyStemMode()) {
+            updateDualStemMix();
+        } else {
+            updatePreview();
+        }
     });
 
     batchLimiterButton.addEventListener('click', () => {
