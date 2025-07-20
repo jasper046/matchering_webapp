@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Helper function to display status messages
     function showStatus(element, message, isError = false) {
-        console.log('showStatus called:', message);
         element.innerHTML = message;
         element.className = `mt-3 alert ${isError ? 'alert-danger' : 'alert-success'}`;
     }
@@ -394,13 +393,110 @@ document.addEventListener('DOMContentLoaded', () => {
         processSingleStatus.className = '';
     }
 
+    // Reset all playback and control state to defaults
+    function resetAllState() {
+        // Stop any current playback and reset position
+        stopAudio();
+        
+        // Reset non-stem controls
+        currentBlendValue = 50;
+        drawKnob(); // Redraw blend knob at 50%
+        
+        // Reset stem controls
+        currentVocalBlend = 50;
+        currentInstrumentalBlend = 50;
+        currentVocalGain = 0;
+        currentInstrumentalGain = 0;
+        currentMasterGain = 0;
+        vocalMuted = false;
+        instrumentalMuted = false;
+        limiterEnabled = true;
+        
+        // Update UI elements for stem controls
+        const vocalBlendSlider = document.getElementById('vocal-blend-slider');
+        const instrumentalBlendSlider = document.getElementById('instrumental-blend-slider');
+        const vocalGainValue = document.getElementById('vocal-gain-value');
+        const instrumentalGainValue = document.getElementById('instrumental-gain-value');
+        const masterGainValue = document.getElementById('master-gain-value');
+        const vocalMuteButton = document.getElementById('vocal-mute-button');
+        const instrumentalMuteButton = document.getElementById('instrumental-mute-button');
+        const limiterButton = document.getElementById('limiterButton');
+        
+        if (vocalBlendSlider) vocalBlendSlider.value = 50;
+        if (instrumentalBlendSlider) instrumentalBlendSlider.value = 50;
+        if (vocalGainValue) vocalGainValue.value = 0;
+        if (instrumentalGainValue) instrumentalGainValue.value = 0;
+        if (masterGainValue) masterGainValue.value = 0;
+        
+        // Reset mute button states
+        if (vocalMuteButton) {
+            vocalMuteButton.textContent = 'Mute';
+            vocalMuteButton.classList.remove('btn-warning');
+            vocalMuteButton.classList.add('btn-outline-secondary');
+        }
+        if (instrumentalMuteButton) {
+            instrumentalMuteButton.textContent = 'Mute';
+            instrumentalMuteButton.classList.remove('btn-warning');
+            instrumentalMuteButton.classList.add('btn-outline-secondary');
+        }
+        
+        // Reset limiter button state
+        if (limiterButton) {
+            limiterButton.textContent = 'Limiter: ON';
+            limiterButton.classList.remove('btn-outline-secondary');
+            limiterButton.classList.add('btn-success');
+        }
+        
+        // Redraw gain knobs at default positions
+        drawGainKnobOnCanvas('vocal-gain-knob', 0);
+        drawGainKnobOnCanvas('instrumental-gain-knob', 0);
+        drawGainKnobOnCanvas('master-gain-knob', 0);
+        
+        // Update stem blend display values
+        const vocalBlendValue = document.getElementById('vocal-blend-value');
+        const instrumentalBlendValue = document.getElementById('instrumental-blend-value');
+        if (vocalBlendValue) vocalBlendValue.textContent = '50%';
+        if (instrumentalBlendValue) instrumentalBlendValue.textContent = '50%';
+        
+        // Reset all drag states
+        isDragging = false;
+        isDraggingVocal = false;
+        isDraggingInstrumental = false;
+        isDraggingVocalGain = false;
+        isDraggingInstrumentalGain = false;
+        isDraggingMasterGain = false;
+        
+        // Clear waveform position indicator
+        drawPlayPosition(0);
+        
+        // Clean up any existing JIT state
+        if (window.jitPlayback && window.jitPlayback.isReady()) {
+            window.jitPlayback.cleanup();
+        }
+        
+        // Reset file paths
+        originalFilePath = null;
+        processedFilePath = null;
+        currentPreviewPath = null;
+        
+        // Clear global stem paths
+        window.vocalOriginalPath = null;
+        window.vocalProcessedPath = null;
+        window.instrumentalOriginalPath = null;
+        window.instrumentalProcessedPath = null;
+        
+        // Hide results sections until new processing completes
+        singleConversionResults.style.display = 'none';
+        
+        console.log('All state reset to defaults');
+    }
+
     // Process Single File Form Submission
     processSingleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
         // Prevent double submission
         if (isProcessing) {
-            console.log('Already processing, ignoring duplicate submission');
             return;
         }
         
@@ -420,13 +516,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        // Reset all playback and UI state before processing
+        resetAllState();
+        
         // Set processing state
         setProcessingState(true);
         
         // Get system info and show initial processing status
         const systemInfo = await showProcessingStatus();
         showStatus(processSingleStatus, 'Processing single file...');
-        console.log('Form submitted, showing initial status');
         
         singleConversionResults.style.display = 'none';
         saveBlendStatus.textContent = '';
@@ -480,14 +578,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const targetFileName = targetFile.name;  // Use the targetFile variable, not formData
                 processSingleStatus.dataset.originalFileName = targetFileName.split('.').slice(0, -1).join('.');
                 
-                console.log('Response data:', data);
-                console.log('Is stem separation:', useStemSeparation.checked);
-                console.log('Has job_id:', !!data.job_id);
                 
                 if (useStemSeparation.checked) {
                     // For stem separation, start progress polling if we have a job_id
                     if (data.job_id) {
-                        console.log('Starting progress polling for job_id:', data.job_id);
                         // Show stem channels and hide standard channel
                         document.getElementById('standard-channel').style.display = 'none';
                         document.getElementById('vocal-channel').style.display = 'block';
@@ -553,7 +647,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         const combinedWaveform = document.getElementById('combined-waveform');
                         if (combinedWaveform) {
-                            console.log('Initializing waveform display for standard channel');
                             drawCombinedWaveform(combinedWaveform, null, null, '#007bff', '#28a745');
                             
                             // Add click listener for seeking
@@ -593,8 +686,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 updatePlaybackButtons('play');
                 // Don't call updatePlayPosition() - JIT handles position updates via callbacks
                 return;
-            } else {
-                console.log('JIT playback failed, falling back to traditional audio');
             }
         }
         
@@ -690,7 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
             textInput.addEventListener('input', function(e) {
                 let value = parseInt(e.target.value) || 0;
                 value = Math.max(0, Math.min(100, value)); // Clamp between 0-100
-                console.log('Text input changed to:', value);
                 currentBlendValue = value;
                 drawKnob();
                 generateBlendPreview();
@@ -1368,7 +1458,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             window.jitPlayback.updateStemParameters(params);
-            console.log('✓ JIT stem parameters updated (no file processing):', params);
             return;
         }
         
@@ -1408,10 +1497,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // This is a simplified version - full implementation would require file handling
             
             // For now, just update the preview indication
-            console.log('Stem blend preview updated:', {
-                vocal: { blend: currentVocalBlend, gain: currentVocalGain, muted: vocalMuted },
-                instrumental: { blend: currentInstrumentalBlend, gain: currentInstrumentalGain, muted: instrumentalMuted }
-            });
         } catch (error) {
             console.error('Error generating stem blend preview:', error);
         }
@@ -1553,7 +1638,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize JIT processing for real-time preview
     async function initializeJITProcessing(originalFilePath, processedFilePath) {
         try {
-            console.log('🔧 Initializing JIT processing...', { originalFilePath, processedFilePath });
             
             // Check if JIT playback is available
             if (!window.jitPlayback) {
@@ -1561,19 +1645,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             }
             
+            // Clean up any existing JIT state first
+            if (window.jitPlayback.isReady()) {
+                console.log('Cleaning up existing JIT state before non-stem initialization');
+                window.jitPlayback.cleanup();
+            }
+            
             // Initialize JIT system
-            console.log('🔧 Initializing JIT system...');
             const initialized = await window.jitPlayback.initialize();
             if (!initialized) {
                 console.error('❌ JIT initialization failed');
                 return false;
             }
-            console.log('✓ JIT system initialized');
             
             // Convert file paths to proper URLs
             const originalUrl = `/temp_files/${encodeURIComponent(originalFilePath.split('/').pop())}`;
             const processedUrl = `/temp_files/${encodeURIComponent(processedFilePath.split('/').pop())}`;
-            console.log('🔧 Loading audio files:', { originalUrl, processedUrl });
             
             // Load audio files
             const audioLoaded = await window.jitPlayback.loadAudio(originalUrl, processedUrl);
@@ -1581,7 +1668,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('❌ Failed to load audio for JIT processing');
                 return false;
             }
-            console.log('✓ Audio files loaded for JIT processing');
             
             // Set up position update callback
             window.jitPlaybackManager.onPositionUpdate = (currentTime, duration) => {
@@ -1602,7 +1688,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawPlayPosition(0);
             };
             
-            console.log('✓ JIT processing initialized successfully');
             
             // Show JIT status indicator
             showJITStatus('🚀 Real-time processing enabled', false);
@@ -1619,25 +1704,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize JIT processing for stem mode
     async function initializeStemJITProcessing(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath) {
         try {
-            console.log('🔧 Initializing stem JIT processing...', { 
-                vocalOriginalPath, vocalProcessedPath, 
-                instrumentalOriginalPath, instrumentalProcessedPath 
-            });
-            
             // Check if JIT playback is available
             if (!window.jitPlayback) {
                 console.error('❌ window.jitPlayback not available');
                 return false;
             }
             
+            // Clean up any existing JIT state first
+            if (window.jitPlayback.isReady()) {
+                console.log('Cleaning up existing JIT state before stem initialization');
+                window.jitPlayback.cleanup();
+            }
+            
             // Initialize JIT system
-            console.log('🔧 Initializing JIT system...');
             const initialized = await window.jitPlayback.initialize();
             if (!initialized) {
                 console.error('❌ JIT initialization failed');
                 return false;
             }
-            console.log('✓ JIT system initialized');
             
             // Convert file paths to accessible URLs
             const vocalOriginalUrl = `/temp_files/${encodeURIComponent(vocalOriginalPath.split('/').pop())}`;
@@ -1654,7 +1738,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('❌ Failed to load stem audio for JIT processing');
                 return false;
             }
-            console.log('✓ Stem audio files loaded for JIT processing');
             
             // Set up position update callback
             window.jitPlaybackManager.onPositionUpdate = (currentTime, duration) => {
@@ -1673,7 +1756,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopAudio();
             };
             
-            console.log('✓ Stem JIT processing initialized successfully');
             
             // Show JIT status indicator
             showJITStatus('🚀 Real-time stem processing enabled', false);
@@ -1725,7 +1807,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Remember if we were playing and the current time
         const wasPlaying = isPlaying && !previewAudioElement.paused;
         const currentTime = previewAudioElement.currentTime || 0;
-        console.log('Updating preview audio - was playing:', wasPlaying, 'at time:', currentTime);
         
         // Update the audio source
         currentPreviewPath = audioPath;
@@ -1748,9 +1829,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Set the current time to where we were
                             if (currentTime > 0 && currentTime <= previewAudioElement.duration) {
                                 previewAudioElement.currentTime = currentTime;
-                                console.log('Resuming playback at position:', currentTime, 'seconds');
                             } else {
-                                console.log('Starting playback from beginning (position was invalid)');
                                 previewAudioElement.currentTime = 0;
                             }
                             
@@ -1758,14 +1837,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 isPlaying = true;
                                 updatePlaybackButtons('play');
                                 updatePlayPosition();
-                                console.log('Successfully resumed playback');
                             }).catch(error => {
                                 console.warn('Could not resume playback:', error);
                                 isPlaying = false;
                                 updatePlaybackButtons('stop');
                             });
                         } else {
-                            console.log('Audio not ready yet, duration:', previewAudioElement.duration, 'readyState:', previewAudioElement.readyState);
                         }
                     } catch (error) {
                         console.warn('Error in resume playback:', error);
@@ -1780,7 +1857,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fallback timeout in case events don't fire
             setTimeout(() => {
                 if (!resumed) {
-                    console.log('Attempting resume via timeout fallback');
                     attemptResume();
                 }
             }, 500);
@@ -1811,7 +1887,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Debug JIT status
         const jitExists = !!window.jitPlayback;
         const jitReady = jitExists && window.jitPlayback.isReady();
-        console.log('JIT Debug:', { jitExists, jitReady, originalFilePath, processedFilePath });
         
         // Check if JIT processing is available and ready
         if (window.jitPlayback && window.jitPlayback.isReady()) {
@@ -1832,7 +1907,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 
                 window.jitPlayback.updateStemParameters(params);
-                console.log('✓ JIT stem parameters updated (no file processing):', params);
                 return;
             } else {
                 // Non-stem mode parameters
@@ -1844,7 +1918,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 
                 window.jitPlayback.updateParameters(params);
-                console.log('✓ JIT parameters updated (no file processing):', params);
                 return;
             }
         }
@@ -1855,7 +1928,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get the blend ratio (0.0 to 1.0)
             const blendRatio = currentBlendValue / 100.0;
             
-            console.log('Generating blend preview at', Math.round(blendRatio * 100) + '%');
             
             // For non-stem mode, use simple channel processing
             if (!isCurrentlyStemMode()) {
@@ -1903,7 +1975,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             const limiterData = await limiterResponse.json();
                             // Update the preview audio element to play the limited blend (matches final output)
                             updatePreviewAudio(limiterData.master_output_path);
-                            console.log('Preview generated with master limiter processing to match final output');
                         } else {
                             console.error('Failed to apply master limiter to preview:', limiterResponse.statusText);
                             // Fallback to non-limited preview
@@ -1922,7 +1993,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 // Stem mode: generate blended preview using both vocal and instrumental channels
-                console.log('Generating stem blend preview');
                 
                 // Process vocal channel
                 const vocalFormData = new FormData();
@@ -1988,7 +2058,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (limiterResponse.ok) {
                         const limiterData = await limiterResponse.json();
                         updatePreviewAudio(limiterData.master_output_path);
-                        console.log('Stem preview generated with master limiter processing');
                     } else {
                         console.error('Failed to apply master limiter to stem preview:', limiterResponse.statusText);
                     }
@@ -2053,7 +2122,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to load audio buffer for waveform display
     async function loadAudioForWaveform(audioPath) {
         try {
-            console.log('Loading audio for waveform:', audioPath);
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const response = await fetch(`/temp_files/${encodeURIComponent(audioPath.split('/').pop())}`);
             if (!response.ok) {
@@ -2083,7 +2151,6 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = width;
         canvas.height = height;
         
-        console.log('Drawing waveform on canvas:', canvas.id, 'dimensions:', width, 'x', height);
         
         ctx.clearRect(0, 0, width, height);
         
@@ -2249,7 +2316,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawPlayPosition(position) {
         const isStemSeparation = processSingleStatus.dataset.isStemSeparation === 'true';
         
-        console.log('Drawing position:', position, 'isStemSeparation:', isStemSeparation);
         
         let canvases = [];
         
@@ -2266,7 +2332,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
         }
         
-        console.log('Found canvases:', canvases.map(c => c ? c.id : 'null'));
         
         canvases.forEach(canvas => {
             if (!canvas) return;
@@ -2284,7 +2349,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // Cache doesn't exist, we need to redraw the waveform
                 // This should only happen on first draw or after waveform updates
-                console.log('No cached waveform found for:', cacheKey, '- waveform may need to be redrawn');
                 // For now, just draw a simple background to prevent blank canvas
                 ctx.clearRect(0, 0, width, height);
                 ctx.fillStyle = '#f8f9fa';
@@ -2327,13 +2391,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         const imageData = ctx.getImageData(0, 0, canvas.offsetWidth, canvas.offsetHeight);
         waveformImageCache.set(canvas.id, imageData);
-        console.log('Cached waveform image for:', canvas.id);
     }
     
     // Function to clear waveform cache when waveforms are updated
     function clearWaveformCache() {
         waveformImageCache.clear();
-        console.log('Cleared waveform image cache');
     }
 
     // Update play position during playback 
@@ -2452,7 +2514,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // For waveform display, we'd need to load files but for now just show placeholder
-        console.log('Preview setup complete for:', previewUrl);
         
         // Reset playback buttons to initial state
         updatePlaybackButtons('stop');
@@ -2564,7 +2625,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const instrumentalWaveform = document.getElementById('instrumental-combined-waveform');
                 
                 if (vocalWaveform) {
-                    console.log('Drawing vocal waveform');
                     drawCombinedWaveform(vocalWaveform, targetVocalPath, processedVocalPath, '#007bff', '#28a745');
                     
                     // Add click listener for seeking
@@ -2574,7 +2634,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (instrumentalWaveform) {
-                    console.log('Drawing instrumental waveform');
                     drawCombinedWaveform(instrumentalWaveform, targetInstrumentalPath, processedInstrumentalPath, '#6f42c1', '#fd7e14');
                     
                     // Add click listener for seeking
@@ -2589,7 +2648,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateBlendPreview();
             }, 200);
             
-            console.log('Stem waveforms initialized for modular processing');
             
         } catch (error) {
             console.error('Error initializing stem waveforms:', error);

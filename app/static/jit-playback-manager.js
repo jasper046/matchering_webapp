@@ -33,7 +33,6 @@ class JITPlaybackManager {
         this.fallbackProcessor = null;
         this.usingFallback = false;
         
-        console.log('JIT Playback Manager initialized');
     }
     
     async initializeFallback() {
@@ -62,7 +61,6 @@ class JITPlaybackManager {
                     }
                 };
                 
-                console.log('✓ Fallback processor initialized successfully');
                 return true;
             } else {
                 console.error('Failed to initialize fallback processor');
@@ -93,23 +91,18 @@ class JITPlaybackManager {
             
             // Check if AudioWorklet is supported
             if (!this.audioContext.audioWorklet) {
-                console.log('AudioWorklet not supported, trying fallback processor...');
                 return await this.initializeFallback();
             }
             
-            console.log('AudioContext created, state:', this.audioContext.state);
             
             // Resume context if suspended (requires user interaction)
             if (this.audioContext.state === 'suspended') {
-                console.log('AudioContext suspended, will resume on user interaction');
                 // Don't fail here - we'll resume when user starts playback
             }
             
             // Load AudioWorklet
-            console.log('Loading AudioWorklet module...');
             try {
                 await this.audioContext.audioWorklet.addModule('/static/jit-audio-processor.js');
-                console.log('✓ AudioWorklet module loaded');
             } catch (workletError) {
                 console.error('Failed to load AudioWorklet module:', workletError);
                 return false;
@@ -118,7 +111,6 @@ class JITPlaybackManager {
             // Create worklet node
             try {
                 this.workletNode = new AudioWorkletNode(this.audioContext, 'jit-audio-processor');
-                console.log('✓ AudioWorklet node created');
             } catch (nodeError) {
                 console.error('Failed to create AudioWorklet node:', nodeError);
                 return false;
@@ -130,7 +122,6 @@ class JITPlaybackManager {
             // Connect to output
             this.workletNode.connect(this.audioContext.destination);
             
-            console.log('JIT audio processing initialized');
             return true;
             
         } catch (error) {
@@ -161,7 +152,6 @@ class JITPlaybackManager {
     
     async loadAudio(originalPath, processedPath) {
         try {
-            console.log('Loading audio for JIT processing...', originalPath, processedPath);
             
             if (this.usingFallback) {
                 return await this.fallbackProcessor.loadAudio(originalPath, processedPath);
@@ -199,7 +189,6 @@ class JITPlaybackManager {
                 }
             });
             
-            console.log(`JIT audio loaded: ${this.duration.toFixed(2)}s`);
             return true;
             
         } catch (error) {
@@ -210,7 +199,6 @@ class JITPlaybackManager {
     
     async loadStemAudio(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath) {
         try {
-            console.log('Loading stem audio for JIT processing...', { vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath });
             
             if (this.usingFallback) {
                 return await this.fallbackProcessor.loadStemAudio(vocalOriginalPath, vocalProcessedPath, instrumentalOriginalPath, instrumentalProcessedPath);
@@ -248,7 +236,6 @@ class JITPlaybackManager {
             });
             
             this.hasStemAudioLoaded = true;
-            console.log(`JIT stem audio loaded: ${this.duration.toFixed(2)}s`);
             return true;
             
         } catch (error) {
@@ -269,10 +256,8 @@ class JITPlaybackManager {
         
         // Resume audio context if suspended (common after page load)
         if (this.audioContext.state === 'suspended') {
-            console.log('Resuming AudioContext...');
             try {
                 await this.audioContext.resume();
-                console.log('AudioContext resumed, state:', this.audioContext.state);
             } catch (error) {
                 console.error('Failed to resume AudioContext:', error);
                 return false;
@@ -282,7 +267,6 @@ class JITPlaybackManager {
         this.isPlaying = true;
         this.workletNode.port.postMessage({ type: 'play' });
         
-        console.log('JIT playback started');
         return true;
     }
     
@@ -296,7 +280,6 @@ class JITPlaybackManager {
         this.isPlaying = false;
         this.workletNode.port.postMessage({ type: 'pause' });
         
-        console.log('JIT playback paused');
         return true;
     }
     
@@ -311,7 +294,6 @@ class JITPlaybackManager {
         this.currentTime = 0;
         this.workletNode.port.postMessage({ type: 'stop' });
         
-        console.log('JIT playback stopped');
         return true;
     }
     
@@ -329,7 +311,6 @@ class JITPlaybackManager {
             data: { sample } 
         });
         
-        console.log(`JIT seek to ${time.toFixed(2)}s`);
         return true;
     }
     
@@ -354,7 +335,6 @@ class JITPlaybackManager {
             }
         });
         
-        // console.log('JIT parameters updated:', this.currentParams);
     }
     
     updateStemParameters(params) {
@@ -371,7 +351,6 @@ class JITPlaybackManager {
             data: params
         });
         
-        // console.log('JIT stem parameters updated:', params);
     }
     
     getCurrentParameters() {
@@ -429,7 +408,6 @@ class JITPlaybackManager {
         this.isPlaying = false;
         this.currentTime = 0;
         
-        console.log('JIT Playback Manager cleaned up');
     }
 }
 

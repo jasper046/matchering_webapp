@@ -147,10 +147,8 @@ async def get_system_info():
 async def get_progress(job_id: str):
     """Get processing progress for a job"""
     if job_id not in processing_progress:
-        print(f"DEBUG: Job {job_id} not found in processing_progress")
         raise HTTPException(status_code=404, detail="Job not found")
     progress_data = processing_progress[job_id]
-    print(f"DEBUG: Returning progress for job {job_id}: {progress_data}")
     return progress_data
 
 @app.post("/api/create_preset")
@@ -360,7 +358,6 @@ def process_stems_with_reference_sync(
             "progress": 15,
             "message": "(15%) Finding loudest part of reference audio..."
         })
-        print(f"DEBUG: Progress updated for job {job_id}: extracting_segment 15%")
         
         # Extract loudest segment from reference (much faster than processing entire file)
         ref_segment_path = extract_loudest_segment(reference_path, segment_duration=30.0)
@@ -371,7 +368,6 @@ def process_stems_with_reference_sync(
             "progress": 25,
             "message": "(25%) Separating reference segment into vocal and instrumental stems..."
         })
-        print(f"DEBUG: Progress updated for job {job_id}: separating_reference 25%")
         
         # Use progress interceptor for real-time updates during separation
         with ProgressInterceptor(job_id, "separating_reference", 25, 35):
@@ -426,9 +422,6 @@ def process_stems_with_reference_sync(
         
         processed_vocal_path = os.path.join(OUTPUT_DIR, f"processed_vocals_{uuid.uuid4()}.wav")
         
-        # Debug: Check if vocal files exist and have content
-        print(f"DEBUG: Vocal target file exists: {os.path.exists(target_vocal_path)}, size: {os.path.getsize(target_vocal_path) if os.path.exists(target_vocal_path) else 0}")
-        print(f"DEBUG: Vocal reference file exists: {os.path.exists(ref_vocal_path)}, size: {os.path.getsize(ref_vocal_path) if os.path.exists(ref_vocal_path) else 0}")
         
         mg.process_with_preset(
             target=target_vocal_path,
@@ -445,9 +438,6 @@ def process_stems_with_reference_sync(
         
         processed_instrumental_path = os.path.join(OUTPUT_DIR, f"processed_instrumentals_{uuid.uuid4()}.wav")
         
-        # Debug: Check if instrumental files exist and have content
-        print(f"DEBUG: Instrumental target file exists: {os.path.exists(target_instrumental_path)}, size: {os.path.getsize(target_instrumental_path) if os.path.exists(target_instrumental_path) else 0}")
-        print(f"DEBUG: Instrumental reference file exists: {os.path.exists(ref_instrumental_path)}, size: {os.path.getsize(ref_instrumental_path) if os.path.exists(ref_instrumental_path) else 0}")
         
         mg.process_with_preset(
             target=target_instrumental_path,
@@ -512,9 +502,7 @@ async def process_single(
     instrumental_preset_file: Optional[UploadFile] = File(None),
 ):
     if use_stem_separation:
-        print(f"DEBUG: Stem separation mode enabled")
         if reference_file:
-            print(f"DEBUG: Using reference file for stem separation")
             # Stem separation with reference file - create presets from separated reference
             job_id = str(uuid.uuid4())
             processing_progress[job_id] = {
@@ -523,7 +511,6 @@ async def process_single(
                 "message": "Initializing stem separation with reference...",
                 "device": "GPU" if torch.cuda.is_available() else "CPU"
             }
-            print(f"DEBUG: Initial progress set for job {job_id}: {processing_progress[job_id]}")
             
             # Save files before starting background task (to avoid "read of closed file" error)
             target_path = os.path.join(UPLOAD_DIR, target_file.filename)
@@ -535,7 +522,6 @@ async def process_single(
                 shutil.copyfileobj(reference_file.file, f)
             
             # Start background task for stem processing
-            print(f"Starting background task for job_id: {job_id}")
             background_tasks.add_task(
                 process_stems_with_reference_sync,
                 target_path, reference_path, job_id
@@ -546,9 +532,6 @@ async def process_single(
                 "job_id": job_id
             }
         elif vocal_preset_file and instrumental_preset_file:
-            print(f"DEBUG: Using preset files for stem separation")
-            print(f"DEBUG: Vocal preset: {vocal_preset_file.filename}")
-            print(f"DEBUG: Instrumental preset: {instrumental_preset_file.filename}")
             # Stem separation with presets - use background task for progress tracking
             job_id = str(uuid.uuid4())
             processing_progress[job_id] = {
@@ -581,10 +564,6 @@ async def process_single(
                 "job_id": job_id
             }
         else:
-            print(f"DEBUG: Missing required files for stem separation")
-            print(f"DEBUG: reference_file: {reference_file}")
-            print(f"DEBUG: vocal_preset_file: {vocal_preset_file}")
-            print(f"DEBUG: instrumental_preset_file: {instrumental_preset_file}")
             raise HTTPException(status_code=400, detail="For stem separation, either a reference file or both vocal and instrumental presets are required.")
 
     if not reference_file and not preset_file:
@@ -716,17 +695,6 @@ async def blend_stems_and_save(
     apply_limiter: bool = Form(True)
 ):
     """Blend vocal and instrumental stems separately and combine them"""
-    print(f"DEBUG: Received blend stems request:")
-    print(f"  original_vocal_path: {original_vocal_path}")
-    print(f"  processed_vocal_path: {processed_vocal_path}")
-    print(f"  original_instrumental_path: {original_instrumental_path}")
-    print(f"  processed_instrumental_path: {processed_instrumental_path}")
-    print(f"  vocal_blend_ratio: {vocal_blend_ratio}")
-    print(f"  instrumental_blend_ratio: {instrumental_blend_ratio}")
-    print(f"  vocal_gain_db: {vocal_gain_db}")
-    print(f"  instrumental_gain_db: {instrumental_gain_db}")
-    print(f"  vocal_muted: {vocal_muted}")
-    print(f"  instrumental_muted: {instrumental_muted}")
     
     if not (0.0 <= vocal_blend_ratio <= 1.0) or not (0.0 <= instrumental_blend_ratio <= 1.0):
         raise HTTPException(status_code=400, detail="Blend ratios must be between 0.0 and 1.0.")

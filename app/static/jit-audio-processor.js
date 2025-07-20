@@ -47,7 +47,6 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         // Message handling
         this.port.onmessage = this.handleMessage.bind(this);
         
-        console.log('JIT Audio Processor initialized');
     }
     
     initializeLimiterState() {
@@ -84,7 +83,6 @@ class JITAudioProcessor extends AudioWorkletProcessor {
                 );
                 this.sampleRate = data.sampleRate || 44100;
                 this.isStemMode = false;
-                console.log(`Buffers loaded: ${this.totalSamples} samples at ${this.sampleRate}Hz`);
                 break;
                 
             case 'loadStemBuffers':
@@ -100,7 +98,6 @@ class JITAudioProcessor extends AudioWorkletProcessor {
                 );
                 this.sampleRate = data.sampleRate || 44100;
                 this.isStemMode = true;
-                console.log(`Stem buffers loaded: ${this.totalSamples} samples at ${this.sampleRate}Hz`);
                 break;
                 
             case 'updateParams':

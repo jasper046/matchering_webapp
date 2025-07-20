@@ -51,7 +51,6 @@ class JITFallbackProcessor {
         this.onPositionUpdate = null;
         this.onPlaybackEnd = null;
         
-        console.log('JIT Fallback Processor initialized');
     }
     
     async initialize() {
@@ -70,7 +69,6 @@ class JITFallbackProcessor {
                 return false;
             }
             
-            console.log('Fallback AudioContext created, state:', this.audioContext.state);
             
             // Create ScriptProcessorNode (deprecated but widely supported)
             // Buffer size: 4096 samples for good performance
@@ -87,7 +85,6 @@ class JITFallbackProcessor {
             // Connect to output
             this.scriptNode.connect(this.audioContext.destination);
             
-            console.log('✓ JIT Fallback processor initialized successfully');
             return true;
             
         } catch (error) {
@@ -98,7 +95,6 @@ class JITFallbackProcessor {
     
     async loadAudio(originalUrl, processedUrl) {
         try {
-            console.log('Loading audio for fallback processing...', originalUrl, processedUrl);
             
             // Load audio files
             const [originalResponse, processedResponse] = await Promise.all([
@@ -122,7 +118,6 @@ class JITFallbackProcessor {
             this.totalSamples = Math.min(originalBuffer.length, processedBuffer.length);
             this.sampleRate = this.audioContext.sampleRate;
             
-            console.log(`✓ Fallback audio loaded: ${(this.totalSamples / this.sampleRate).toFixed(2)}s`);
             return true;
             
         } catch (error) {
@@ -133,7 +128,6 @@ class JITFallbackProcessor {
     
     async loadStemAudio(vocalOriginalUrl, vocalProcessedUrl, instrumentalOriginalUrl, instrumentalProcessedUrl) {
         try {
-            console.log('Loading stem audio for fallback processing...');
             
             // Load all four audio files
             const responses = await Promise.all([
@@ -161,7 +155,6 @@ class JITFallbackProcessor {
             this.sampleRate = this.audioContext.sampleRate;
             this.isStemMode = true;
             
-            console.log(`✓ Fallback stem audio loaded: ${(this.totalSamples / this.sampleRate).toFixed(2)}s`);
             return true;
             
         } catch (error) {
@@ -355,7 +348,6 @@ class JITFallbackProcessor {
         
         // Resume audio context if suspended
         if (this.audioContext.state === 'suspended') {
-            console.log('Resuming AudioContext for fallback...');
             try {
                 await this.audioContext.resume();
             } catch (error) {
@@ -365,27 +357,23 @@ class JITFallbackProcessor {
         }
         
         this.isPlaying = true;
-        console.log('Fallback playback started');
         return true;
     }
     
     pause() {
         this.isPlaying = false;
-        console.log('Fallback playback paused');
         return true;
     }
     
     stop() {
         this.isPlaying = false;
         this.currentSample = 0;
-        console.log('Fallback playback stopped');
         return true;
     }
     
     seek(time) {
         const sample = Math.floor(time * this.sampleRate);
         this.currentSample = Math.max(0, Math.min(sample, this.totalSamples));
-        console.log(`Fallback seek to ${time.toFixed(2)}s`);
         return true;
     }
     
@@ -458,7 +446,6 @@ class JITFallbackProcessor {
         this.isPlaying = false;
         this.currentSample = 0;
         
-        console.log('Fallback processor cleaned up');
     }
 }
 
