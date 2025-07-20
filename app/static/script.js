@@ -1522,25 +1522,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize JIT processing for real-time preview
     async function initializeJITProcessing(originalFilePath, processedFilePath) {
         try {
-            console.log('Initializing JIT processing...');
+            console.log('🔧 Initializing JIT processing...', { originalFilePath, processedFilePath });
             
-            // Initialize JIT system
-            const initialized = await window.jitPlayback.initialize();
-            if (!initialized) {
-                console.log('JIT processing not available, using fallback');
+            // Check if JIT playback is available
+            if (!window.jitPlayback) {
+                console.error('❌ window.jitPlayback not available');
                 return false;
             }
+            
+            // Initialize JIT system
+            console.log('🔧 Initializing JIT system...');
+            const initialized = await window.jitPlayback.initialize();
+            if (!initialized) {
+                console.error('❌ JIT initialization failed');
+                return false;
+            }
+            console.log('✓ JIT system initialized');
             
             // Convert file paths to proper URLs
             const originalUrl = `/temp_files/${encodeURIComponent(originalFilePath.split('/').pop())}`;
             const processedUrl = `/temp_files/${encodeURIComponent(processedFilePath.split('/').pop())}`;
+            console.log('🔧 Loading audio files:', { originalUrl, processedUrl });
             
             // Load audio files
             const audioLoaded = await window.jitPlayback.loadAudio(originalUrl, processedUrl);
             if (!audioLoaded) {
-                console.log('Failed to load audio for JIT processing');
+                console.error('❌ Failed to load audio for JIT processing');
                 return false;
             }
+            console.log('✓ Audio files loaded for JIT processing');
             
             // Set up position updates for waveform display
             window.jitPlaybackManager.onPositionUpdate = (currentTime, duration) => {
@@ -1692,6 +1702,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateBlendPreview() {
         if (!originalFilePath || !processedFilePath) return;
         
+        // Debug JIT status
+        const jitExists = !!window.jitPlayback;
+        const jitReady = jitExists && window.jitPlayback.isReady();
+        console.log('JIT Debug:', { jitExists, jitReady, originalFilePath, processedFilePath });
+        
         // Check if JIT processing is available and ready
         if (window.jitPlayback && window.jitPlayback.isReady()) {
             // Use JIT processing - just update parameters, no file generation needed
@@ -1702,9 +1717,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             window.jitPlayback.updateParameters(params);
-            console.log('JIT parameters updated:', params);
+            console.log('✓ JIT parameters updated (no file processing):', params);
             return; // JIT processing handles everything in real-time
         }
+        
+        console.warn('⚠ Falling back to file-based processing (JIT not ready)');
         
         try {
             // Get the blend ratio (0.0 to 1.0)
