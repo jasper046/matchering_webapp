@@ -1,8 +1,10 @@
 services:
-  matchering-webapp:
-    build: .
+  matchering-webapp-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
     ports:
-      - "8000:8000"
+      - "8000"
     volumes:
       # Mount persistent storage for outputs and presets
       - ./docker-volumes/presets:/app/presets
@@ -21,9 +23,11 @@ services:
 
   # Optional: Add GPU support for audio separation
   matchering-webapp-gpu:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
     ports:
-      - "8000:8000"
+      - "8000"
     volumes:
       - ./docker-volumes/presets:/app/presets
       - ./docker-volumes/outputs:/app/outputs
