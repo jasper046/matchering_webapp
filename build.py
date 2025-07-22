@@ -75,6 +75,7 @@ def run_pyinstaller(model_path):
         "--hidden-import", "uvicorn.lifespan",
         "--hidden-import", "uvicorn.lifespan.on",
         "--hidden-import", "uvicorn.lifespan.off",
+        "--additional-hooks-dir", ".",
         ENTRY_POINT,
         "--distpath", DIST_DIR,
         "--workpath", BUILD_DIR,
