@@ -29,6 +29,15 @@ def install_pyinstaller():
             print(f"Failed to install PyInstaller: {e}")
             sys.exit(1)
 
+def setup_environment():
+    """Set up environment variables to reduce library sizes."""
+    # Reduce torch size by disabling unnecessary features
+    os.environ["TORCH_CUDA_ARCH_LIST"] = ""
+    os.environ["USE_CUDA"] = "0"
+    os.environ["USE_CUDNN"] = "0"
+    os.environ["USE_MKLDNN"] = "0"
+    print("Environment configured for minimal build size.")
+
 def download_file(url, dest_folder):
     """Downloads a file from a URL to a destination folder."""
     if not os.path.exists(dest_folder):
@@ -61,9 +70,48 @@ def run_pyinstaller(model_path):
         "--name", APP_NAME,
         "--onefile",
         "--windowed",
+        "--strip",  # Remove debug symbols
+        "--optimize", "2",  # Optimize Python bytecode
         f"--add-data", f"{model_path}{os.pathsep}{MODEL_DIR}",
         f"--add-data", f"app/static{os.pathsep}app/static",
         f"--add-data", f"app/templates{os.pathsep}app/templates",
+        # Exclude unnecessary modules to reduce size
+        "--exclude-module", "tkinter",
+        "--exclude-module", "matplotlib",
+        "--exclude-module", "IPython",
+        "--exclude-module", "jupyter",
+        "--exclude-module", "pytest",
+        "--exclude-module", "test",
+        "--exclude-module", "tests",
+        "--exclude-module", "doctest",
+        "--exclude-module", "pdb",
+        "--exclude-module", "unittest",
+        "--exclude-module", "distutils",
+        "--exclude-module", "setuptools",
+        "--exclude-module", "pip",
+        "--exclude-module", "wheel",
+        "--exclude-module", "pkg_resources",
+        # Exclude unnecessary torch components
+        "--exclude-module", "torch.ao",
+        "--exclude-module", "torch.backends.quantized",
+        "--exclude-module", "torch.distributed",
+        "--exclude-module", "torch.fx",
+        "--exclude-module", "torch.jit",
+        "--exclude-module", "torch.nn.quantized",
+        "--exclude-module", "torch.profiler",
+        "--exclude-module", "torch.utils.tensorboard",
+        "--exclude-module", "torchvision",
+        "--exclude-module", "torchtext",
+        "--exclude-module", "torchaudio",
+        # Exclude unused scientific computing modules
+        "--exclude-module", "pandas",
+        "--exclude-module", "sklearn",
+        "--exclude-module", "seaborn",
+        "--exclude-module", "plotly",
+        "--exclude-module", "bokeh",
+        "--exclude-module", "dash",
+        # UPX compression (if available)
+        "--upx-dir", "upx",
         "--hidden-import", "uvicorn.logging",
         "--hidden-import", "uvicorn.loops",
         "--hidden-import", "uvicorn.loops.auto",
@@ -117,13 +165,16 @@ def run_pyinstaller(model_path):
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    # 1. Install PyInstaller if not present
+    # 1. Set up environment for minimal build
+    setup_environment()
+    
+    # 2. Install PyInstaller if not present
     install_pyinstaller()
 
-    # 2. Download the model
+    # 3. Download the model
     model_path = download_file(MODEL_URL, MODEL_DIR)
     
-    # 3. Run PyInstaller
+    # 4. Run PyInstaller
     run_pyinstaller(model_path)
     
     print(f"\nBuild process finished. The executable is located in the '{DIST_DIR}' directory.")
