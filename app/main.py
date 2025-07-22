@@ -15,29 +15,33 @@ import atexit
 import logging
 import torch
 from audio_separator.separator import Separator
+import sys
+import uvicorn
 
-# Import our new audio processing modules
-from .audio.channel_processor import process_channel
-from .audio.master_limiter import process_limiter
-from .audio.utils import generate_temp_path, ensure_directory, cleanup_file
+# --- PyInstaller-aware path helpers ---
+def get_base_dir():
+    """Get the base directory, whether running from source or bundled."""
+    if getattr(sys, 'frozen', False):
+        # Running in a PyInstaller bundle
+        return sys._MEIPASS
+    else:
+        # Running as a normal script
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Import frame processing API
-try:
-    from .api.frame_endpoints import frame_router
-    FRAME_API_AVAILABLE = True
-except ImportError as e:
-    logging.warning(f"Frame processing API not available: {e}")
-    FRAME_API_AVAILABLE = False
+def get_model_dir():
+    """Get the model directory, whether running from source or bundled."""
+    if getattr(sys, 'frozen', False):
+        # In the bundle, models are in the 'models' subdirectory
+        return os.path.join(sys._MEIPASS, 'models')
+    else:
+        # In development, models are in the 'models' subdirectory of the project root
+        return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models')
 
+# --- FastAPI App Initialization ---
 app = FastAPI()
 
-# Include frame processing router if available
-if FRAME_API_AVAILABLE:
-    app.include_router(frame_router)
-    logging.info("Frame processing API endpoints enabled")
-
-# Get the directory where this file is located
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Get the base directory for the application
+BASE_DIR = get_base_dir()
 
 # Mount static files (CSS, JS)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "app", "static")), name="static")
@@ -46,9 +50,18 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "app", "static
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "app", "templates"))
 
 # Create standard directories for uploads, presets, and outputs
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-PRESET_DIR = os.path.join(BASE_DIR, "presets")
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+# When running as an executable, these should be in a user-writable location.
+# For simplicity, we'll create them in the user's home directory.
+if getattr(sys, 'frozen', False):
+    HOME_DIR = os.path.expanduser("~")
+    UPLOAD_DIR = os.path.join(HOME_DIR, "MatcheringWebApp", "uploads")
+    PRESET_DIR = os.path.join(HOME_DIR, "MatcheringWebApp", "presets")
+    OUTPUT_DIR = os.path.join(HOME_DIR, "MatcheringWebApp", "outputs")
+else:
+    UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+    PRESET_DIR = os.path.join(BASE_DIR, "presets")
+    OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+
 
 # Create directories
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -96,7 +109,26 @@ cleanup_all_temp_directories()
 
 # Initialize the audio separator
 use_cuda = torch.cuda.is_available()
-separator = Separator(log_level=logging.INFO, model_file_dir="/tmp/audio-separator-models", output_dir=OUTPUT_DIR)
+model_dir = get_model_dir()
+separator = Separator(log_level=logging.INFO, model_file_dir=model_dir, output_dir=OUTPUT_DIR)
+
+# Import our new audio processing modules
+from .audio.channel_processor import process_channel
+from .audio.master_limiter import process_limiter
+from .audio.utils import generate_temp_path, ensure_directory, cleanup_file
+
+# Import frame processing API
+try:
+    from .api.frame_endpoints import frame_router
+    FRAME_API_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Frame processing API not available: {e}")
+    FRAME_API_AVAILABLE = False
+
+# Include frame processing router if available
+if FRAME_API_AVAILABLE:
+    app.include_router(frame_router)
+    logging.info("Frame processing API endpoints enabled")
 
 # In-memory storage for batch job statuses
 batch_jobs = {}
@@ -1401,3 +1433,6 @@ async def api_process_stem_channels(
         cleanup_file(vocal_proc_path)
         cleanup_file(inst_orig_path)
         cleanup_file(inst_proc_path)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
