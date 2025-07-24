@@ -178,16 +178,37 @@ class JITPlaybackManager {
             this.processedBuffer = processedBuffer;
             this.duration = Math.min(originalBuffer.duration, processedBuffer.duration);
             this.hasStemAudioLoaded = false;
-            
-            // Send buffers to worklet
-            this.workletNode.port.postMessage({
-                type: 'loadBuffers',
-                data: {
-                    original: originalBuffer,
-                    processed: processedBuffer,
-                    sampleRate: this.audioContext.sampleRate
-                }
-            });
+
+            // Extract raw channel data for transfer
+            const originalChannelData = [];
+            for (let i = 0; i < originalBuffer.numberOfChannels; i++) {
+                originalChannelData.push(originalBuffer.getChannelData(i));
+            }
+            const processedChannelData = [];
+            for (let i = 0; i < processedBuffer.numberOfChannels; i++) {
+                processedChannelData.push(processedBuffer.getChannelData(i));
+            }
+
+            // Create transfer list from the underlying ArrayBuffers of the Float32Arrays
+            const transferList = [];
+            originalChannelData.forEach(channel => transferList.push(channel.buffer));
+            processedChannelData.forEach(channel => transferList.push(channel.buffer));
+
+            this.workletNode.port.postMessage(
+                {
+                    type: 'loadBuffers',
+                    data: {
+                        originalChannelData: originalChannelData,
+                        processedChannelData: processedChannelData,
+                        originalNumberOfChannels: originalBuffer.numberOfChannels,
+                        originalLength: originalBuffer.length,
+                        processedNumberOfChannels: processedBuffer.numberOfChannels,
+                        processedLength: processedBuffer.length,
+                        sampleRate: this.audioContext.sampleRate,
+                    },
+                },
+                transferList
+            );
             
             return true;
             
@@ -222,18 +243,53 @@ class JITPlaybackManager {
                 vocalOriginal.duration, vocalProcessed.duration,
                 instrumentalOriginal.duration, instrumentalProcessed.duration
             );
-            
-            // Send stem buffers to worklet
-            this.workletNode.port.postMessage({
-                type: 'loadStemBuffers',
-                data: {
-                    vocalOriginal: vocalOriginal,
-                    vocalProcessed: vocalProcessed,
-                    instrumentalOriginal: instrumentalOriginal,
-                    instrumentalProcessed: instrumentalProcessed,
-                    sampleRate: this.audioContext.sampleRate
-                }
-            });
+
+            // Extract raw channel data for transfer
+            const vocalOriginalChannelData = [];
+            for (let i = 0; i < vocalOriginal.numberOfChannels; i++) {
+                vocalOriginalChannelData.push(vocalOriginal.getChannelData(i));
+            }
+            const vocalProcessedChannelData = [];
+            for (let i = 0; i < vocalProcessed.numberOfChannels; i++) {
+                vocalProcessedChannelData.push(vocalProcessed.getChannelData(i));
+            }
+            const instrumentalOriginalChannelData = [];
+            for (let i = 0; i < instrumentalOriginal.numberOfChannels; i++) {
+                instrumentalOriginalChannelData.push(instrumentalOriginal.getChannelData(i));
+            }
+            const instrumentalProcessedChannelData = [];
+            for (let i = 0; i < instrumentalProcessed.numberOfChannels; i++) {
+                instrumentalProcessedChannelData.push(instrumentalProcessed.getChannelData(i));
+            }
+
+            // Create transfer list from the underlying ArrayBuffers of the Float32Arrays
+            const transferList = [];
+            vocalOriginalChannelData.forEach(channel => transferList.push(channel.buffer));
+            vocalProcessedChannelData.forEach(channel => transferList.push(channel.buffer));
+            instrumentalOriginalChannelData.forEach(channel => transferList.push(channel.buffer));
+            instrumentalProcessedChannelData.forEach(channel => transferList.push(channel.buffer));
+
+            this.workletNode.port.postMessage(
+                {
+                    type: 'loadStemBuffers',
+                    data: {
+                        vocalOriginalChannelData: vocalOriginalChannelData,
+                        vocalProcessedChannelData: vocalProcessedChannelData,
+                        instrumentalOriginalChannelData: instrumentalOriginalChannelData,
+                        instrumentalProcessedChannelData: instrumentalProcessedChannelData,
+                        vocalOriginalNumberOfChannels: vocalOriginal.numberOfChannels,
+                        vocalOriginalLength: vocalOriginal.length,
+                        vocalProcessedNumberOfChannels: vocalProcessed.numberOfChannels,
+                        vocalProcessedLength: vocalProcessed.length,
+                        instrumentalOriginalNumberOfChannels: instrumentalOriginal.numberOfChannels,
+                        instrumentalOriginalLength: instrumentalOriginal.length,
+                        instrumentalProcessedNumberOfChannels: instrumentalProcessed.numberOfChannels,
+                        instrumentalProcessedLength: instrumentalProcessed.length,
+                        sampleRate: this.audioContext.sampleRate,
+                    },
+                },
+                transferList
+            );
             
             this.hasStemAudioLoaded = true;
             return true;

@@ -75,8 +75,10 @@ class JITAudioProcessor extends AudioWorkletProcessor {
         
         switch (type) {
             case 'loadBuffers':
-                this.originalBuffer = data.original;
-                this.processedBuffer = data.processed;
+                console.log('AudioWorklet: Received loadBuffers message. Data:', data);
+                this.originalBuffer = this.createAudioBuffer(data.originalChannelData, data.originalNumberOfChannels, data.originalLength, data.sampleRate);
+                this.processedBuffer = this.createAudioBuffer(data.processedChannelData, data.processedNumberOfChannels, data.processedLength, data.sampleRate);
+                console.log('AudioWorklet: originalBuffer.length:', this.originalBuffer.length, 'processedBuffer.length:', this.processedBuffer.length);
                 this.totalSamples = Math.min(
                     this.originalBuffer.length, 
                     this.processedBuffer.length
@@ -86,10 +88,10 @@ class JITAudioProcessor extends AudioWorkletProcessor {
                 break;
                 
             case 'loadStemBuffers':
-                this.vocalOriginalBuffer = data.vocalOriginal;
-                this.vocalProcessedBuffer = data.vocalProcessed;
-                this.instrumentalOriginalBuffer = data.instrumentalOriginal;
-                this.instrumentalProcessedBuffer = data.instrumentalProcessed;
+                this.vocalOriginalBuffer = this.createAudioBuffer(data.vocalOriginalChannelData, data.vocalOriginalNumberOfChannels, data.vocalOriginalLength, data.sampleRate);
+                this.vocalProcessedBuffer = this.createAudioBuffer(data.vocalProcessedChannelData, data.vocalProcessedNumberOfChannels, data.vocalProcessedLength, data.sampleRate);
+                this.instrumentalOriginalBuffer = this.createAudioBuffer(data.instrumentalOriginalChannelData, data.instrumentalOriginalNumberOfChannels, data.instrumentalOriginalLength, data.sampleRate);
+                this.instrumentalProcessedBuffer = this.createAudioBuffer(data.instrumentalProcessedChannelData, data.instrumentalProcessedNumberOfChannels, data.instrumentalProcessedLength, data.sampleRate);
                 this.totalSamples = Math.min(
                     this.vocalOriginalBuffer.length, 
                     this.vocalProcessedBuffer.length,
@@ -136,6 +138,17 @@ class JITAudioProcessor extends AudioWorkletProcessor {
                 this.currentSample = 0;
                 break;
         }
+    }
+
+    createAudioBuffer(channelData, numberOfChannels, length, sampleRate) {
+        // This is a simplified representation of an AudioBuffer for the Worklet
+        // It provides the necessary properties and a getChannelData method.
+        return {
+            numberOfChannels: numberOfChannels,
+            length: length,
+            sampleRate: sampleRate,
+            getChannelData: (channel) => channelData[channel]
+        };
     }
     
     process(inputs, outputs, parameters) {

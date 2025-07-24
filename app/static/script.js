@@ -106,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let dragStartValue = 0;
     let isUpdatingPreview = false; // Prevent multiple simultaneous preview updates
     let isProcessing = false; // Global processing state to prevent double submissions and tab switching
+    let isJITInitializing = false; // New state for JIT initialization
     
     // New modular approach variables
     let originalFilePath = null; // Path to original audio file
@@ -1640,6 +1641,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize JIT processing for real-time preview
     async function initializeJITProcessing(originalFilePath, processedFilePath) {
+        isJITInitializing = true;
         try {
             
             // Check if JIT playback is available
@@ -1700,6 +1702,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('JIT initialization failed:', error);
             showJITStatus('⚠ Using fallback processing', true);
+            isJITInitializing = false;
             return false;
         }
     }
@@ -1885,7 +1888,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Generate a new blend preview using JIT processing or fallback to modular approach
     async function generateBlendPreview() {
-        if (!originalFilePath || !processedFilePath) return;
+        if (!originalFilePath || !processedFilePath || isJITInitializing) return;
         
         // Debug JIT status
         const jitExists = !!window.jitPlayback;

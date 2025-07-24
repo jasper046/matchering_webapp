@@ -38,7 +38,17 @@ def get_model_dir():
         return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models')
 
 # --- FastAPI App Initialization ---
+from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
+
+# Add CORS middleware to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Get the base directory for the application
 BASE_DIR = get_base_dir()

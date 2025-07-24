@@ -1,10 +1,54 @@
 services:
-  matchering-webapp-cpu:
+  matchering-webapp-cpu-8010:
     build:
       context: .
       dockerfile: Dockerfile.cpu
     ports:
-      - "8000"
+      - "8010:8000"
+    volumes:
+      # Mount persistent storage for outputs and presets
+      - ./docker-volumes/presets:/app/presets
+      - ./docker-volumes/outputs:/app/outputs
+      # Optionally mount audio files directory
+      - ./audio:/app/audio:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  matchering-webapp-cpu-8011:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    ports:
+      - "8011:8000"
+    volumes:
+      # Mount persistent storage for outputs and presets
+      - ./docker-volumes/presets:/app/presets
+      - ./docker-volumes/outputs:/app/outputs
+      # Optionally mount audio files directory
+      - ./audio:/app/audio:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  matchering-webapp-cpu-8012:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    ports:
+      - "8012:8000"
     volumes:
       # Mount persistent storage for outputs and presets
       - ./docker-volumes/presets:/app/presets
@@ -22,12 +66,41 @@ services:
       start_period: 40s
 
   # Optional: Add GPU support for audio separation
-  matchering-webapp-gpu:
+  matchering-webapp-gpu-8000:
     build:
       context: .
       dockerfile: Dockerfile.gpu
     ports:
-      - "8000"
+      - "8000:8000"
+    volumes:
+      - ./docker-volumes/presets:/app/presets
+      - ./docker-volumes/outputs:/app/outputs
+      - ./audio:/app/audio:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  matchering-webapp-gpu-8001:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    ports:
+      - "8001:8000"
     volumes:
       - ./docker-volumes/presets:/app/presets
       - ./docker-volumes/outputs:/app/outputs
