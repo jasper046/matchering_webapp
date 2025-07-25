@@ -102,7 +102,8 @@
                                     <div class="waveform-row">
                                         <div class="waveform-track-group">
                                             <div class="waveform-label">Combined View (Original↑ / Processed↓)</div>
-                                            <canvas id="combined-waveform"></canvas>
+                                            <img id="combined-waveform-image" src="" alt="Waveform" class="waveform-image">
+                                            <canvas id="combined-waveform-playhead" class="waveform-overlay"></canvas>
                                         </div>
                                     </div>
                                     <div class="channel-controls">
@@ -130,7 +131,8 @@
                                     <div class="waveform-row">
                                         <div class="waveform-track-group">
                                             <div class="waveform-label">Combined View (Original↑ / Processed↓)</div>
-                                            <canvas id="vocal-combined-waveform"></canvas>
+                                            <img id="vocal-combined-waveform-image" src="" alt="Vocal Waveform" class="waveform-image">
+                                            <canvas id="vocal-combined-waveform-playhead" class="waveform-overlay"></canvas>
                                         </div>
                                     </div>
                                     <div class="channel-controls">
@@ -175,7 +177,8 @@
                                     <div class="waveform-row">
                                         <div class="waveform-track-group">
                                             <div class="waveform-label">Combined View (Original↑ / Processed↓)</div>
-                                            <canvas id="instrumental-combined-waveform"></canvas>
+                                            <img id="instrumental-combined-waveform-image" src="" alt="Instrumental Waveform" class="waveform-image">
+                                            <canvas id="instrumental-combined-waveform-playhead" class="waveform-overlay"></canvas>
                                         </div>
                                     </div>
                                     <div class="channel-controls">
@@ -338,6 +341,6 @@
     <!-- Frame Processing Integration -->
     <script src="/static/frame_processing.js"></script>
     <!-- Custom Script -->
-    <script src="/static/script.js"></script>
+    <script src="/static/main.js" type="module"></script>
 </body>
 </html>

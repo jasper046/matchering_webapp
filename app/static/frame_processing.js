@@ -401,11 +401,13 @@ class FrameProcessingManager {
     /**
      * Generate waveform for preview (integrate with existing system)
      */
-    generateWaveformForPreview(audioUrl) {
-        // This would integrate with the existing waveform generation
-        if (typeof generateWaveformFromUrl === 'function') {
-            generateWaveformFromUrl(audioUrl);
+    generateWaveformForPreview(sessionId) {
+        const waveformImageElement = document.getElementById('combined-waveform-image');
+        if (!waveformImageElement) {
+            console.warn('Waveform image element not found.');
+            return;
         }
+        waveformImageElement.src = `/api/frame/waveform/${sessionId}?timestamp=${new Date().getTime()}`;
     }
     
     /**

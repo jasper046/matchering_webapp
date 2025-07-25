@@ -184,3 +184,94 @@ def get_safe_filename(base_name: str, extension: str = '.wav') -> str:
         safe_name = safe_name[:50]
     
     return safe_name + extension
+
+
+def generate_waveform_image(audio_path: str, output_path: str, width: int = 800, height: int = 120) -> None:
+    """
+    Generates a waveform image (PNG) from an audio file.
+
+    Args:
+        audio_path: Path to the audio file.
+        output_path: Path to save the generated PNG image.
+        width: Width of the output image in pixels.
+        height: Height of the output image in pixels.
+    """
+    import soundfile as sf
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import io
+
+    try:
+        data, samplerate = sf.read(audio_path, dtype='float32')
+
+        if data.ndim > 1:
+            data = np.mean(data, axis=1)  # Convert to mono
+
+        # Create a figure and axes with specified size in inches
+        # 1 inch = 100 pixels (approx for default dpi)
+        fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=100)
+
+        ax.plot(data, color='#007bff', linewidth=0.5)
+        ax.set_facecolor('#212529')  # Dark background
+        fig.patch.set_facecolor('#212529') # Dark background for the figure itself
+
+        ax.axis('off')  # Turn off axes
+        ax.set_ylim([-1, 1])  # Normalize y-axis to audio range
+        ax.set_xlim([0, len(data)]) # Set x-axis limits to data length
+
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0) # Remove padding
+
+        # Save to a BytesIO object
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0)
+        buffer.seek(0)
+
+        with open(output_path, 'wb') as f:
+            f.write(buffer.getvalue())
+
+        plt.close(fig) # Close the figure to free memory
+
+    except Exception as e:
+        logger.error(f"Error generating waveform image for {audio_path}: {e}")
+        # Create a flatline image in case of error
+        fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=100)
+        ax.plot([0, width], [0, 0], color='#007bff', linewidth=0.5) # Flat line
+        ax.set_facecolor('#212529')
+        fig.patch.set_facecolor('#212529')
+        ax.axis('off')
+        ax.set_ylim([-1, 1])
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0)
+        buffer.seek(0)
+        with open(output_path, 'wb') as f:
+            f.write(buffer.getvalue())
+        plt.close(fig)
+
+def generate_flatline_image(output_path: str, width: int = 800, height: int = 120) -> None:
+    """
+    Generates a flatline waveform image (PNG).
+
+    Args:
+        output_path: Path to save the generated PNG image.
+        width: Width of the output image in pixels.
+        height: Height of the output image in pixels.
+    """
+    import matplotlib.pyplot as plt
+    import io
+    try:
+        fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=100)
+        ax.plot([0, width], [0, 0], color='#007bff', linewidth=0.5) # Flat line
+        ax.set_facecolor('#212529')
+        fig.patch.set_facecolor('#212529')
+        ax.axis('off')
+        ax.set_ylim([-1, 1])
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0)
+        buffer.seek(0)
+        with open(output_path, 'wb') as f:
+            f.write(buffer.getvalue())
+        plt.close(fig)
+    except Exception as e:
+        logger.error(f"Error generating flatline image: {e}")

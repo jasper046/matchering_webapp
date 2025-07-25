@@ -7,7 +7,7 @@ parameter adjustments and smooth preview generation.
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, File, UploadFile, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 import os
@@ -38,6 +38,8 @@ class FrameProcessingRequest(BaseModel):
     limiter_enabled: bool = True
     is_stem_mode: bool = False
     session_id: Optional[str] = None
+    vocal_file_path: Optional[str] = None
+    instrumental_file_path: Optional[str] = None
 
 
 class FrameProcessingResponse(BaseModel):
@@ -61,7 +63,9 @@ async def check_frame_processing_availability():
 
 @frame_router.post("/initialize", response_model=FrameProcessingResponse)
 async def initialize_frame_processing(
-    audio_file: UploadFile = File(...),
+    audio_file: Optional[UploadFile] = File(None),
+    vocal_file: Optional[UploadFile] = File(None),
+    instrumental_file: Optional[UploadFile] = File(None),
     preset_file: Optional[UploadFile] = File(None),
     output_dir: str = Form(...),
     sample_rate: int = Form(44100)
@@ -83,10 +87,26 @@ async def initialize_frame_processing(
         session_id = str(uuid.uuid4())
         
         # Save uploaded audio file
-        audio_path = os.path.join(output_dir, f"frame_session_{session_id}.wav")
-        with open(audio_path, "wb") as buffer:
-            content = await audio_file.read()
-            buffer.write(content)
+        audio_path = None
+        if audio_file:
+            audio_path = os.path.join(output_dir, f"frame_session_{session_id}.wav")
+            with open(audio_path, "wb") as buffer:
+                content = await audio_file.read()
+                buffer.write(content)
+
+        vocal_path = None
+        if vocal_file:
+            vocal_path = os.path.join(output_dir, f"vocal_session_{session_id}.wav")
+            with open(vocal_path, "wb") as buffer:
+                content = await vocal_file.read()
+                buffer.write(content)
+
+        instrumental_path = None
+        if instrumental_file:
+            instrumental_path = os.path.join(output_dir, f"instrumental_session_{session_id}.wav")
+            with open(instrumental_path, "wb") as buffer:
+                content = await instrumental_file.read()
+                buffer.write(content)
         
         # Load preset data if provided
         preset_data = None
@@ -107,11 +127,21 @@ async def initialize_frame_processing(
         
         if success:
             # Store generator for session
+            # Store generator for session
             preview_generators[session_id] = {
                 "generator": generator,
-                "audio_path": audio_path,
+                "audio_path": audio_path, # This will be None if stems are used
+                "vocal_path": vocal_path,
+                "instrumental_path": instrumental_path,
                 "output_dir": output_dir
             }
+
+            # Ensure at least one audio input is provided
+            if not audio_path and not (vocal_path and instrumental_path):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Either audio_file or both vocal_file and instrumental_file must be provided."
+                )
             
             return FrameProcessingResponse(
                 success=True,
@@ -270,29 +300,6 @@ async def cleanup_frame_session(session_id: str):
             "success": False,
             "message": "Session not found"
         }
-
-
-@frame_router.get("/sessions")
-async def list_active_sessions():
-    """List all active frame processing sessions."""
-    return {
-        "active_sessions": list(preview_generators.keys()),
-        "total_sessions": len(preview_generators)
-    }
-
-
-@frame_router.get("/performance")
-async def get_performance_metrics():
-    """Get frame processing performance metrics."""
-    if not preview_generators:
-        return {
-            "message": "No active sessions",
-            "metrics": {}
-        }
-    
-    # Aggregate metrics from active sessions
-    total_sessions = len(preview_generators)
-    processing_info = []
     
     for session_id, session_data in preview_generators.items():
         generator = session_data["generator"]
@@ -322,3 +329,107 @@ async def download_frame_output(filename: str):
     # This would need to be implemented with proper path validation
     # and integration with the main download system
     pass
+
+
+@frame_router.get("/waveform/{session_id}")
+async def get_waveform_image(session_id: str, stem_type: Optional[str] = None):
+    """
+    Generate and return a waveform image (PNG) for a given session's audio file.
+    """
+    if not session_id or session_id not in preview_generators:
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid or expired session ID"
+        )
+    
+    # Import here to avoid circular dependencies
+    from ..audio.utils import generate_waveform_image, generate_flatline_image, generate_temp_path, cleanup_file
+    
+    waveform_image_path = None
+    try:
+        session_data = preview_generators[session_id]
+        output_dir = session_data["output_dir"]
+
+        if stem_type == "vocal":
+            audio_path = session_data.get("vocal_path")
+        elif stem_type == "instrumental":
+            audio_path = session_data.get("instrumental_path")
+        else:
+            audio_path = session_data.get("audio_path")
+
+        if not audio_path:
+            raise HTTPException(status_code=404, detail=f"Audio path for stem_type {stem_type} not found in session.")
+        
+        # Generate a unique temporary path for the waveform image
+        waveform_image_path = generate_temp_path(suffix='.png', prefix=f'waveform_{session_id}_{stem_type}_', directory=output_dir)
+        
+        # Generate the waveform image
+        generate_waveform_image(audio_path, waveform_image_path)
+        
+        # Return the image as a FileResponse
+        return FileResponse(waveform_image_path, media_type="image/png", 
+                            background=BackgroundTasks([lambda: cleanup_file(waveform_image_path)]))
+        
+    except Exception as e:
+        logger.error(f"Failed to generate waveform image for session {session_id}, stem_type {stem_type}: {e}")
+        
+        # Generate a flatline image in case of error
+        if waveform_image_path is None:
+            # If path wasn't generated, create a new one for the flatline
+            waveform_image_path = generate_temp_path(suffix='.png', prefix=f'flatline_{session_id}_{stem_type}_', directory=output_dir)
+        
+        generate_flatline_image(waveform_image_path)
+        return FileResponse(waveform_image_path, media_type="image/png", 
+                            background=BackgroundTasks([lambda: cleanup_file(waveform_image_path)]))
+
+
+@frame_router.get("/stream/{session_id}")
+async def stream_audio(session_id: str):
+    """
+    Streams the audio file for a given session.
+    """
+    if not session_id or session_id not in preview_generators:
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid or expired session ID"
+        )
+
+    try:
+        session_data = preview_generators[session_id]
+        audio_path = session_data["audio_path"]
+
+        def iterfile():
+            with open(audio_path, mode="rb") as file_like:
+                yield from file_like
+
+        return StreamingResponse(iterfile(), media_type="audio/wav")
+
+    except Exception as e:
+        logger.error(f"Failed to stream audio for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@frame_router.get("/stream/{session_id}")
+async def stream_audio(session_id: str):
+    """
+    Streams the audio file for a given session.
+    """
+    if not session_id or session_id not in preview_generators:
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid or expired session ID"
+        )
+
+    try:
+        session_data = preview_generators[session_id]
+        audio_path = session_data["audio_path"]
+
+        def iterfile():
+            with open(audio_path, mode="rb") as file_like:
+                yield from file_like
+
+        return StreamingResponse(iterfile(), media_type="audio/wav")
+
+    except Exception as e:
+        logger.error(f"Failed to stream audio for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

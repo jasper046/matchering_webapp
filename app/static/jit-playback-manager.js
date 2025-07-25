@@ -179,13 +179,20 @@ class JITPlaybackManager {
             this.duration = Math.min(originalBuffer.duration, processedBuffer.duration);
             this.hasStemAudioLoaded = false;
 
+            // Capture properties before transferring buffers
+            const originalNumChannels = originalBuffer.numberOfChannels;
+            const originalLen = originalBuffer.length;
+            const processedNumChannels = processedBuffer.numberOfChannels;
+            const processedLen = processedBuffer.length;
+            const currentSampleRate = this.audioContext.sampleRate;
+
             // Extract raw channel data for transfer
             const originalChannelData = [];
-            for (let i = 0; i < originalBuffer.numberOfChannels; i++) {
+            for (let i = 0; i < originalNumChannels; i++) {
                 originalChannelData.push(originalBuffer.getChannelData(i));
             }
             const processedChannelData = [];
-            for (let i = 0; i < processedBuffer.numberOfChannels; i++) {
+            for (let i = 0; i < processedNumChannels; i++) {
                 processedChannelData.push(processedBuffer.getChannelData(i));
             }
 
@@ -194,21 +201,20 @@ class JITPlaybackManager {
             originalChannelData.forEach(channel => transferList.push(channel.buffer));
             processedChannelData.forEach(channel => transferList.push(channel.buffer));
 
-            this.workletNode.port.postMessage(
-                {
-                    type: 'loadBuffers',
-                    data: {
-                        originalChannelData: originalChannelData,
-                        processedChannelData: processedChannelData,
-                        originalNumberOfChannels: originalBuffer.numberOfChannels,
-                        originalLength: originalBuffer.length,
-                        processedNumberOfChannels: processedBuffer.numberOfChannels,
-                        processedLength: processedBuffer.length,
-                        sampleRate: this.audioContext.sampleRate,
-                    },
+            const messageData = {
+                type: 'loadBuffers',
+                data: {
+                    originalChannelData: originalChannelData,
+                    processedChannelData: processedChannelData,
+                    originalNumberOfChannels: originalNumChannels,
+                    originalLength: originalLen,
+                    processedNumberOfChannels: processedNumChannels,
+                    processedLength: processedLen,
+                    sampleRate: currentSampleRate,
                 },
-                transferList
-            );
+            };
+            console.log('JITPlaybackManager: Sending message to worklet:', messageData, 'Transfer list:', transferList);
+            this.workletNode.port.postMessage(messageData, transferList);
             
             return true;
             
@@ -244,21 +250,32 @@ class JITPlaybackManager {
                 instrumentalOriginal.duration, instrumentalProcessed.duration
             );
 
+            // Capture properties before transferring buffers
+            const vocalOriginalNumChannels = vocalOriginal.numberOfChannels;
+            const vocalOriginalLen = vocalOriginal.length;
+            const vocalProcessedNumChannels = vocalProcessed.numberOfChannels;
+            const vocalProcessedLen = vocalProcessed.length;
+            const instrumentalOriginalNumChannels = instrumentalOriginal.numberOfChannels;
+            const instrumentalOriginalLen = instrumentalOriginal.length;
+            const instrumentalProcessedNumChannels = instrumentalProcessed.numberOfChannels;
+            const instrumentalProcessedLen = instrumentalProcessed.length;
+            const currentSampleRate = this.audioContext.sampleRate;
+
             // Extract raw channel data for transfer
             const vocalOriginalChannelData = [];
-            for (let i = 0; i < vocalOriginal.numberOfChannels; i++) {
+            for (let i = 0; i < vocalOriginalNumChannels; i++) {
                 vocalOriginalChannelData.push(vocalOriginal.getChannelData(i));
             }
             const vocalProcessedChannelData = [];
-            for (let i = 0; i < vocalProcessed.numberOfChannels; i++) {
+            for (let i = 0; i < vocalProcessedNumChannels; i++) {
                 vocalProcessedChannelData.push(vocalProcessed.getChannelData(i));
             }
             const instrumentalOriginalChannelData = [];
-            for (let i = 0; i < instrumentalOriginal.numberOfChannels; i++) {
+            for (let i = 0; i < instrumentalOriginalNumChannels; i++) {
                 instrumentalOriginalChannelData.push(instrumentalOriginal.getChannelData(i));
             }
             const instrumentalProcessedChannelData = [];
-            for (let i = 0; i < instrumentalProcessed.numberOfChannels; i++) {
+            for (let i = 0; i < instrumentalProcessedNumChannels; i++) {
                 instrumentalProcessedChannelData.push(instrumentalProcessed.getChannelData(i));
             }
 
@@ -277,15 +294,15 @@ class JITPlaybackManager {
                         vocalProcessedChannelData: vocalProcessedChannelData,
                         instrumentalOriginalChannelData: instrumentalOriginalChannelData,
                         instrumentalProcessedChannelData: instrumentalProcessedChannelData,
-                        vocalOriginalNumberOfChannels: vocalOriginal.numberOfChannels,
-                        vocalOriginalLength: vocalOriginal.length,
-                        vocalProcessedNumberOfChannels: vocalProcessed.numberOfChannels,
-                        vocalProcessedLength: vocalProcessed.length,
-                        instrumentalOriginalNumberOfChannels: instrumentalOriginal.numberOfChannels,
-                        instrumentalOriginalLength: instrumentalOriginal.length,
-                        instrumentalProcessedNumberOfChannels: instrumentalProcessed.numberOfChannels,
-                        instrumentalProcessedLength: instrumentalProcessed.length,
-                        sampleRate: this.audioContext.sampleRate,
+                        vocalOriginalNumberOfChannels: vocalOriginalNumChannels,
+                        vocalOriginalLength: vocalOriginalLen,
+                        vocalProcessedNumberOfChannels: vocalProcessedNumChannels,
+                        vocalProcessedLength: vocalProcessedLen,
+                        instrumentalOriginalNumberOfChannels: instrumentalOriginalNumChannels,
+                        instrumentalOriginalLength: instrumentalOriginalLen,
+                        instrumentalProcessedNumberOfChannels: instrumentalProcessedNumChannels,
+                        instrumentalProcessedLength: instrumentalProcessedLen,
+                        sampleRate: currentSampleRate,
                     },
                 },
                 transferList
