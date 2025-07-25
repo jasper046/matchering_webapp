@@ -1,27 +1,88 @@
-document.getElementById('target-file-single').addEventListener('change', () => {
-        const processSingleStatus = document.getElementById('process-single-status');
-        const singleConversionResults = document.getElementById('single-conversion-results');
-        const targetFileSingle = document.getElementById('target-file-single');
+// event_listeners.js
 
-        processSingleStatus.textContent = ''; // Clear status
-        if (targetFileSingle.files.length > 0) {
-            // Show stem separation option first
-            document.getElementById('stem-separation-selection').style.display = 'block';
-            document.getElementById('reference-type-selection').style.display = 'block';
-            // Automatically check radioReference by default for non-stem mode
-            document.getElementById('radioReference').checked = true;
-            // Trigger the change event for radioReference to update the UI
-            const event = new Event('change');
-            document.getElementById('radioReference').dispatchEvent(event);
+// event_listeners.js
+
+    // Event listeners for single file conversion form
+    const processSingleForm = document.getElementById('process-single-form');
+    if (processSingleForm) {
+        processSingleForm.addEventListener('submit', window.handleProcessSingleFormSubmit);
+    }
+
+    // Event listeners for batch processing form
+    const processBatchForm = document.getElementById('process-batch-form');
+    if (processBatchForm) {
+        processBatchForm.addEventListener('submit', window.handleProcessBatchFormSubmit);
+    }
+
+    // Event listeners for preset creation form
+    const createPresetForm = document.getElementById('create-preset-form');
+    if (createPresetForm) {
+        createPresetForm.addEventListener('submit', window.handleCreatePresetFormSubmit);
+    }
+
+    // Event listeners for stem separation form
+    const stemSeparationForm = document.getElementById('stem-separation-form');
+    if (stemSeparationForm) {
+        stemSeparationForm.addEventListener('submit', window.handleStemSeparationFormSubmit);
+    }
+
+    // Event listeners for file input changes to update process button visibility
+    document.getElementById('target-file-single').addEventListener('change', window.handleTargetFileSingleChange);
+    document.getElementById('reference-file-single').addEventListener('change', window.checkProcessButtonVisibility);
+    document.getElementById('preset-file-single').addEventListener('change', window.checkProcessButtonVisibility);
+    document.getElementById('vocal-preset-file-single').addEventListener('change', window.checkProcessButtonVisibility);
+    document.getElementById('instrumental-preset-file-single').addEventListener('change', window.checkProcessButtonVisibility);
+    document.getElementById('use-stem-separation').addEventListener('change', window.checkProcessButtonVisibility);
+    document.getElementById('radioReference').addEventListener('change', window.toggleReferenceInput);
+    document.getElementById('radioPreset').addEventListener('change', window.toggleReferenceInput);
+
+    // Initial call to set state if a file is already selected on page load (unlikely but good practice)
+    if (document.getElementById('target-file-single').files.length > 0) {
+        window.toggleReferenceInput();
+    }
+
+    // Batch processing file input change listener
+    document.getElementById('batch-target-files').addEventListener('change', window.handleBatchTargetFilesChange);
+    document.getElementById('batchRadioReference').addEventListener('change', window.toggleBatchReferenceInput);
+    document.getElementById('batchRadioPreset').addEventListener('change', window.toggleBatchReferenceInput);
+    document.getElementById('batch-use-stem-separation').addEventListener('change', window.toggleBatchReferenceInput);
+    document.getElementById('batch-reference-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
+    document.getElementById('batch-preset-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
+    document.getElementById('batch-vocal-preset-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
+    document.getElementById('batch-instrumental-preset-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
+
+    // Initial check on page load for batch process button visibility
+    window.checkBatchProcessButtonVisibility();
+
+    // Limiter toggle for batch processing
+    const batchLimiterButton = document.getElementById('batchLimiterButton');
+    if (batchLimiterButton) {
+        batchLimiterButton.addEventListener('click', () => {
+            window.batchLimiterEnabled = window.toggleLimiter(batchLimiterButton, window.batchLimiterEnabled);
+        });
+        // Initial state for batch limiter button
+        const initialBatchLimiterText = batchLimiterButton.querySelector('.limiter-text');
+        if (window.batchLimiterEnabled) {
+            batchLimiterButton.classList.add('limiter-on');
+            if (initialBatchLimiterText) {
+                initialBatchLimiterText.textContent = 'ON';
+            }
         } else {
-            document.getElementById('stem-separation-selection').style.display = 'none';
-            document.getElementById('reference-type-selection').style.display = 'none';
-            document.getElementById('reference-file-single-div').style.display = 'none';
-            document.getElementById('preset-file-single-div').style.display = 'none';
-            document.getElementById('vocal-preset-file-single-div').style.display = 'none';
-            document.getElementById('instrumental-preset-file-single-div').style.display = 'none';
+            batchLimiterButton.classList.add('limiter-bypassed');
+            if (initialBatchLimiterText) {
+                initialBatchLimiterText.textContent = 'BYPASSED';
+            }
         }
-        window.checkProcessButtonVisibility(); // Check visibility after target file changes
-        // Hide results section if target file changes
-        singleConversionResults.style.display = 'none';
-    });
+    }
+
+    // Playback button event listeners
+    const playButton = document.getElementById('play-button');
+    const pauseButton = document.getElementById('pause-button');
+    const stopButton = document.getElementById('stop-button');
+
+    if (playButton) playButton.addEventListener('click', window.playAudio);
+    if (pauseButton) pauseButton.addEventListener('click', window.pauseAudio);
+    if (stopButton) stopButton.addEventListener('click', window.stopAudio);
+
+    // Set initial state for playback buttons
+    window.updatePlaybackButtons('stop');

@@ -133,7 +133,4 @@ function showPresetDownloadLinks() {
         }
     }
 }
-    const processBatchForm = document.getElementById('process-batch-form');
-    if (processBatchForm) {
-        processBatchForm.addEventListener('submit', window.handleProcessBatchFormSubmit);
-    }
+    

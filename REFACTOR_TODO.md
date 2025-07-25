@@ -69,7 +69,7 @@ This document tracks the refactoring of `app/static/script.js` into smaller, mor
 - [x] `toggleBatchReferenceInput` -> `batch_processing.js`
 - [x] `handleBatchTargetFilesChange` -> `batch_processing.js`
 - [x] `handleProcessSingleFormSubmit` -> `processing_logic.js`
-- [x] `handleProcessBatchFormSubmit` -> `batch_processing.js`
+- [x] `handleProcessBatchFormSubmit` -> `batch_logic.js`
 - [x] `handleCreatePresetFormSubmit` -> `preset_management.js`
 - [x] `handleStemSeparationFormSubmit` -> `stem_separation.js`
 

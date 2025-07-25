@@ -216,6 +216,3 @@ function updateFileStatus(fileIndex, status, outputPath = null) {
 // Export variables and functions that need to be accessed globally
 window.batchLimiterEnabled = true; // Default to enabled
 
-    // Event listeners for single file conversion form
-    const processSingleForm = document.getElementById('process-single-form');
-    if (processSingleForm) {

@@ -710,8 +710,6 @@ window.currentInstrumentalGain = currentInstrumentalGain;
 window.currentMasterGain = currentMasterGain;
 window.vocalMuted = vocalMuted;
 window.instrumentalMuted = instrumentalMuted;
-                });
-            }
             
             if (instrumentalGainInput) {
                 instrumentalGainInput.addEventListener('input', function(e) {
@@ -722,7 +720,6 @@ window.instrumentalMuted = instrumentalMuted;
                     updateDualStemMix();
                 });
             }
-        }
         
         // Initialize enable buttons
         const vocalEnableBtn = document.getElementById('vocal-enable-btn');
@@ -760,18 +757,7 @@ window.instrumentalMuted = instrumentalMuted;
         window.currentInstrumentalGain = currentInstrumentalGain;
         window.vocalMuted = vocalMuted;
         window.instrumentalMuted = instrumentalMuted;
-    }
     
-    function updateDualKnobTextInputs() {
-        const vocalTextInput = document.getElementById('vocal-blend-value');
-        const instrumentalTextInput = document.getElementById('instrumental-blend-value');
-        
-        if (vocalTextInput) {
-            vocalTextInput.value = Math.round(currentVocalBlend);
-        }
-        if (instrumentalTextInput) {
-            instrumentalTextInput.value = Math.round(currentInstrumentalBlend);
-        }
     }
     
     function startDragVocal(e) {
