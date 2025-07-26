@@ -620,7 +620,7 @@ async def websocket_audio_stream(websocket: WebSocket, session_id: str):
         # Streaming state
         current_position = 0  # Current sample position
         is_playing = False
-        chunk_samples = 8192  # Larger chunks to reduce message frequency
+        chunk_samples = 4096  # Balance between smoothness and responsiveness
         
         # Simple streaming task
         async def audio_streaming_task():
@@ -689,7 +689,7 @@ async def websocket_audio_stream(websocket: WebSocket, session_id: str):
                     
                     # Wait based on chunk duration - simplified timing
                     chunk_duration = chunk_samples / sample_rate
-                    await asyncio.sleep(chunk_duration * 0.8)  # Send 20% faster to prevent underruns
+                    await asyncio.sleep(chunk_duration * 0.9)  # Send 10% faster to prevent underruns
                 
                 else:
                     # Not playing or reached end, wait briefly

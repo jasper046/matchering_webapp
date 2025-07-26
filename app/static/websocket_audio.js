@@ -253,13 +253,28 @@ class WebSocketAudioStream {
         // Clamp position to valid range
         position = Math.max(0, Math.min(1, position));
         
+        // Remember if we were playing
+        const wasPlaying = this.isPlaying;
+        
+        // Pause first to stop current audio
+        this.sendMessage({ type: 'pause' });
+        
         // Reset audio timing for seeking
         this.nextPlayTime = 0;
         
+        // Send seek command
         this.sendMessage({ 
             type: 'seek', 
             position: position 
         });
+        
+        // Resume playing if we were playing before
+        if (wasPlaying) {
+            // Small delay to let seek complete
+            setTimeout(() => {
+                this.sendMessage({ type: 'play' });
+            }, 50);
+        }
     }
     
     updateParameters(params) {
