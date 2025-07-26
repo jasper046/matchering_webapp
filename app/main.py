@@ -7,6 +7,7 @@ from urllib.parse import unquote
 import os
 import shutil
 import uuid
+import time
 import matchering as mg
 from matchering.limiter import limit
 import numpy as np
@@ -812,12 +813,35 @@ async def process_single(
             # Clean up reference file
             os.remove(ref_path)
             
+            # Create streaming session for real-time parameter updates
+            session_id = f"stream_{int(time.time() * 1000)}"
+            
+            # Import here to avoid circular imports
+            from app.api.frame_endpoints import preview_generators, session_parameters
+            
+            preview_generators[session_id] = {
+                "original_audio_path": target_path,
+                "processed_audio_path": processed_path,
+                "output_dir": OUTPUT_DIR
+            }
+            
+            # Initialize default parameters
+            session_parameters[session_id] = {
+                "blend_ratio": 0.5,
+                "master_gain_db": 0.0,
+                "vocal_gain_db": 0.0,
+                "instrumental_gain_db": 0.0,
+                "limiter_enabled": True,
+                "is_stem_mode": False
+            }
+            
             return {
                 "message": "Single file processed successfully",
                 "original_file_path": target_path,
                 "processed_file_path": processed_path,
                 "created_preset_path": created_preset_path,
-                "created_preset_filename": preset_filename
+                "created_preset_filename": preset_filename,
+                "session_id": session_id
             }
         elif preset_file:
             # Standard preset processing (unchanged)
@@ -831,10 +855,33 @@ async def process_single(
             )
             os.remove(preset_temp_path)
 
+            # Create streaming session for real-time parameter updates
+            session_id = f"stream_{int(time.time() * 1000)}"
+            
+            # Import here to avoid circular imports
+            from app.api.frame_endpoints import preview_generators, session_parameters
+            
+            preview_generators[session_id] = {
+                "original_audio_path": target_path,
+                "processed_audio_path": processed_path,
+                "output_dir": OUTPUT_DIR
+            }
+            
+            # Initialize default parameters
+            session_parameters[session_id] = {
+                "blend_ratio": 0.5,
+                "master_gain_db": 0.0,
+                "vocal_gain_db": 0.0,
+                "instrumental_gain_db": 0.0,
+                "limiter_enabled": True,
+                "is_stem_mode": False
+            }
+            
             return {
                 "message": "Single file processed successfully",
                 "original_file_path": target_path,
-                "processed_file_path": processed_path
+                "processed_file_path": processed_path,
+                "session_id": session_id
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

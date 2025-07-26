@@ -4,101 +4,45 @@ let previewAudioElement = null; // Audio element for playback
 let currentPreviewPath = null; // Path to current preview audio
 let isPlaying = false;
 let animationFrameId; // For play position indicator
+let audioStartOffset = 0; // Offset for tracking absolute position after seeking
+let totalAudioDuration = 0; // Total duration of the original audio
+
+// WebSocket audio streaming
+let webSocketAudioStream = null;
+let useWebSocketAudio = true; // Prefer WebSocket when available
 
 async function playAudio() {
-    // Try JIT processing first
-    if (window.jitPlayback && window.jitPlayback.isReady()) {
-        const success = await window.jitPlayback.play();
-        if (success) {
-            isPlaying = true;
-            updatePlaybackButtons('play');
-            // Don't call updatePlayPosition() - JIT handles position updates via callbacks
-            return;
-        }
-    }
-    
-    // Fallback to traditional audio element
-    // Check both local and window variables
-    const audioElement = previewAudioElement || window.previewAudioElement;
-    const audioPath = currentPreviewPath || window.currentPreviewPath;
-    
-    console.log('Playback attempt - local audioElement:', !!previewAudioElement, 'window audioElement:', !!window.previewAudioElement);
-    console.log('Playback attempt - local path:', currentPreviewPath, 'window path:', window.currentPreviewPath);
-    
-    if (!audioElement || !audioPath) {
-        console.warn('Cannot play: missing audio element or path');
+    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+        console.warn('Cannot play: WebSocket audio not connected');
         return;
     }
     
-    // Update local variables to match window
-    if (!previewAudioElement && window.previewAudioElement) {
-        previewAudioElement = window.previewAudioElement;
-        console.log('Synced local audio element from window');
+    try {
+        await webSocketAudioStream.play();
+        console.log('WebSocket audio playback started');
+    } catch (error) {
+        console.error('WebSocket audio play failed:', error);
     }
-    if (!currentPreviewPath && window.currentPreviewPath) {
-        currentPreviewPath = window.currentPreviewPath;
-        console.log('Synced local audio path from window');
-    }
-    
-    previewAudioElement.play();
-    isPlaying = true;
-    updatePlaybackButtons('play');
-    updatePlayPosition(); // Only for traditional audio
 }
 
 function pauseAudio() {
-    // Try JIT processing first
-    if (window.jitPlayback && window.jitPlayback.isReady()) {
-        window.jitPlayback.pause();
-        isPlaying = false;
-        updatePlaybackButtons('pause');
-        // JIT doesn't use animation frames, position updates stop automatically
+    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+        console.warn('Cannot pause: WebSocket audio not connected');
         return;
     }
     
-    // Fallback to traditional audio element
-    if (!previewAudioElement) return;
-    
-    previewAudioElement.pause();
-    isPlaying = false;
-    updatePlaybackButtons('pause');
-    
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-    }
+    webSocketAudioStream.pause();
+    console.log('WebSocket audio paused');
 }
 
 function stopAudio() {
-    // Try JIT processing first
-    if (window.jitPlayback && window.jitPlayback.isReady()) {
-        window.jitPlayback.stop();
-        isPlaying = false;
-        updatePlaybackButtons('stop');
-        // JIT doesn't use animation frames, but we still need to reset position visually
-        drawPlayPosition(0);
+    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+        console.warn('Cannot stop: WebSocket audio not connected');
         return;
     }
     
-    // Fallback to traditional audio element
-    if (!previewAudioElement) return;
-    
-    previewAudioElement.pause();
-    previewAudioElement.currentTime = 0;
-    isPlaying = false;
-    updatePlaybackButtons('stop');
-    
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-    }
-    
-    drawPlayPosition(0);
-    
-    // Update preview after stopping
-    if (typeof window.generateBlendPreview === 'function') {
-        setTimeout(() => {
-            window.generateBlendPreview(true); // Force update
-        }, 100);
-    }
+    webSocketAudioStream.stop();
+    console.log('WebSocket audio stopped');
 }
 
 function updatePlaybackButtons(activeButtonId) {
@@ -138,131 +82,44 @@ function drawPlayPosition(position) {
     ctx.stroke();
 }
 
-// Function to seek audio (for HTML5 audio element)
-function seekAudio(event) {
-    if (!previewAudioElement || !previewAudioElement.duration) return;
-
-    const playheadCanvas = document.getElementById('combined-waveform-playhead');
-    if (!playheadCanvas) return;
-
-    const rect = playheadCanvas.getBoundingClientRect();
-    const width = playheadCanvas.width;
-
-    const x = event.clientX - rect.left; // x position within the element.
-
-    const seekTime = (x / width) * previewAudioElement.duration;
-    previewAudioElement.currentTime = seekTime;
-
-    // Update play position indicator immediately
-    drawPlayPosition(seekTime / previewAudioElement.duration);
-}
-
-// Update play position during playback 
-function updatePlayPosition() {
-    if (!isPlaying) return;
-    
-    let position = 0;
-    let ended = false;
-    
-    // Get position from JIT processor if available
-    if (window.jitPlayback && window.jitPlayback.isReady()) {
-        const state = window.jitPlayback.getState();
-        if (state.duration > 0) {
-            position = state.currentTime / state.duration;
-            ended = state.currentTime >= state.duration;
-        }
-    } else if (previewAudioElement) {
-        // Fallback to traditional audio element
-        if (previewAudioElement.duration > 0) {
-            position = previewAudioElement.currentTime / previewAudioElement.duration;
-            ended = previewAudioElement.ended;
-        }
-    }
-    
-    if (ended) {
-        // Reached end, stop playback
-        stopAudio();
+// Function to seek audio using pause/seek/play pattern
+async function seekAudio(event) {
+    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+        console.warn('Cannot seek: WebSocket audio not connected');
         return;
     }
     
-    drawPlayPosition(position);
-    animationFrameId = requestAnimationFrame(updatePlayPosition);
+    const playheadCanvas = document.getElementById('combined-waveform-playhead');
+    if (!playheadCanvas) {
+        console.warn('Seek failed: missing canvas');
+        return;
+    }
+
+    const rect = playheadCanvas.getBoundingClientRect();
+    const width = playheadCanvas.width;
+    const x = event.clientX - rect.left;
+
+    // Calculate seek position (0.0 to 1.0)
+    const seekPosition = x / width;
+    
+    // Validate seek position
+    if (!isFinite(seekPosition) || seekPosition < 0 || seekPosition > 1) {
+        console.warn('Invalid seek position:', seekPosition);
+        return;
+    }
+    
+    console.log('Seeking to position:', seekPosition);
+    
+    try {
+        webSocketAudioStream.seek(seekPosition);
+        console.log('WebSocket seek completed');
+    } catch (error) {
+        console.error('Seek error:', error);
+    }
 }
 
-// Update the preview audio element with new processed audio
-function updatePreviewAudio(audioPath) {
-    if (!previewAudioElement) {
-        // Create audio element if it doesn't exist
-        previewAudioElement = new Audio();
-    }
-    
-    // Remember if we were playing and the current time
-    const wasPlaying = isPlaying && !previewAudioElement.paused;
-    const currentTime = previewAudioElement.currentTime || 0;
-    
-    // Update the audio source
-    currentPreviewPath = audioPath;
-    // Use the new streaming endpoint
-    if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
-        previewAudioElement.src = `/api/frame/stream/${window.frameProcessingManager.sessionId}`;
-    } else {
-        console.error('Session ID not available for audio streaming.');
-        previewAudioElement.src = ''; // Clear source if session ID is missing
-    }
-    
-    // If we were playing, resume playback once the new audio loads
-    if (wasPlaying) {
-        // Use multiple events to ensure reliable loading detection
-        let resumed = false;
-        
-        const attemptResume = () => {
-            if (resumed) return; // Prevent multiple resume attempts
-            
-            setTimeout(() => {
-                try {
-                    // Verify audio is ready and duration is available
-                    if (previewAudioElement.readyState >= 3 && previewAudioElement.duration) {
-                        resumed = true;
-                        
-                        // Set the current time to where we were
-                        if (currentTime > 0 && currentTime <= previewAudioElement.duration) {
-                            previewAudioElement.currentTime = currentTime;
-                        } else {
-                            previewAudioElement.currentTime = 0;
-                        }
-                        
-                        previewAudioElement.play().then(() => {
-                            isPlaying = true;
-                            updatePlaybackButtons('play');
-                            updatePlayPosition();
-                        }).catch(error => {
-                            console.warn('Could not resume playback:', error);
-                            isPlaying = false;
-                            updatePlaybackButtons('stop');
-                        });
-                    } else {
-                    }
-                } catch (error) {
-                    console.warn('Error in resume playback:', error);
-                }
-            }, 100); // Slightly longer delay for better reliability
-        };
-        
-        // Try multiple events to catch when audio is ready
-        previewAudioElement.addEventListener('canplaythrough', attemptResume, { once: true });
-        previewAudioElement.addEventListener('loadeddata', attemptResume, { once: true });
-        
-        // Fallback timeout in case events don't fire
-        setTimeout(() => {
-            if (!resumed) {
-                attemptResume();
-            }
-        }, 500);
-    }
-    
-    // Update playback controls state if needed
-    updatePlaybackControls();
-}
+// Position updates are now handled by WebSocket callbacks
+
 
 // Update playback controls based on current state
 function updatePlaybackControls() {
@@ -285,10 +142,91 @@ window.stopAudio = stopAudio;
 window.updatePlaybackButtons = updatePlaybackButtons;
 window.drawPlayPosition = drawPlayPosition;
 window.seekAudio = seekAudio;
-window.updatePreviewAudio = updatePreviewAudio;
 window.updatePlaybackControls = updatePlaybackControls;
 window.isPlaying = isPlaying;
 window.animationFrameId = animationFrameId;
+window.audioStartOffset = audioStartOffset;
+window.totalAudioDuration = totalAudioDuration;
+window.useWebSocketAudio = useWebSocketAudio;
+// Initialize WebSocket audio when session is available
+function initializeWebSocketAudio(sessionId) {
+    if (!sessionId) {
+        console.warn('Cannot initialize WebSocket audio: no session ID');
+        return false;
+    }
+    
+    try {
+        webSocketAudioStream = new window.WebSocketAudioStream(sessionId);
+        
+        // Update window reference
+        window.webSocketAudioStream = webSocketAudioStream;
+        
+        // Set up callbacks
+        webSocketAudioStream.onPositionUpdate = (position) => {
+            drawPlayPosition(position);
+        };
+        
+        webSocketAudioStream.onPlaybackStateChange = (playing, position) => {
+            isPlaying = playing;
+            if (position !== undefined) {
+                drawPlayPosition(position);
+            }
+            updatePlaybackButtons(playing ? 'play' : 'pause');
+        };
+        
+        webSocketAudioStream.onError = (error) => {
+            console.error('WebSocket audio error:', error);
+            useWebSocketAudio = false;
+            window.useWebSocketAudio = false;
+        };
+        
+        // Connect to WebSocket
+        webSocketAudioStream.connect().then(() => {
+            console.log('WebSocket audio initialized successfully');
+            useWebSocketAudio = true;
+            window.useWebSocketAudio = true;
+        }).catch((error) => {
+            console.warn('Failed to connect WebSocket audio:', error);
+            useWebSocketAudio = false;
+            window.useWebSocketAudio = false;
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('Failed to initialize WebSocket audio:', error);
+        useWebSocketAudio = false;
+        window.useWebSocketAudio = false;
+        return false;
+    }
+}
+
+// Send parameters to backend via WebSocket
+function sendParametersToBackendWS() {
+    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+        console.warn('Cannot send parameters: WebSocket audio not connected');
+        return;
+    }
+    
+    const params = {
+        blend_ratio: (window.currentBlendValue || 50) / 100.0,
+        master_gain_db: window.currentMasterGain || 0.0,
+        vocal_gain_db: window.currentVocalGain || 0.0,
+        instrumental_gain_db: window.currentInstrumentalGain || 0.0,
+        limiter_enabled: window.limiterEnabled !== undefined ? window.limiterEnabled : true,
+        is_stem_mode: window.isCurrentlyStemMode()
+    };
+    
+    webSocketAudioStream.updateParameters(params);
+    console.log('Parameters sent via WebSocket');
+}
+
+// Export additional WebSocket functions
+window.initializeWebSocketAudio = initializeWebSocketAudio;
+window.sendParametersToBackendWS = sendParametersToBackendWS;
+
+// Export webSocketAudioStream directly
+window.webSocketAudioStream = webSocketAudioStream;
+
 // Update the window reference dynamically
 Object.defineProperty(window, 'previewAudioElement', {
     get: () => previewAudioElement,
@@ -299,3 +237,10 @@ Object.defineProperty(window, 'previewAudioElement', {
     configurable: true
 });
 window.currentPreviewPath = currentPreviewPath;
+
+// Clean up WebSocket connection when page unloads
+window.addEventListener('beforeunload', () => {
+    if (webSocketAudioStream) {
+        webSocketAudioStream.disconnect();
+    }
+});

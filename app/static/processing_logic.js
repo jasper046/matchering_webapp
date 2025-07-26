@@ -114,6 +114,87 @@ function toggleReferenceInput() {
     checkProcessButtonVisibility();
 }
 
+// Simple function to send current parameters to backend (seamless updates)
+window.sendParametersToBackend = async () => {
+    if (!window.streamingSessionId) {
+        console.warn('No streaming session ID available');
+        return;
+    }
+    
+    const params = {
+        blend_ratio: (window.currentBlendValue || 50) / 100.0,
+        master_gain_db: window.currentMasterGain || 0.0,
+        vocal_gain_db: window.currentVocalGain || 0.0,
+        instrumental_gain_db: window.currentInstrumentalGain || 0.0,
+        limiter_enabled: window.limiterEnabled !== undefined ? window.limiterEnabled : true,
+        is_stem_mode: window.isCurrentlyStemMode()
+    };
+    
+    try {
+        const response = await fetch(`/api/frame/parameters/${window.streamingSessionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(params)
+        });
+        
+        if (response.ok) {
+            // Parameters updated successfully - no stream reload needed!
+            // The backend will apply new parameters to subsequent chunks seamlessly
+            console.log('Parameters updated seamlessly');
+        } else {
+            console.warn('Failed to update parameters:', response.statusText);
+        }
+    } catch (error) {
+        console.warn('Error sending parameters to backend:', error);
+    }
+};
+
+// Update preview function for master gain compatibility
+window.updatePreview = () => {
+    if (window.streamingSessionId) {
+        window.sendParametersToBackend();
+    }
+};
+
+// Utility to check if we're in stem mode
+window.isCurrentlyStemMode = () => {
+    const useStemSeparation = document.getElementById('use-stem-separation');
+    return useStemSeparation && useStemSeparation.checked;
+};
+
+// Update dual stem mix for stem mode processing
+window.updateDualStemMix = () => {
+    if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
+        // Use frame processing for real-time stem mixing
+        const vocalGain = (typeof window.currentVocalGain !== 'undefined') ? window.currentVocalGain : 0;
+        const instrumentalGain = (typeof window.currentInstrumentalGain !== 'undefined') ? window.currentInstrumentalGain : 0;
+        const masterGain = (typeof window.currentMasterGain !== 'undefined') ? window.currentMasterGain : 0;
+        const vocalBlend = (typeof window.currentVocalBlend !== 'undefined') ? window.currentVocalBlend : 50;
+        const instrumentalBlend = (typeof window.currentInstrumentalBlend !== 'undefined') ? window.currentInstrumentalBlend : 50;
+        
+        console.log('Updating dual stem mix - vocal gain:', vocalGain, 'instrumental gain:', instrumentalGain, 'master gain:', masterGain);
+        
+        window.frameProcessingManager.handleParameterChange({
+            vocal_gain_db: vocalGain,
+            instrumental_gain_db: instrumentalGain,
+            master_gain_db: masterGain,
+            vocal_blend_ratio: vocalBlend / 100.0,
+            instrumental_blend_ratio: instrumentalBlend / 100.0,
+            vocal_muted: window.vocalMuted || false,
+            instrumental_muted: window.instrumentalMuted || false,
+            limiter_enabled: true,
+            is_stem_mode: true
+        });
+    } else {
+        // Fallback - generate basic blend preview
+        if (typeof window.generateBlendPreview === 'function') {
+            window.generateBlendPreview();
+        }
+    }
+};
+
 // Export variables and functions that need to be accessed globally
 window.setProcessingState = setProcessingState;
 window.checkProcessButtonVisibility = checkProcessButtonVisibility;
@@ -223,6 +304,26 @@ async function generateBlendPreviewInternal() {
     
     console.log('Generating blend preview with ratio:', blendRatio, 'master gain:', masterGainValue);
     
+    // Try frame processing first if available (supports both blend ratio and master gain)
+    if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
+        try {
+            console.log('Using frame processing for blend preview with blend ratio:', blendRatio, 'and master gain:', masterGainValue);
+            
+            // Update frame processing parameters
+            window.frameProcessingManager.handleParameterChange({
+                blend_ratio: blendRatio,
+                master_gain_db: masterGainValue,
+                limiter_enabled: true
+            });
+            
+            // The frame processing manager will handle the preview generation
+            return;
+        } catch (error) {
+            console.warn('Frame processing failed, falling back to basic blend:', error);
+        }
+    }
+    
+    // Fallback to basic blend preview (no master gain support)
     try {
         const formData = new FormData();
         formData.append('original_path', window.originalFilePath);
@@ -359,7 +460,13 @@ window.handleProcessSingleFormSubmit = async (event) => {
                 if (resultsDiv) {
                     resultsDiv.style.display = 'block';
                     
-                    // Store file paths for blending
+                    // Store streaming session ID for parameter updates
+                    if (result.session_id) {
+                        window.streamingSessionId = result.session_id;
+                        console.log('Streaming session established:', result.session_id);
+                    }
+                    
+                    // Store file paths for fallback
                     if (typeof window !== 'undefined') {
                         window.originalFilePath = result.original_file_path;
                         window.processedFilePath = result.processed_file_path;
@@ -422,24 +529,7 @@ window.handleProcessSingleFormSubmit = async (event) => {
                                     
                                     // Add click event listener for seeking
                                     waveformImage.style.cursor = 'pointer';
-                                    waveformImage.onclick = function(event) {
-                                        // Calculate position relative to the image
-                                        const rect = waveformImage.getBoundingClientRect();
-                                        const x = event.clientX - rect.left;
-                                        const imageWidth = waveformImage.offsetWidth;
-                                        
-                                        if (window.previewAudioElement && window.previewAudioElement.duration) {
-                                            const seekTime = (x / imageWidth) * window.previewAudioElement.duration;
-                                            window.previewAudioElement.currentTime = seekTime;
-                                            
-                                            // Update play position indicator immediately
-                                            if (typeof window.drawPlayPosition === 'function') {
-                                                window.drawPlayPosition(seekTime / window.previewAudioElement.duration);
-                                            }
-                                            
-                                            console.log('Seeking to:', seekTime, 'seconds');
-                                        }
-                                    };
+                                    waveformImage.onclick = window.seekAudio;
                                 } else {
                                     console.error('Failed to generate waveform');
                                     waveformImage.alt = 'Failed to generate waveform';
@@ -451,20 +541,21 @@ window.handleProcessSingleFormSubmit = async (event) => {
                         }, 100); // Small delay to ensure everything is set up
                     }
                     
-                    // Initialize audio playback if available
-                    if (typeof window.initializeAudioPlayback === 'function') {
-                        window.initializeAudioPlayback();
-                    }
-                    
-                    // Generate initial blend preview
+                    // Set up WebSocket audio playback
                     setTimeout(() => {
-                        console.log('Generating initial blend preview...');
-                        if (typeof window.generateBlendPreview === 'function') {
-                            window.generateBlendPreview(true).catch(error => {
-                                console.error('Failed to generate initial blend preview:', error);
-                            });
+                        if (window.streamingSessionId && window.initializeWebSocketAudio) {
+                            window.initializeWebSocketAudio(window.streamingSessionId);
+                            console.log('WebSocket audio setup initiated');
+                            
+                            // Send initial parameters via WebSocket
+                            setTimeout(() => {
+                                if (window.sendParametersToBackendWS) {
+                                    window.sendParametersToBackendWS();
+                                }
+                            }, 500); // Wait for WebSocket connection
                         }
-                    }, 500);
+                    }, 200);
+                    
                 }
             }
         } else {

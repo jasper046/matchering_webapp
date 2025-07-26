@@ -230,21 +230,36 @@ class FrameProcessingManager {
      * Update preview audio element
      */
     updatePreviewAudio(previewUrl) {
-        // Find preview audio element (integrate with existing audio system)
-        const audioElement = document.getElementById('blended-player');
-        
-        if (audioElement && previewUrl) {
+        // Use the global preview audio element that's already set up
+        if (window.previewAudioElement && previewUrl) {
+            // Remember if we were playing and the current time
+            const wasPlaying = window.isPlaying && !window.previewAudioElement.paused;
+            const currentTime = window.previewAudioElement.currentTime || 0;
+            
             // Update audio source
-            audioElement.src = previewUrl;
-            audioElement.load();
+            window.previewAudioElement.src = previewUrl;
+            window.currentPreviewPath = previewUrl;
             
-            // Clear any cached waveform
-            this.clearWaveformCache();
+            // If we were playing, resume playback once the new audio loads
+            if (wasPlaying) {
+                window.previewAudioElement.addEventListener('canplaythrough', () => {
+                    window.previewAudioElement.currentTime = currentTime;
+                    window.previewAudioElement.play().then(() => {
+                        if (typeof window.updatePlaybackButtons === 'function') {
+                            window.updatePlaybackButtons('play');
+                        }
+                    }).catch(error => {
+                        console.warn('Could not resume playback:', error);
+                    });
+                }, { once: true });
+            }
             
-            // Generate new waveform for frame-processed audio
-            this.generateWaveformForPreview(previewUrl);
+            // Force load
+            window.previewAudioElement.load();
             
             this.lastPreviewUrl = previewUrl;
+            
+            console.log('Frame processing preview audio updated:', previewUrl);
         }
     }
     

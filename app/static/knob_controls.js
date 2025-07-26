@@ -10,6 +10,7 @@ let currentInstrumentalBlend = 50;
 let currentVocalGain = 0;
 let currentInstrumentalGain = 0;
 let currentMasterGain = 0;  // Master gain adjust for limiter input
+let limiterEnabled = true;  // Limiter on/off state
 let vocalMuted = false;
 let instrumentalMuted = false;
 let isDraggingVocal = false;
@@ -49,8 +50,18 @@ function initializeKnob() {
             let value = parseInt(e.target.value) || 0;
             value = Math.max(0, Math.min(100, value)); // Clamp between 0-100
             currentBlendValue = value;
+            window.currentBlendValue = currentBlendValue;
             drawKnob();
-            window.generateBlendPreview(); // Assuming generateBlendPreview is global or imported
+            
+            // Send parameters to backend
+            if (window.streamingSessionId) {
+                // Send parameters via WebSocket if available, fallback to HTTP
+            if (window.sendParametersToBackendWS) {
+                window.sendParametersToBackendWS();
+            } else if (window.sendParametersToBackend) {
+                window.sendParametersToBackend();
+            }
+            }
         });
         
         textInput.addEventListener('blur', function(e) {
@@ -68,6 +79,9 @@ function initializeKnob() {
     
     // Initialize master gain knob for non-stem flow
     initializeMasterGainKnob();
+    
+    // Initialize limiter button
+    initializeLimiterButton();
 }
 
 function updateTextInput() {
@@ -95,9 +109,19 @@ function initializeMasterGainKnob() {
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
         currentMasterGain = Math.max(-3, Math.min(3, currentMasterGain + delta));
         currentMasterGain = Math.round(currentMasterGain * 10) / 10; // Round to 0.1dB
+        window.currentMasterGain = currentMasterGain;
         document.getElementById('master-gain-value').value = currentMasterGain;
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
-        window.updatePreview(); // Trigger preview update
+        
+        // Send parameters to backend
+        if (window.streamingSessionId) {
+            // Send parameters via WebSocket if available, fallback to HTTP
+            if (window.sendParametersToBackendWS) {
+                window.sendParametersToBackendWS();
+            } else if (window.sendParametersToBackend) {
+                window.sendParametersToBackend();
+            }
+        }
     });
     
     // Set cursor
@@ -111,8 +135,17 @@ function initializeMasterGainKnob() {
             value = Math.max(-3, Math.min(3, value));
             value = Math.round(value * 10) / 10; // Round to 0.1dB
             currentMasterGain = value;
+            window.currentMasterGain = currentMasterGain;
             drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
-            window.updatePreview(); // Trigger preview update
+            
+            // Update JIT processing if available
+            if (window.jitPlayback && window.jitPlayback.isReady()) {
+                window.jitPlayback.updateParameters({
+                    masterGain: currentMasterGain
+                });
+            } else {
+                window.updatePreview(); // Fallback to preview update
+            }
         });
         
         masterGainInput.addEventListener('blur', function(e) {
@@ -525,11 +558,14 @@ function dragMasterGain(e) {
         window.currentMasterGain = currentMasterGain;
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
-        // Update preview based on current flow
-        if (window.isCurrentlyStemMode()) {
-            window.updateDualStemMix();
-        } else {
-            window.generateBlendPreview();
+        // Send parameters to backend
+        if (window.streamingSessionId) {
+            // Send parameters via WebSocket if available, fallback to HTTP
+            if (window.sendParametersToBackendWS) {
+                window.sendParametersToBackendWS();
+            } else if (window.sendParametersToBackend) {
+                window.sendParametersToBackend();
+            }
         }
     }
 }
@@ -548,11 +584,14 @@ function dragMasterGainTouch(e) {
         window.currentMasterGain = currentMasterGain;
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
-        // Update preview based on current flow
-        if (window.isCurrentlyStemMode()) {
-            window.updateDualStemMix();
-        } else {
-            window.generateBlendPreview();
+        // Send parameters to backend
+        if (window.streamingSessionId) {
+            // Send parameters via WebSocket if available, fallback to HTTP
+            if (window.sendParametersToBackendWS) {
+                window.sendParametersToBackendWS();
+            } else if (window.sendParametersToBackend) {
+                window.sendParametersToBackend();
+            }
         }
     }
 }
@@ -603,12 +642,13 @@ function handleDrag(e) {
     const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY));
     
     currentBlendValue = newValue;
+    window.currentBlendValue = currentBlendValue;
     drawKnob();
     updateTextInput();
     
-    // Generate blend preview
-    if (typeof window.generateBlendPreview === 'function') {
-        window.generateBlendPreview();
+    // Send parameters to backend
+    if (window.streamingSessionId) {
+        window.sendParametersToBackend();
     }
 }
 
@@ -620,12 +660,13 @@ function handleDragTouch(e) {
     const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY));
     
     currentBlendValue = newValue;
+    window.currentBlendValue = currentBlendValue;
     drawKnob();
     updateTextInput();
     
-    // Generate blend preview
-    if (typeof window.generateBlendPreview === 'function') {
-        window.generateBlendPreview();
+    // Send parameters to backend
+    if (window.streamingSessionId) {
+        window.sendParametersToBackend();
     }
 }
 
@@ -695,6 +736,41 @@ function drawKnobOnCanvas(canvasId, value) {
     ctx.font = '11px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(Math.round(value), centerX, centerY + 4);
+}
+
+function initializeLimiterButton() {
+    const limiterButton = document.getElementById('limiterButton');
+    if (!limiterButton) return;
+    
+    // Add click event listener
+    limiterButton.addEventListener('click', () => {
+        // Toggle limiter state
+        limiterEnabled = !limiterEnabled;
+        window.limiterEnabled = limiterEnabled;
+        
+        // Update button appearance
+        if (limiterEnabled) {
+            limiterButton.classList.remove('limiter-bypassed');
+            limiterButton.classList.add('limiter-on');
+            limiterButton.querySelector('.limiter-text').textContent = 'ON';
+        } else {
+            limiterButton.classList.remove('limiter-on');
+            limiterButton.classList.add('limiter-bypassed');
+            limiterButton.querySelector('.limiter-text').textContent = 'BYPASSED';
+        }
+        
+        // Send parameters to backend
+        if (window.streamingSessionId) {
+            // Send parameters via WebSocket if available, fallback to HTTP
+            if (window.sendParametersToBackendWS) {
+                window.sendParametersToBackendWS();
+            } else if (window.sendParametersToBackend) {
+                window.sendParametersToBackend();
+            }
+        }
+        
+        console.log('Limiter toggled:', limiterEnabled ? 'ON' : 'BYPASSED');
+    });
 }
 
 function drawGainKnobOnCanvas(canvasId, gainValue) {
@@ -781,6 +857,7 @@ window.currentInstrumentalBlend = currentInstrumentalBlend;
 window.currentVocalGain = currentVocalGain;
 window.currentInstrumentalGain = currentInstrumentalGain;
 window.currentMasterGain = currentMasterGain;
+window.limiterEnabled = limiterEnabled;
 window.vocalMuted = vocalMuted;
 window.instrumentalMuted = instrumentalMuted;
 window.updateDualKnobTextInputs = updateDualKnobTextInputs;
