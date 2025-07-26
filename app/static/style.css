@@ -51,6 +51,25 @@ h1, h2 {
 
 .waveform-track-group {
     flex: 1;
+    position: relative; /* Enable absolute positioning for children */
+}
+
+.waveform-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+}
+
+.waveform-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allow clicks to pass through to image */
+    z-index: 10; /* Ensure it appears on top */
+    border-radius: 4px;
 }
 
 .waveform-label {

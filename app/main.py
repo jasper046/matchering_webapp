@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from typing import List, Optional
@@ -17,6 +17,10 @@ import torch
 from audio_separator.separator import Separator
 import sys
 import uvicorn
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 # --- PyInstaller-aware path helpers ---
 def get_base_dir():
@@ -77,6 +81,120 @@ else:
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PRESET_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Waveform generation functions
+def generate_dummy_waveform(width=800, height=120):
+    """Generate a dummy waveform (flat line) as PNG bytes"""
+    fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
+    fig.patch.set_facecolor('#2c2c2c')
+    ax.set_facecolor('#2c2c2c')
+    
+    # Draw flat line
+    x = np.linspace(0, 1, 1000)
+    y = np.zeros(1000)
+    ax.plot(x, y, color='#007bff', linewidth=1)
+    
+    # Style
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-1, 1)
+    ax.axis('off')
+    
+    # Save to bytes
+    buf = BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, 
+                facecolor='#2c2c2c', transparent=False)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
+
+def generate_waveform_png(original_path, processed_path, width=800, height=120):
+    """Generate waveform PNG showing original (top) and processed (bottom)"""
+    try:
+        # Load audio files
+        original_audio, sr_orig = sf.read(original_path)
+        processed_audio, sr_proc = sf.read(processed_path)
+        
+        # Convert to mono if stereo
+        if original_audio.ndim > 1:
+            original_audio = np.mean(original_audio, axis=1)
+        if processed_audio.ndim > 1:
+            processed_audio = np.mean(processed_audio, axis=1)
+        
+        # Downsample for visualization using proper averaging
+        target_samples = width * 2  # 2 samples per pixel
+        
+        def downsample_audio(audio, target_length):
+            if len(audio) <= target_length:
+                return audio
+            
+            # Calculate window size for peak detection
+            window_size = len(audio) // target_length
+            remainder = len(audio) % target_length
+            
+            # Reshape and take peak values
+            truncated_length = target_length * window_size
+            reshaped = audio[:truncated_length].reshape(target_length, window_size)
+            
+            # Take peak values (better for waveform visualization)
+            # For each window, find the value with maximum absolute value
+            abs_reshaped = np.abs(reshaped)
+            max_indices = np.argmax(abs_reshaped, axis=1)
+            downsampled = reshaped[np.arange(target_length), max_indices]
+            
+            return downsampled
+        
+        original_audio = downsample_audio(original_audio, target_samples)
+        processed_audio = downsample_audio(processed_audio, target_samples)
+        
+        # Normalize
+        original_audio = original_audio / (np.max(np.abs(original_audio)) + 1e-8)
+        processed_audio = processed_audio / (np.max(np.abs(processed_audio)) + 1e-8)
+        
+        # Create plot
+        fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
+        fig.patch.set_facecolor('#2c2c2c')
+        ax.set_facecolor('#2c2c2c')
+        
+        # Make sure both audio arrays are the same length for unified display
+        min_length = min(len(original_audio), len(processed_audio))
+        original_audio = original_audio[:min_length]
+        processed_audio = processed_audio[:min_length]
+        
+        # Time axis
+        time = np.linspace(0, 1, min_length)
+        
+        # Create unified waveform: positive half = original, negative half = processed
+        # Take absolute values and assign to positive/negative domains
+        original_positive = np.abs(original_audio)  # Original in positive half
+        processed_negative = -np.abs(processed_audio)  # Processed in negative half
+        
+        # Plot original audio in positive half (green)
+        ax.plot(time, original_positive, color='#28a745', linewidth=0.8, alpha=0.9, label='Original')
+        ax.fill_between(time, 0, original_positive, color='#28a745', alpha=0.4)
+        
+        # Plot processed audio in negative half (blue)
+        ax.plot(time, processed_negative, color='#007bff', linewidth=0.8, alpha=0.9, label='Processed')
+        ax.fill_between(time, 0, processed_negative, color='#007bff', alpha=0.4)
+        
+        # Center line
+        ax.axhline(y=0, color='#666', linewidth=1, alpha=0.7)
+        
+        # Style
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-1, 1)
+        ax.axis('off')
+        
+        # Save to bytes
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, 
+                    facecolor='#2c2c2c', transparent=False)
+        plt.close(fig)
+        buf.seek(0)
+        return buf.getvalue()
+        
+    except Exception as e:
+        print(f"Error generating waveform: {e}")
+        return generate_dummy_waveform(width, height)
 
 def cleanup_directory_contents(directory_path: str, preserve_files: list = None):
     """Clean up directory contents, optionally preserving specific files"""
@@ -1443,6 +1561,35 @@ async def api_process_stem_channels(
         cleanup_file(vocal_proc_path)
         cleanup_file(inst_orig_path)
         cleanup_file(inst_proc_path)
+
+# Waveform generation endpoints
+@app.get("/api/waveform/dummy")
+async def get_dummy_waveform():
+    """Generate and return a dummy waveform PNG"""
+    png_data = generate_dummy_waveform()
+    return Response(content=png_data, media_type="image/png")
+
+@app.post("/api/waveform/generate")
+async def generate_waveform(
+    original_path: str = Form(...),
+    processed_path: str = Form(...)
+):
+    """Generate waveform PNG from original and processed audio files"""
+    try:
+        # Validate file paths
+        if not os.path.exists(original_path):
+            raise HTTPException(status_code=404, detail="Original file not found")
+        if not os.path.exists(processed_path):
+            raise HTTPException(status_code=404, detail="Processed file not found")
+        
+        png_data = generate_waveform_png(original_path, processed_path)
+        return Response(content=png_data, media_type="image/png")
+        
+    except Exception as e:
+        print(f"Error generating waveform: {e}")
+        # Return dummy waveform on error
+        png_data = generate_dummy_waveform()
+        return Response(content=png_data, media_type="image/png")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

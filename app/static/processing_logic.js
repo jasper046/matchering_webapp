@@ -336,6 +336,13 @@ window.handleProcessSingleFormSubmit = async (event) => {
         setProcessingState(true);
         statusDiv.innerHTML = '<div class="alert alert-info">Processing audio file...</div>';
         
+        // Show dummy waveform while processing
+        const waveformImage = document.getElementById('combined-waveform-image');
+        if (waveformImage) {
+            waveformImage.src = '/api/waveform/dummy?' + new Date().getTime();
+            waveformImage.alt = 'Processing...';
+        }
+        
         // Make API call
         const response = await fetch('/api/process_single', {
             method: 'POST',
@@ -389,23 +396,38 @@ window.handleProcessSingleFormSubmit = async (event) => {
                         window.initializeKnob();
                     }
                     
-                    // Set up waveform display (placeholder - will need actual waveform generation)
+                    // Generate actual waveform from processed audio
                     const waveformImage = document.getElementById('combined-waveform-image');
-                    if (waveformImage) {
-                        // For now, create a placeholder image
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 800;
-                        canvas.height = 120;
-                        const ctx = canvas.getContext('2d');
-                        
-                        // Draw placeholder waveform
-                        ctx.fillStyle = '#444';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        ctx.fillStyle = '#007bff';
-                        ctx.fillText('Waveform generation not yet implemented', 10, 60);
-                        
-                        waveformImage.src = canvas.toDataURL();
-                        waveformImage.alt = 'Placeholder waveform';
+                    if (waveformImage && result.original_file_path && result.processed_file_path) {
+                        setTimeout(async () => {
+                            try {
+                                console.log('Generating waveform...');
+                                
+                                const formData = new FormData();
+                                formData.append('original_path', result.original_file_path);
+                                formData.append('processed_path', result.processed_file_path);
+                                
+                                const waveformResponse = await fetch('/api/waveform/generate', {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                                
+                                if (waveformResponse.ok) {
+                                    // Create a blob URL for the waveform image
+                                    const blob = await waveformResponse.blob();
+                                    const imageUrl = URL.createObjectURL(blob);
+                                    waveformImage.src = imageUrl;
+                                    waveformImage.alt = 'Audio Waveform (Original ↑ / Processed ↓)';
+                                    console.log('Waveform generated successfully');
+                                } else {
+                                    console.error('Failed to generate waveform');
+                                    waveformImage.alt = 'Failed to generate waveform';
+                                }
+                            } catch (error) {
+                                console.error('Error generating waveform:', error);
+                                waveformImage.alt = 'Error generating waveform';
+                            }
+                        }, 100); // Small delay to ensure everything is set up
                     }
                     
                     // Initialize audio playback if available
