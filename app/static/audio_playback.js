@@ -12,6 +12,36 @@ let webSocketAudioStream = null;
 let useWebSocketAudio = true; // Prefer WebSocket when available
 
 async function playAudio() {
+    // Initialize WebSocket audio on demand if not already initialized
+    const isStemMode = window.targetVocalPath && window.processedVocalPath;
+    
+    if (isStemMode && !window.stemWebSocketAudioStream) {
+        console.log('Initializing stem WebSocket audio on first play...');
+        // Create stem streaming session and initialize audio
+        if (window.createStemStreamingSession && window.initializeStemAudioPlayback) {
+            const sessionCreated = await window.createStemStreamingSession();
+            if (sessionCreated) {
+                await window.initializeStemAudioPlayback();
+            } else {
+                console.error('Failed to create stem session');
+                return;
+            }
+        }
+    } else if (window.streamingSessionId && !window.webSocketAudioStream) {
+        console.log('Initializing regular WebSocket audio on first play...');
+        if (window.initializeWebSocketAudio) {
+            window.initializeWebSocketAudio(window.streamingSessionId);
+            
+            // Wait a moment for connection to establish
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Send initial parameters
+            if (window.unifiedAudioController) {
+                window.unifiedAudioController.sendParameters();
+            }
+        }
+    }
+    
     if (window.unifiedAudioController) {
         await window.unifiedAudioController.play();
     } else {

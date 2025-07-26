@@ -506,6 +506,18 @@ window.handleProcessSingleFormSubmit = async (event) => {
                         if (instrumentalChannel) instrumentalChannel.style.display = 'none';
                     }
                     
+                    // Set preset data for download links (if preset was created from reference audio)
+                    const processSingleStatus = document.getElementById('process-single-status');
+                    if (processSingleStatus && result.created_preset_path && result.created_preset_filename) {
+                        processSingleStatus.dataset.createdPresetPath = result.created_preset_path;
+                        processSingleStatus.dataset.createdPresetFilename = result.created_preset_filename;
+                        
+                        // Show preset download links immediately after processing completion
+                        if (window.showPresetDownloadLinks) {
+                            window.showPresetDownloadLinks();
+                        }
+                    }
+                    
                     // Initialize the knob controls
                     if (typeof window.initializeKnob === 'function') {
                         window.initializeKnob();
@@ -549,20 +561,7 @@ window.handleProcessSingleFormSubmit = async (event) => {
                         }, 100); // Small delay to ensure everything is set up
                     }
                     
-                    // Set up WebSocket audio playback
-                    setTimeout(() => {
-                        if (window.streamingSessionId && window.initializeWebSocketAudio) {
-                            window.initializeWebSocketAudio(window.streamingSessionId);
-                            console.log('WebSocket audio setup initiated');
-                            
-                            // Send initial parameters via WebSocket
-                            setTimeout(() => {
-                                if (window.unifiedAudioController) {
-                                    window.unifiedAudioController.sendParameters();
-                                }
-                            }, 500); // Wait for WebSocket connection
-                        }
-                    }, 200);
+                    // WebSocket audio will be initialized lazily on first play button press
                     
                 }
             }
@@ -825,13 +824,7 @@ async function handleStemProcessingComplete(progressData) {
             }
         }
         
-        // Create streaming session for real-time parameter updates, then initialize audio
-        const sessionCreated = await createStemStreamingSession();
-        if (sessionCreated) {
-            await initializeStemAudioPlayback();
-        } else {
-            console.error('Failed to create stem session, skipping audio initialization');
-        }
+        // Stem streaming session will be created lazily on first play button press
     }
     
     setProcessingState(false);
@@ -1147,6 +1140,10 @@ window.handleSaveStemBlend = async () => {
         statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to save stem blend</div>';
     }
 };
+
+// Export stem functions to window for lazy initialization
+window.createStemStreamingSession = createStemStreamingSession;
+window.initializeStemAudioPlayback = initializeStemAudioPlayback;
 
 
     
