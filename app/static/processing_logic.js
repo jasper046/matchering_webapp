@@ -419,6 +419,27 @@ window.handleProcessSingleFormSubmit = async (event) => {
                                     waveformImage.src = imageUrl;
                                     waveformImage.alt = 'Audio Waveform (Original ↑ / Processed ↓)';
                                     console.log('Waveform generated successfully');
+                                    
+                                    // Add click event listener for seeking
+                                    waveformImage.style.cursor = 'pointer';
+                                    waveformImage.onclick = function(event) {
+                                        // Calculate position relative to the image
+                                        const rect = waveformImage.getBoundingClientRect();
+                                        const x = event.clientX - rect.left;
+                                        const imageWidth = waveformImage.offsetWidth;
+                                        
+                                        if (window.previewAudioElement && window.previewAudioElement.duration) {
+                                            const seekTime = (x / imageWidth) * window.previewAudioElement.duration;
+                                            window.previewAudioElement.currentTime = seekTime;
+                                            
+                                            // Update play position indicator immediately
+                                            if (typeof window.drawPlayPosition === 'function') {
+                                                window.drawPlayPosition(seekTime / window.previewAudioElement.duration);
+                                            }
+                                            
+                                            console.log('Seeking to:', seekTime, 'seconds');
+                                        }
+                                    };
                                 } else {
                                     console.error('Failed to generate waveform');
                                     waveformImage.alt = 'Failed to generate waveform';
