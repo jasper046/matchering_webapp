@@ -12,46 +12,27 @@ let webSocketAudioStream = null;
 let useWebSocketAudio = true; // Prefer WebSocket when available
 
 async function playAudio() {
-    // Use stem WebSocket stream if available, otherwise use regular stream
-    const audioStream = window.stemWebSocketAudioStream || webSocketAudioStream;
-    
-    if (!audioStream || !audioStream.isConnected()) {
-        console.warn('Cannot play: WebSocket audio not connected');
-        return;
-    }
-    
-    try {
-        await audioStream.play();
-        console.log('WebSocket audio playback started');
-    } catch (error) {
-        console.error('WebSocket audio play failed:', error);
+    if (window.unifiedAudioController) {
+        await window.unifiedAudioController.play();
+    } else {
+        console.warn('Unified audio controller not available');
     }
 }
 
 function pauseAudio() {
-    // Use stem WebSocket stream if available, otherwise use regular stream
-    const audioStream = window.stemWebSocketAudioStream || webSocketAudioStream;
-    
-    if (!audioStream || !audioStream.isConnected()) {
-        console.warn('Cannot pause: WebSocket audio not connected');
-        return;
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.pause();
+    } else {
+        console.warn('Unified audio controller not available');
     }
-    
-    audioStream.pause();
-    console.log('WebSocket audio paused');
 }
 
 function stopAudio() {
-    // Use stem WebSocket stream if available, otherwise use regular stream
-    const audioStream = window.stemWebSocketAudioStream || webSocketAudioStream;
-    
-    if (!audioStream || !audioStream.isConnected()) {
-        console.warn('Cannot stop: WebSocket audio not connected');
-        return;
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.stop();
+    } else {
+        console.warn('Unified audio controller not available');
     }
-    
-    audioStream.stop();
-    console.log('WebSocket audio stopped');
 }
 
 function updatePlaybackButtons(activeButtonId) {
@@ -99,8 +80,8 @@ function drawPlayPosition(position) {
 
 // Function to seek audio using pause/seek/play pattern
 async function seekAudio(event) {
-    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
-        console.warn('Cannot seek: WebSocket audio not connected');
+    if (!window.unifiedAudioController) {
+        console.warn('Unified audio controller not available');
         return;
     }
     
@@ -126,8 +107,8 @@ async function seekAudio(event) {
     console.log('Seeking to position:', seekPosition);
     
     try {
-        webSocketAudioStream.seek(seekPosition);
-        console.log('WebSocket seek completed');
+        window.unifiedAudioController.seek(seekPosition);
+        console.log('Seek completed');
     } catch (error) {
         console.error('Seek error:', error);
     }

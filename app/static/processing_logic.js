@@ -153,8 +153,8 @@ window.sendParametersToBackend = async () => {
 
 // Update preview function for master gain compatibility
 window.updatePreview = () => {
-    if (window.streamingSessionId) {
-        window.sendParametersToBackend();
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
     }
 };
 
@@ -166,33 +166,11 @@ window.isCurrentlyStemMode = () => {
 
 // Update dual stem mix for stem mode processing
 window.updateDualStemMix = () => {
-    // Check if we're in stem mode with WebSocket streaming
-    if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-        console.log('Updating dual stem mix via WebSocket');
-        window.sendStemParametersToBackendWS();
-    } else if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
-        // Use frame processing for real-time stem mixing
-        const vocalGain = (typeof window.currentVocalGain !== 'undefined') ? window.currentVocalGain : 0;
-        const instrumentalGain = (typeof window.currentInstrumentalGain !== 'undefined') ? window.currentInstrumentalGain : 0;
-        const masterGain = (typeof window.currentMasterGain !== 'undefined') ? window.currentMasterGain : 0;
-        const vocalBlend = (typeof window.currentVocalBlend !== 'undefined') ? window.currentVocalBlend : 50;
-        const instrumentalBlend = (typeof window.currentInstrumentalBlend !== 'undefined') ? window.currentInstrumentalBlend : 50;
-        
-        console.log('Updating dual stem mix - vocal gain:', vocalGain, 'instrumental gain:', instrumentalGain, 'master gain:', masterGain);
-        
-        window.frameProcessingManager.handleParameterChange({
-            vocal_gain_db: vocalGain,
-            instrumental_gain_db: instrumentalGain,
-            master_gain_db: masterGain,
-            vocal_blend_ratio: vocalBlend / 100.0,
-            instrumental_blend_ratio: instrumentalBlend / 100.0,
-            vocal_muted: window.vocalMuted || false,
-            instrumental_muted: window.instrumentalMuted || false,
-            limiter_enabled: true,
-            is_stem_mode: true
-        });
+    // Use unified controller for all parameter updates
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
     } else {
-        console.warn('No stem parameter update mechanism available');
+        console.warn('Unified audio controller not available');
     }
 };
 
@@ -573,8 +551,8 @@ window.handleProcessSingleFormSubmit = async (event) => {
                             
                             // Send initial parameters via WebSocket
                             setTimeout(() => {
-                                if (window.sendParametersToBackendWS) {
-                                    window.sendParametersToBackendWS();
+                                if (window.unifiedAudioController) {
+                                    window.unifiedAudioController.sendParameters();
                                 }
                             }, 500); // Wait for WebSocket connection
                         }
@@ -691,6 +669,9 @@ window.handleStemSeparationChange = () => {
     if (window.resetKnobControls) {
         window.resetKnobControls();
     }
+    
+    // Update file input visibility based on current selection
+    window.toggleReferenceInput();
     
     // Update process button visibility after cleanup
     window.checkProcessButtonVisibility();

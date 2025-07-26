@@ -53,17 +53,9 @@ function initializeKnob() {
             window.currentBlendValue = currentBlendValue;
             drawKnob();
             
-            // Send parameters to backend
-            if (window.streamingSessionId) {
-                // Send parameters via WebSocket if available, fallback to HTTP
-            // Send parameters via appropriate method based on mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
-            } else if (window.sendParametersToBackendWS) {
-                window.sendParametersToBackendWS();
-            } else if (window.sendParametersToBackend) {
-                window.sendParametersToBackend();
-            }
+            // Send parameters via unified controller
+            if (window.unifiedAudioController) {
+                window.unifiedAudioController.sendParameters();
             }
         });
         
@@ -116,17 +108,9 @@ function initializeMasterGainKnob() {
         document.getElementById('master-gain-value').value = currentMasterGain;
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
-        // Send parameters to backend
-        if (window.stemStreamingSessionId || window.streamingSessionId) {
-            // Send parameters via WebSocket if available, fallback to HTTP
-            // Send parameters via appropriate method based on mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
-            } else if (window.sendParametersToBackendWS) {
-                window.sendParametersToBackendWS();
-            } else if (window.sendParametersToBackend) {
-                window.sendParametersToBackend();
-            }
+        // Send parameters via unified controller
+        if (window.unifiedAudioController) {
+            window.unifiedAudioController.sendParameters();
         }
     });
     
@@ -567,17 +551,9 @@ function dragMasterGain(e) {
         window.currentMasterGain = currentMasterGain;
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
-        // Send parameters to backend
-        if (window.stemStreamingSessionId || window.streamingSessionId) {
-            // Send parameters via WebSocket if available, fallback to HTTP
-            // Send parameters via appropriate method based on mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
-            } else if (window.sendParametersToBackendWS) {
-                window.sendParametersToBackendWS();
-            } else if (window.sendParametersToBackend) {
-                window.sendParametersToBackend();
-            }
+        // Send parameters via unified controller
+        if (window.unifiedAudioController) {
+            window.unifiedAudioController.sendParameters();
         }
     }
 }
@@ -596,17 +572,9 @@ function dragMasterGainTouch(e) {
         window.currentMasterGain = currentMasterGain;
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
-        // Send parameters to backend
-        if (window.stemStreamingSessionId || window.streamingSessionId) {
-            // Send parameters via WebSocket if available, fallback to HTTP
-            // Send parameters via appropriate method based on mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
-            } else if (window.sendParametersToBackendWS) {
-                window.sendParametersToBackendWS();
-            } else if (window.sendParametersToBackend) {
-                window.sendParametersToBackend();
-            }
+        // Send parameters via unified controller
+        if (window.unifiedAudioController) {
+            window.unifiedAudioController.sendParameters();
         }
     }
 }
@@ -663,7 +631,9 @@ function handleDrag(e) {
     
     // Send parameters to backend
     if (window.streamingSessionId) {
-        window.sendParametersToBackend();
+        if (window.unifiedAudioController) {
+            window.unifiedAudioController.sendParameters();
+        }
     }
 }
 
@@ -681,7 +651,9 @@ function handleDragTouch(e) {
     
     // Send parameters to backend
     if (window.streamingSessionId) {
-        window.sendParametersToBackend();
+        if (window.unifiedAudioController) {
+            window.unifiedAudioController.sendParameters();
+        }
     }
 }
 
@@ -769,26 +741,18 @@ function initializeLimiterButton() {
         
         // Update button appearance
         if (limiterEnabled) {
-            limiterButton.classList.remove('limiter-bypassed');
-            limiterButton.classList.add('limiter-on');
-            limiterButton.querySelector('.limiter-text').textContent = 'ON';
+            newLimiterButton.classList.remove('limiter-bypassed');
+            newLimiterButton.classList.add('limiter-on');
+            newLimiterButton.querySelector('.limiter-text').textContent = 'ON';
         } else {
-            limiterButton.classList.remove('limiter-on');
-            limiterButton.classList.add('limiter-bypassed');
-            limiterButton.querySelector('.limiter-text').textContent = 'BYPASSED';
+            newLimiterButton.classList.remove('limiter-on');
+            newLimiterButton.classList.add('limiter-bypassed');
+            newLimiterButton.querySelector('.limiter-text').textContent = 'BYPASSED';
         }
         
-        // Send parameters to backend
-        if (window.stemStreamingSessionId || window.streamingSessionId) {
-            // Send parameters via WebSocket if available, fallback to HTTP
-            // Send parameters via appropriate method based on mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
-            } else if (window.sendParametersToBackendWS) {
-                window.sendParametersToBackendWS();
-            } else if (window.sendParametersToBackend) {
-                window.sendParametersToBackend();
-            }
+        // Send parameters via unified controller
+        if (window.unifiedAudioController) {
+            window.unifiedAudioController.sendParameters();
         }
         
         console.log('Limiter toggled:', limiterEnabled ? 'ON' : 'BYPASSED');

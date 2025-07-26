@@ -18,6 +18,7 @@ class WebSocketAudioStream {
         this.audioBuffers = [];
         this.currentBufferIndex = 0;
         this.nextPlayTime = 0;
+        this.isSeeking = false;
         
         // Callbacks
         this.onPositionUpdate = null;
@@ -131,6 +132,8 @@ class WebSocketAudioStream {
                 
             case 'seeked':
                 this.currentPosition = message.position;
+                // Clear seeking flag when server confirms seek completion
+                this.isSeeking = false;
                 if (this.onPositionUpdate) {
                     this.onPositionUpdate(this.currentPosition);
                 }
@@ -159,6 +162,11 @@ class WebSocketAudioStream {
     }
     
     handleAudioData(arrayBuffer) {
+        // Ignore audio data while seeking to prevent audio bleeding
+        if (this.isSeeking) {
+            return;
+        }
+        
         if (!this.audioContext || this.audioContext.state === 'suspended') {
             // Try to resume audio context
             if (this.audioContext) {
@@ -256,33 +264,67 @@ class WebSocketAudioStream {
         // Remember if we were playing
         const wasPlaying = this.isPlaying;
         
+        // Set seeking flag to ignore incoming audio data during transition
+        this.isSeeking = true;
+        
         // Stop current audio completely and reset timing
         this.sendMessage({ type: 'stop' });
         this.nextPlayTime = 0;
         
-        // Clear any scheduled audio buffers
+        // More aggressive buffer clearing for seek operations
         if (this.audioContext) {
-            // Force a small silence to clear Web Audio API buffers
-            const silenceBuffer = this.audioContext.createBuffer(this.channels, 1, this.sampleRate);
-            const source = this.audioContext.createBufferSource();
-            source.buffer = silenceBuffer;
-            source.connect(this.audioContext.destination);
-            source.start();
+            // Suspend audio context to stop all scheduled audio
+            if (this.audioContext.state === 'running') {
+                this.audioContext.suspend().then(() => {
+                    // Create a longer silence buffer to completely clear pipeline
+                    const silenceDuration = 0.1; // 100ms of silence
+                    const silenceBuffer = this.audioContext.createBuffer(
+                        this.channels || 2, 
+                        Math.floor(silenceDuration * (this.sampleRate || 44100)), 
+                        this.sampleRate || 44100
+                    );
+                    
+                    // Fill with silence (already zeros by default)
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = silenceBuffer;
+                    source.connect(this.audioContext.destination);
+                    
+                    // Resume context and play silence
+                    this.audioContext.resume().then(() => {
+                        source.start();
+                        
+                        // Reset timing after silence
+                        setTimeout(() => {
+                            this.nextPlayTime = this.audioContext.currentTime + 0.05;
+                        }, 50);
+                    });
+                });
+            } else {
+                // If already suspended, just reset timing
+                this.nextPlayTime = this.audioContext.currentTime + 0.05;
+            }
         }
         
-        // Send seek command
-        this.sendMessage({ 
-            type: 'seek', 
-            position: position 
-        });
-        
-        // Resume playing if we were playing before
-        if (wasPlaying) {
-            // Longer delay to ensure complete reset
+        // Send seek command with slight delay to ensure stop is processed
+        setTimeout(() => {
+            this.sendMessage({ 
+                type: 'seek', 
+                position: position 
+            });
+            
+            // Clear seeking flag after delays
             setTimeout(() => {
-                this.sendMessage({ type: 'play' });
-            }, 100);
-        }
+                this.isSeeking = false;
+            }, 200);
+            
+            // Resume playing if we were playing before
+            if (wasPlaying) {
+                // Longer delay to ensure complete reset and buffer clearing
+                setTimeout(() => {
+                    this.sendMessage({ type: 'play' });
+                }, 150);
+            }
+        }, 50);
     }
     
     updateParameters(params) {

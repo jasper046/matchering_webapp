@@ -139,9 +139,9 @@
             vocalEnableBtn.setAttribute('data-enabled', !window.vocalMuted);
             vocalEnableBtn.querySelector('.btn-text').textContent = window.vocalMuted ? 'Off' : 'On';
             
-            // Send parameters to backend if in stem mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
+            // Send parameters via unified controller
+            if (window.unifiedAudioController) {
+                window.unifiedAudioController.sendParameters();
             }
         });
     }
@@ -153,9 +153,9 @@
             instrumentalEnableBtn.setAttribute('data-enabled', !window.instrumentalMuted);
             instrumentalEnableBtn.querySelector('.btn-text').textContent = window.instrumentalMuted ? 'Off' : 'On';
             
-            // Send parameters to backend if in stem mode
-            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
-                window.sendStemParametersToBackendWS();
+            // Send parameters via unified controller
+            if (window.unifiedAudioController) {
+                window.unifiedAudioController.sendParameters();
             }
         });
     }
