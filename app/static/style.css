@@ -544,13 +544,14 @@ canvas[id*="blend-knob"] {
 }
 
 .limiter-text {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    padding: 0.2rem 0.5rem;
+    padding: 0.2rem 0.4rem;
     border-radius: 0.3rem;
-    width: 75px; /* Fixed width to accommodate both ON/BYPASSED */
+    min-width: 85px; /* Increased width to fit "BYPASSED" */
     text-align: center;
     transition: all 0.2s ease-in-out;
+    white-space: nowrap; /* Prevent text wrapping */
 }
 
 .limiter-btn.limiter-on .limiter-text {
