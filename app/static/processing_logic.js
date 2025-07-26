@@ -180,7 +180,15 @@ window.handleSaveBlend = async () => {
 // Throttle blend preview generation to prevent flooding
 let blendPreviewTimeout = null;
 
-window.generateBlendPreview = async () => {
+window.generateBlendPreview = async (forceUpdate = false) => {
+    // Skip preview generation if audio is currently playing (unless forced)
+    const isCurrentlyPlaying = window.previewAudioElement && !window.previewAudioElement.paused;
+    
+    if (isCurrentlyPlaying && !forceUpdate) {
+        console.log('Skipping preview generation during playback - will update when stopped');
+        return;
+    }
+    
     // Cancel any pending preview generation
     if (blendPreviewTimeout) {
         clearTimeout(blendPreviewTimeout);
@@ -210,7 +218,10 @@ async function generateBlendPreviewInternal() {
     const blendValue = (typeof window.currentBlendValue !== 'undefined') ? window.currentBlendValue : 50;
     const blendRatio = blendValue / 100.0;
     
-    console.log('Generating blend preview with ratio:', blendRatio, 'from blend value:', blendValue);
+    // Get master gain value (if available)
+    const masterGainValue = (typeof window.currentMasterGain !== 'undefined') ? window.currentMasterGain : 0;
+    
+    console.log('Generating blend preview with ratio:', blendRatio, 'master gain:', masterGainValue);
     
     try {
         const formData = new FormData();
@@ -402,15 +413,15 @@ window.handleProcessSingleFormSubmit = async (event) => {
                         window.initializeAudioPlayback();
                     }
                     
-                    // Generate initial blend preview at 50%
-                    if (typeof window.generateBlendPreview === 'function') {
-                        setTimeout(() => {
-                            console.log('Generating initial blend preview...');
-                            window.generateBlendPreview().catch(error => {
+                    // Generate initial blend preview
+                    setTimeout(() => {
+                        console.log('Generating initial blend preview...');
+                        if (typeof window.generateBlendPreview === 'function') {
+                            window.generateBlendPreview(true).catch(error => {
                                 console.error('Failed to generate initial blend preview:', error);
                             });
-                        }, 500); // Increased delay to ensure everything is initialized
-                    }
+                        }
+                    }, 500);
                 }
             }
         } else {

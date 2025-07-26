@@ -92,6 +92,13 @@ function stopAudio() {
     }
     
     drawPlayPosition(0);
+    
+    // Update preview after stopping
+    if (typeof window.generateBlendPreview === 'function') {
+        setTimeout(() => {
+            window.generateBlendPreview(true); // Force update
+        }, 100);
+    }
 }
 
 function updatePlaybackButtons(activeButtonId) {
