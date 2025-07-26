@@ -12,13 +12,16 @@ let webSocketAudioStream = null;
 let useWebSocketAudio = true; // Prefer WebSocket when available
 
 async function playAudio() {
-    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+    // Use stem WebSocket stream if available, otherwise use regular stream
+    const audioStream = window.stemWebSocketAudioStream || webSocketAudioStream;
+    
+    if (!audioStream || !audioStream.isConnected()) {
         console.warn('Cannot play: WebSocket audio not connected');
         return;
     }
     
     try {
-        await webSocketAudioStream.play();
+        await audioStream.play();
         console.log('WebSocket audio playback started');
     } catch (error) {
         console.error('WebSocket audio play failed:', error);
@@ -26,22 +29,28 @@ async function playAudio() {
 }
 
 function pauseAudio() {
-    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+    // Use stem WebSocket stream if available, otherwise use regular stream
+    const audioStream = window.stemWebSocketAudioStream || webSocketAudioStream;
+    
+    if (!audioStream || !audioStream.isConnected()) {
         console.warn('Cannot pause: WebSocket audio not connected');
         return;
     }
     
-    webSocketAudioStream.pause();
+    audioStream.pause();
     console.log('WebSocket audio paused');
 }
 
 function stopAudio() {
-    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
+    // Use stem WebSocket stream if available, otherwise use regular stream
+    const audioStream = window.stemWebSocketAudioStream || webSocketAudioStream;
+    
+    if (!audioStream || !audioStream.isConnected()) {
         console.warn('Cannot stop: WebSocket audio not connected');
         return;
     }
     
-    webSocketAudioStream.stop();
+    audioStream.stop();
     console.log('WebSocket audio stopped');
 }
 
@@ -49,7 +58,13 @@ function updatePlaybackButtons(activeButtonId) {
     document.querySelectorAll('.playback-button').forEach(button => {
         button.classList.remove('playback-active');
     });
-    document.getElementById(`${activeButtonId}-button`).classList.add('playback-active');
+    
+    const activeButton = document.getElementById(`${activeButtonId}-button`);
+    if (activeButton) {
+        activeButton.classList.add('playback-active');
+    } else {
+        console.warn(`Playback button not found: ${activeButtonId}-button`);
+    }
 }
 
 // Function to draw the play position indicator

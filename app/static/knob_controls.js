@@ -56,7 +56,10 @@ function initializeKnob() {
             // Send parameters to backend
             if (window.streamingSessionId) {
                 // Send parameters via WebSocket if available, fallback to HTTP
-            if (window.sendParametersToBackendWS) {
+            // Send parameters via appropriate method based on mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            } else if (window.sendParametersToBackendWS) {
                 window.sendParametersToBackendWS();
             } else if (window.sendParametersToBackend) {
                 window.sendParametersToBackend();
@@ -116,7 +119,10 @@ function initializeMasterGainKnob() {
         // Send parameters to backend
         if (window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
-            if (window.sendParametersToBackendWS) {
+            // Send parameters via appropriate method based on mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            } else if (window.sendParametersToBackendWS) {
                 window.sendParametersToBackendWS();
             } else if (window.sendParametersToBackend) {
                 window.sendParametersToBackend();
@@ -561,7 +567,10 @@ function dragMasterGain(e) {
         // Send parameters to backend
         if (window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
-            if (window.sendParametersToBackendWS) {
+            // Send parameters via appropriate method based on mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            } else if (window.sendParametersToBackendWS) {
                 window.sendParametersToBackendWS();
             } else if (window.sendParametersToBackend) {
                 window.sendParametersToBackend();
@@ -587,7 +596,10 @@ function dragMasterGainTouch(e) {
         // Send parameters to backend
         if (window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
-            if (window.sendParametersToBackendWS) {
+            // Send parameters via appropriate method based on mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            } else if (window.sendParametersToBackendWS) {
                 window.sendParametersToBackendWS();
             } else if (window.sendParametersToBackend) {
                 window.sendParametersToBackend();
@@ -762,7 +774,10 @@ function initializeLimiterButton() {
         // Send parameters to backend
         if (window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
-            if (window.sendParametersToBackendWS) {
+            // Send parameters via appropriate method based on mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            } else if (window.sendParametersToBackendWS) {
                 window.sendParametersToBackendWS();
             } else if (window.sendParametersToBackend) {
                 window.sendParametersToBackend();
@@ -879,3 +894,71 @@ window.dragMasterGainTouch = dragMasterGainTouch;
 window.endDragMasterGain = endDragMasterGain;
 window.drawDualKnobs = drawDualKnobs;
 window.drawKnob = drawKnob;
+
+// Reset all knob controls to default values
+window.resetKnobControls = function() {
+    // Reset global variables to defaults
+    currentBlendValue = 50;
+    currentVocalBlend = 50;
+    currentInstrumentalBlend = 50;
+    currentVocalGain = 0;
+    currentInstrumentalGain = 0;
+    currentMasterGain = 0;
+    limiterEnabled = true;
+    vocalMuted = false;
+    instrumentalMuted = false;
+    
+    // Reset all drag states
+    isDragging = false;
+    isDraggingVocal = false;
+    isDraggingInstrumental = false;
+    isDraggingVocalGain = false;
+    isDraggingInstrumentalGain = false;
+    isDraggingMasterGain = false;
+    
+    // Update text inputs
+    const blendValueInput = document.getElementById('blend-value');
+    if (blendValueInput) blendValueInput.value = 50;
+    
+    const vocalBlendInput = document.getElementById('vocal-blend-value');
+    if (vocalBlendInput) vocalBlendInput.value = 50;
+    
+    const instrumentalBlendInput = document.getElementById('instrumental-blend-value');
+    if (instrumentalBlendInput) instrumentalBlendInput.value = 50;
+    
+    const vocalGainInput = document.getElementById('vocal-gain-value');
+    if (vocalGainInput) vocalGainInput.value = 0;
+    
+    const instrumentalGainInput = document.getElementById('instrumental-gain-value');
+    if (instrumentalGainInput) instrumentalGainInput.value = 0;
+    
+    const masterGainInput = document.getElementById('master-gain-value');
+    if (masterGainInput) masterGainInput.value = 0;
+    
+    // Reset limiter button
+    const limiterButton = document.getElementById('limiterButton');
+    if (limiterButton) {
+        limiterButton.classList.remove('limiter-bypassed');
+        limiterButton.classList.add('limiter-on');
+        const limiterText = limiterButton.querySelector('.limiter-text');
+        if (limiterText) limiterText.textContent = 'ON';
+    }
+    
+    // Redraw all knobs
+    if (window.drawKnob) {
+        window.drawKnob(); // Standard blend knob
+    }
+    if (window.drawDualKnobs) {
+        window.drawDualKnobs(); // Stem knobs
+    }
+    if (window.drawGainKnob) {
+        window.drawGainKnob(); // Gain knobs
+    }
+    
+    // Update window variables
+    window.currentBlendValue = currentBlendValue;
+    window.vocalMuted = vocalMuted;
+    window.instrumentalMuted = instrumentalMuted;
+    
+    console.log('Knob controls reset to defaults');
+};

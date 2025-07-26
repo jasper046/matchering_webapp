@@ -595,17 +595,49 @@ async def websocket_audio_stream(websocket: WebSocket, session_id: str):
         await websocket.close(code=1008, reason="Invalid or expired session ID")
         return
     
+    session_data = preview_generators[session_id]
+    is_stem_mode = session_data.get("is_stem_mode", False)
+    logger.info(f"Session {session_id} is_stem_mode: {is_stem_mode}")
+    
     # Store WebSocket connection
     active_websockets[session_id] = websocket
     
     try:
         session_data = preview_generators[session_id]
-        original_path = session_data["original_audio_path"]
-        processed_path = session_data["processed_audio_path"]
+        is_stem_mode = session_data.get("is_stem_mode", False)
         
-        # Load audio data once
-        original_audio, sample_rate = sf.read(original_path)
-        processed_audio, _ = sf.read(processed_path)
+        if is_stem_mode:
+            # Stem mode - load vocal and instrumental stems
+            target_vocal_path = session_data["target_vocal_path"]
+            target_instrumental_path = session_data["target_instrumental_path"]
+            processed_vocal_path = session_data["processed_vocal_path"]
+            processed_instrumental_path = session_data["processed_instrumental_path"]
+            
+            # Load all stem audio data
+            target_vocal_audio, sample_rate = sf.read(target_vocal_path)
+            target_instrumental_audio, _ = sf.read(target_instrumental_path)
+            processed_vocal_audio, _ = sf.read(processed_vocal_path)
+            processed_instrumental_audio, _ = sf.read(processed_instrumental_path)
+            
+            # Ensure all stems have same length
+            min_length = min(len(target_vocal_audio), len(target_instrumental_audio),
+                           len(processed_vocal_audio), len(processed_instrumental_audio))
+            target_vocal_audio = target_vocal_audio[:min_length]
+            target_instrumental_audio = target_instrumental_audio[:min_length]
+            processed_vocal_audio = processed_vocal_audio[:min_length]
+            processed_instrumental_audio = processed_instrumental_audio[:min_length]
+            
+            # For compatibility, set original_audio to combined target stems
+            original_audio = target_vocal_audio + target_instrumental_audio
+            processed_audio = processed_vocal_audio + processed_instrumental_audio
+        else:
+            # Non-stem mode - load single original and processed
+            original_path = session_data["original_audio_path"]
+            processed_path = session_data["processed_audio_path"]
+            
+            # Load audio data once
+            original_audio, sample_rate = sf.read(original_path)
+            processed_audio, _ = sf.read(processed_path)
         
         # Ensure both have same length
         min_length = min(len(original_audio), len(processed_audio))
@@ -629,29 +661,83 @@ async def websocket_audio_stream(websocket: WebSocket, session_id: str):
             while True:
                 if is_playing and current_position < len(original_audio):
                     # Get current parameters
-                    params = session_parameters.get(session_id, {
-                        "blend_ratio": 0.5,
-                        "master_gain_db": 0.0,
-                        "limiter_enabled": True
-                    })
+                    if is_stem_mode:
+                        params = session_parameters.get(session_id, {
+                            "vocal_blend_ratio": 0.5,
+                            "instrumental_blend_ratio": 0.5,
+                            "vocal_gain_db": 0.0,
+                            "instrumental_gain_db": 0.0,
+                            "master_gain_db": 0.0,
+                            "vocal_muted": False,
+                            "instrumental_muted": False,
+                            "limiter_enabled": True
+                        })
+                    else:
+                        params = session_parameters.get(session_id, {
+                            "blend_ratio": 0.5,
+                            "master_gain_db": 0.0,
+                            "limiter_enabled": True
+                        })
                     
                     # Extract chunk
                     end_sample = min(current_position + chunk_samples, len(original_audio))
-                    orig_chunk = original_audio[current_position:end_sample]
-                    proc_chunk = processed_audio[current_position:end_sample]
                     
-                    if len(orig_chunk) == 0:
-                        # End of audio reached
-                        is_playing = False
-                        await websocket.send_json({
-                            "type": "playback_ended",
-                            "position": 1.0
-                        })
-                        continue
-                    
-                    # Apply blend ratio
-                    blend_ratio = params["blend_ratio"]
-                    blended_chunk = orig_chunk * (1.0 - blend_ratio) + proc_chunk * blend_ratio
+                    if is_stem_mode:
+                        # Stem mode processing
+                        target_vocal_chunk = target_vocal_audio[current_position:end_sample]
+                        target_instrumental_chunk = target_instrumental_audio[current_position:end_sample]
+                        processed_vocal_chunk = processed_vocal_audio[current_position:end_sample]
+                        processed_instrumental_chunk = processed_instrumental_audio[current_position:end_sample]
+                        
+                        if len(target_vocal_chunk) == 0:
+                            # End of audio reached
+                            is_playing = False
+                            await websocket.send_json({
+                                "type": "playback_ended",
+                                "position": 1.0
+                            })
+                            continue
+                        
+                        # Apply blend ratios to each stem
+                        vocal_blend_ratio = params["vocal_blend_ratio"]
+                        instrumental_blend_ratio = params["instrumental_blend_ratio"]
+                        
+                        blended_vocal = target_vocal_chunk * (1.0 - vocal_blend_ratio) + processed_vocal_chunk * vocal_blend_ratio
+                        blended_instrumental = target_instrumental_chunk * (1.0 - instrumental_blend_ratio) + processed_instrumental_chunk * instrumental_blend_ratio
+                        
+                        # Apply gain adjustments
+                        vocal_gain_linear = 10 ** (params["vocal_gain_db"] / 20.0)
+                        instrumental_gain_linear = 10 ** (params["instrumental_gain_db"] / 20.0)
+                        
+                        blended_vocal = blended_vocal * vocal_gain_linear
+                        blended_instrumental = blended_instrumental * instrumental_gain_linear
+                        
+                        # Apply mute
+                        if params["vocal_muted"]:
+                            blended_vocal = np.zeros_like(blended_vocal)
+                        if params["instrumental_muted"]:
+                            blended_instrumental = np.zeros_like(blended_instrumental)
+                        
+                        # Combine stems
+                        blended_chunk = blended_vocal + blended_instrumental
+                        
+                    else:
+                        # Non-stem mode processing
+                        orig_chunk = original_audio[current_position:end_sample]
+                        proc_chunk = processed_audio[current_position:end_sample]
+                        
+                        if len(orig_chunk) == 0:
+                            # End of audio reached
+                            is_playing = False
+                            await websocket.send_json({
+                                "type": "playback_ended",
+                                "position": 1.0
+                            })
+                            continue
+                        
+                        # Apply blend ratio
+                        blend_ratio = params["blend_ratio"]
+                        blended_chunk = orig_chunk * (1.0 - blend_ratio) + proc_chunk * blend_ratio
                     
                     # Apply master gain
                     master_gain_linear = 10 ** (params["master_gain_db"] / 20.0)
@@ -730,14 +816,30 @@ async def websocket_audio_stream(websocket: WebSocket, session_id: str):
                 elif msg_type == "parameters":
                     # Update session parameters
                     params = data.get("params", {})
-                    session_parameters[session_id] = {
-                        "blend_ratio": params.get('blend_ratio', 0.5),
-                        "master_gain_db": params.get('master_gain_db', 0.0),
-                        "vocal_gain_db": params.get('vocal_gain_db', 0.0),
-                        "instrumental_gain_db": params.get('instrumental_gain_db', 0.0),
-                        "limiter_enabled": params.get('limiter_enabled', True),
-                        "is_stem_mode": params.get('is_stem_mode', False)
-                    }
+                    
+                    if is_stem_mode:
+                        # Stem mode parameters
+                        session_parameters[session_id] = {
+                            "vocal_blend_ratio": params.get('vocal_blend_ratio', 0.5),
+                            "instrumental_blend_ratio": params.get('instrumental_blend_ratio', 0.5),
+                            "vocal_gain_db": params.get('vocal_gain_db', 0.0),
+                            "instrumental_gain_db": params.get('instrumental_gain_db', 0.0),
+                            "master_gain_db": params.get('master_gain_db', 0.0),
+                            "vocal_muted": params.get('vocal_muted', False),
+                            "instrumental_muted": params.get('instrumental_muted', False),
+                            "limiter_enabled": params.get('limiter_enabled', True),
+                            "is_stem_mode": True
+                        }
+                    else:
+                        # Non-stem mode parameters
+                        session_parameters[session_id] = {
+                            "blend_ratio": params.get('blend_ratio', 0.5),
+                            "master_gain_db": params.get('master_gain_db', 0.0),
+                            "vocal_gain_db": params.get('vocal_gain_db', 0.0),
+                            "instrumental_gain_db": params.get('instrumental_gain_db', 0.0),
+                            "limiter_enabled": params.get('limiter_enabled', True),
+                            "is_stem_mode": False
+                        }
                     await websocket.send_json({"type": "parameters_updated"})
                     
             except json.JSONDecodeError:

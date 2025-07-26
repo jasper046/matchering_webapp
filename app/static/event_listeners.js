@@ -32,7 +32,7 @@
     document.getElementById('preset-file-single').addEventListener('change', window.checkProcessButtonVisibility);
     document.getElementById('vocal-preset-file-single').addEventListener('change', window.checkProcessButtonVisibility);
     document.getElementById('instrumental-preset-file-single').addEventListener('change', window.checkProcessButtonVisibility);
-    document.getElementById('use-stem-separation').addEventListener('change', window.checkProcessButtonVisibility);
+    document.getElementById('use-stem-separation').addEventListener('change', window.handleStemSeparationChange);
     document.getElementById('radioReference').addEventListener('change', window.toggleReferenceInput);
     document.getElementById('radioPreset').addEventListener('change', window.toggleReferenceInput);
 
@@ -121,5 +121,41 @@
     // Save blend button event listener
     const saveBlendButton = document.getElementById('save-blend-button');
     if (saveBlendButton) {
-        saveBlendButton.addEventListener('click', window.handleSaveBlend);
+        saveBlendButton.addEventListener('click', () => {
+            // Use stem save function if in stem mode, otherwise use regular save
+            if (window.stemStreamingSessionId) {
+                window.handleSaveStemBlend();
+            } else {
+                window.handleSaveBlend();
+            }
+        });
+    }
+
+    // Vocal and instrumental enable button event listeners
+    const vocalEnableBtn = document.getElementById('vocal-enable-btn');
+    if (vocalEnableBtn) {
+        vocalEnableBtn.addEventListener('click', () => {
+            window.vocalMuted = !window.vocalMuted;
+            vocalEnableBtn.setAttribute('data-enabled', !window.vocalMuted);
+            vocalEnableBtn.querySelector('.btn-text').textContent = window.vocalMuted ? 'Off' : 'On';
+            
+            // Send parameters to backend if in stem mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            }
+        });
+    }
+
+    const instrumentalEnableBtn = document.getElementById('instrumental-enable-btn');
+    if (instrumentalEnableBtn) {
+        instrumentalEnableBtn.addEventListener('click', () => {
+            window.instrumentalMuted = !window.instrumentalMuted;
+            instrumentalEnableBtn.setAttribute('data-enabled', !window.instrumentalMuted);
+            instrumentalEnableBtn.querySelector('.btn-text').textContent = window.instrumentalMuted ? 'Off' : 'On';
+            
+            // Send parameters to backend if in stem mode
+            if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+                window.sendStemParametersToBackendWS();
+            }
+        });
     }

@@ -465,6 +465,15 @@ window.handleProcessSingleFormSubmit = async (event) => {
         
         if (response.ok) {
             const result = await response.json();
+            
+            // Handle stem processing (background job) vs regular processing
+            if (result.job_id) {
+                // Stem processing - poll for progress
+                statusDiv.innerHTML = '<div class="alert alert-info">Starting stem separation processing...</div>';
+                pollStemProcessingProgress(result.job_id, statusDiv);
+                return;
+            }
+            
             statusDiv.innerHTML = '<div class="alert alert-success">Processing completed successfully!</div>';
             
             // Show results or handle response
@@ -630,6 +639,484 @@ window.handleTargetFileSingleChange = () => {
     window.checkProcessButtonVisibility(); // Check visibility after target file changes
     // Hide results section if target file changes
     singleConversionResults.style.display = 'none';
+};
+
+// Handle stem separation mode change with cleanup
+window.handleStemSeparationChange = () => {
+    console.log('Stem separation mode changed');
+    
+    // Clear any previous results and status
+    const singleConversionResults = document.getElementById('single-conversion-results');
+    const processSingleStatus = document.getElementById('process-single-status');
+    const saveBlendStatus = document.getElementById('save-blend-status');
+    
+    if (singleConversionResults) {
+        singleConversionResults.style.display = 'none';
+    }
+    if (processSingleStatus) {
+        processSingleStatus.innerHTML = '';
+    }
+    if (saveBlendStatus) {
+        saveBlendStatus.innerHTML = '';
+    }
+    
+    // Clear stored file paths and session data
+    if (typeof window !== 'undefined') {
+        window.originalFilePath = null;
+        window.processedFilePath = null;
+        window.referenceFilename = null;
+        window.streamingSessionId = null;
+        
+        // Stop any active audio playback
+        if (window.stopAudio) {
+            window.stopAudio();
+        }
+        
+        // Disconnect WebSocket if active
+        if (window.webSocketAudioStream && window.webSocketAudioStream.isConnected()) {
+            window.webSocketAudioStream.disconnect();
+            window.webSocketAudioStream = null;
+        }
+    }
+    
+    // Reset waveform display
+    const waveformImage = document.getElementById('combined-waveform-image');
+    if (waveformImage) {
+        waveformImage.src = '';
+        waveformImage.alt = '';
+    }
+    
+    // Reset knob controls to default values
+    if (window.resetKnobControls) {
+        window.resetKnobControls();
+    }
+    
+    // Update process button visibility after cleanup
+    window.checkProcessButtonVisibility();
+};
+
+// Poll for stem processing progress and handle completion
+async function pollStemProcessingProgress(jobId, statusDiv) {
+    const maxAttempts = 300; // 5 minutes max (300 * 1000ms)
+    let attempts = 0;
+    
+    const poll = async () => {
+        try {
+            attempts++;
+            const response = await fetch(`/api/progress/${jobId}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const progress = await response.json();
+            console.log('Stem processing progress:', progress);
+            
+            // Update status display
+            statusDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>${progress.message}</span>
+                        <span class="badge bg-primary">${progress.progress}%</span>
+                    </div>
+                    <div class="progress mt-2">
+                        <div class="progress-bar" style="width: ${progress.progress}%"></div>
+                    </div>
+                </div>
+            `;
+            
+            if (progress.stage === 'complete') {
+                // Processing completed successfully
+                statusDiv.innerHTML = '<div class="alert alert-success">Stem processing completed successfully!</div>';
+                
+                // Handle stem processing completion
+                handleStemProcessingComplete(progress);
+                
+            } else if (progress.stage === 'error') {
+                // Processing failed
+                statusDiv.innerHTML = `<div class="alert alert-danger">Stem processing failed: ${progress.message}</div>`;
+                setProcessingState(false);
+                
+            } else if (attempts < maxAttempts) {
+                // Continue polling
+                setTimeout(poll, 1000);
+            } else {
+                // Timeout
+                statusDiv.innerHTML = '<div class="alert alert-warning">Processing timeout. Please check server status.</div>';
+                setProcessingState(false);
+            }
+            
+        } catch (error) {
+            console.error('Error polling stem progress:', error);
+            if (attempts < maxAttempts) {
+                setTimeout(poll, 2000); // Retry with longer delay
+            } else {
+                statusDiv.innerHTML = '<div class="alert alert-danger">Failed to get processing status</div>';
+                setProcessingState(false);
+            }
+        }
+    };
+    
+    // Start polling
+    poll();
+}
+
+// Handle stem processing completion
+async function handleStemProcessingComplete(progressData) {
+    console.log('Stem processing complete:', progressData);
+    
+    // Store stem file paths
+    if (typeof window !== 'undefined') {
+        window.targetVocalPath = progressData.target_vocal_path;
+        window.targetInstrumentalPath = progressData.target_instrumental_path;
+        window.processedVocalPath = progressData.processed_vocal_path;
+        window.processedInstrumentalPath = progressData.processed_instrumental_path;
+        window.vocalPresetPath = progressData.vocal_preset_path;
+        window.instrumentalPresetPath = progressData.instrumental_preset_path;
+        window.vocalPresetFilename = progressData.vocal_preset_filename;
+        window.instrumentalPresetFilename = progressData.instrumental_preset_filename;
+    }
+    
+    // Show results section
+    const resultsDiv = document.getElementById('single-conversion-results');
+    if (resultsDiv) {
+        resultsDiv.style.display = 'block';
+        
+        // Show stem mode channels (hide standard channel)
+        const standardChannel = document.getElementById('standard-channel');
+        const vocalChannel = document.getElementById('vocal-channel');
+        const instrumentalChannel = document.getElementById('instrumental-channel');
+        
+        if (standardChannel) standardChannel.style.display = 'none';
+        if (vocalChannel) vocalChannel.style.display = 'block';
+        if (instrumentalChannel) instrumentalChannel.style.display = 'block';
+        
+        // Initialize stem waveforms
+        initializeStemWaveforms();
+        
+        // Initialize dual knob controls for stem mode
+        if (window.initializeDualKnobs) {
+            console.log('Initializing dual knob controls for stem mode');
+            window.initializeDualKnobs();
+        }
+        
+        // Create streaming session for real-time parameter updates, then initialize audio
+        const sessionCreated = await createStemStreamingSession();
+        if (sessionCreated) {
+            await initializeStemAudioPlayback();
+        } else {
+            console.error('Failed to create stem session, skipping audio initialization');
+        }
+    }
+    
+    setProcessingState(false);
+}
+
+// Initialize stem waveforms display
+function initializeStemWaveforms() {
+    console.log('Initializing stem waveforms');
+    
+    // Set up dummy waveforms while loading
+    const vocalWaveformImage = document.getElementById('vocal-combined-waveform-image');
+    const instrumentalWaveformImage = document.getElementById('instrumental-combined-waveform-image');
+    
+    if (vocalWaveformImage) {
+        vocalWaveformImage.src = '/api/waveform/dummy?' + new Date().getTime();
+        vocalWaveformImage.alt = 'Loading vocal waveform...';
+    }
+    
+    if (instrumentalWaveformImage) {
+        instrumentalWaveformImage.src = '/api/waveform/dummy?' + new Date().getTime();
+        instrumentalWaveformImage.alt = 'Loading instrumental waveform...';
+    }
+    
+    // Generate actual waveforms using the existing endpoints
+    if (window.targetVocalPath && window.processedVocalPath) {
+        generateStemWaveform('vocal', window.targetVocalPath, window.processedVocalPath);
+    }
+    
+    if (window.targetInstrumentalPath && window.processedInstrumentalPath) {
+        generateStemWaveform('instrumental', window.targetInstrumentalPath, window.processedInstrumentalPath);
+    }
+}
+
+// Generate waveform for a specific stem
+async function generateStemWaveform(stemType, originalPath, processedPath) {
+    try {
+        console.log(`Generating ${stemType} waveform`, { originalPath, processedPath });
+        
+        const formData = new FormData();
+        formData.append('original_path', originalPath);
+        formData.append('processed_path', processedPath);
+        
+        const response = await fetch('/api/waveform/generate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const imageBlob = await response.blob();
+            const imageUrl = URL.createObjectURL(imageBlob);
+            
+            const waveformImage = document.getElementById(`${stemType}-combined-waveform-image`);
+            if (waveformImage) {
+                waveformImage.src = imageUrl;
+                waveformImage.alt = `${stemType.charAt(0).toUpperCase() + stemType.slice(1)} waveform`;
+                
+                // Add click-to-seek functionality
+                waveformImage.style.cursor = 'pointer';
+                waveformImage.onclick = (event) => handleStemWaveformClick(event, stemType);
+            }
+        } else {
+            console.error(`Failed to generate ${stemType} waveform:`, response.status);
+        }
+    } catch (error) {
+        console.error(`Error generating ${stemType} waveform:`, error);
+    }
+}
+
+// Handle waveform click for seeking in stem mode
+function handleStemWaveformClick(event, stemType) {
+    if (!window.stemWebSocketAudioStream || !window.stemWebSocketAudioStream.isConnected()) {
+        console.warn('Cannot seek: Stem WebSocket audio not connected');
+        return;
+    }
+    
+    const rect = event.target.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const position = clickX / rect.width; // 0.0 to 1.0
+    
+    console.log(`Seeking ${stemType} to position:`, position);
+    window.stemWebSocketAudioStream.seek(position);
+}
+
+// Create streaming session for stem mode
+async function createStemStreamingSession() {
+    try {
+        console.log('Creating stem streaming session');
+        console.log('Stem paths:', {
+            vocal: window.targetVocalPath,
+            instrumental: window.targetInstrumentalPath,
+            processedVocal: window.processedVocalPath,
+            processedInstrumental: window.processedInstrumentalPath
+        });
+        
+        // Validate that all paths are available
+        if (!window.targetVocalPath || !window.targetInstrumentalPath || 
+            !window.processedVocalPath || !window.processedInstrumentalPath) {
+            console.error('Missing required stem paths for session creation');
+            return false;
+        }
+        
+        const formData = new FormData();
+        formData.append('target_vocal_path', window.targetVocalPath);
+        formData.append('target_instrumental_path', window.targetInstrumentalPath);
+        formData.append('processed_vocal_path', window.processedVocalPath);
+        formData.append('processed_instrumental_path', window.processedInstrumentalPath);
+        
+        const response = await fetch('/api/create_stem_session', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            window.stemStreamingSessionId = result.session_id;
+            console.log('Stem streaming session created:', result.session_id);
+            return true;
+        } else {
+            console.error('Failed to create stem streaming session:', response.status);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error creating stem streaming session:', error);
+        return false;
+    }
+}
+
+// Initialize stem audio playback
+async function initializeStemAudioPlayback() {
+    console.log('Initializing stem audio playback');
+    console.log('Current window.stemStreamingSessionId:', window.stemStreamingSessionId);
+    console.log('Type of session ID:', typeof window.stemStreamingSessionId);
+    
+    if (!window.stemStreamingSessionId) {
+        console.error('Cannot initialize stem audio: no session ID');
+        console.error('All window properties with "session":', Object.keys(window).filter(key => key.toLowerCase().includes('session')));
+        return;
+    }
+    
+    try {
+        // Initialize WebSocket audio stream for stems
+        console.log('Looking for WebSocketAudioStream...', typeof window.WebSocketAudioStream);
+        const WebSocketAudioStream = window.WebSocketAudioStream;
+        if (!WebSocketAudioStream) {
+            console.error('WebSocketAudioStream not available on window object');
+            console.log('Available window properties:', Object.keys(window).filter(key => key.includes('WebSocket') || key.includes('Audio')));
+            return;
+        }
+        
+        console.log('Creating WebSocketAudioStream with session:', window.stemStreamingSessionId);
+        window.stemWebSocketAudioStream = new WebSocketAudioStream(window.stemStreamingSessionId);
+        
+        // Set up position tracking for stems
+        window.stemWebSocketAudioStream.onPositionUpdate = (position) => {
+            updateStemPlaybackPosition(position);
+        };
+        
+        // Set up playback state changes for stems
+        window.stemWebSocketAudioStream.onPlaybackStateChange = (playing, position) => {
+            window.updatePlaybackButtons(playing ? 'playing' : 'paused');
+            if (position !== undefined) {
+                updateStemPlaybackPosition(position);
+            }
+        };
+        
+        // Set up error handling for stems
+        window.stemWebSocketAudioStream.onError = (error) => {
+            console.error('Stem WebSocket audio error:', error);
+        };
+        
+        // Connect to WebSocket
+        console.log('Attempting to connect stem WebSocket...');
+        await window.stemWebSocketAudioStream.connect();
+        console.log('Stem WebSocket audio stream connected successfully');
+        
+        // Initialize stem parameter sending
+        window.sendStemParametersToBackendWS = () => {
+            if (!window.stemWebSocketAudioStream || !window.stemWebSocketAudioStream.isConnected()) {
+                return;
+            }
+            
+            const params = {
+                vocal_blend_ratio: (window.currentVocalBlend || 50) / 100.0,
+                instrumental_blend_ratio: (window.currentInstrumentalBlend || 50) / 100.0,
+                vocal_gain_db: window.currentVocalGain || 0.0,
+                instrumental_gain_db: window.currentInstrumentalGain || 0.0,
+                master_gain_db: window.currentMasterGain || 0.0,
+                vocal_muted: window.vocalMuted || false,
+                instrumental_muted: window.instrumentalMuted || false,
+                limiter_enabled: window.limiterEnabled !== undefined ? window.limiterEnabled : true
+            };
+            
+            window.stemWebSocketAudioStream.updateParameters(params);
+        };
+        
+    } catch (error) {
+        console.error('Error initializing stem audio playback:', error);
+    }
+}
+
+// Update stem playback position indicators
+function updateStemPlaybackPosition(position) {
+    // Update position indicators on vocal waveform
+    const vocalWaveformImage = document.getElementById('vocal-combined-waveform-image');
+    if (vocalWaveformImage) {
+        updateWaveformPosition(vocalWaveformImage, position);
+    }
+    
+    // Update position indicators on instrumental waveform
+    const instrumentalWaveformImage = document.getElementById('instrumental-combined-waveform-image');
+    if (instrumentalWaveformImage) {
+        updateWaveformPosition(instrumentalWaveformImage, position);
+    }
+}
+
+// Helper function to update waveform position indicator
+function updateWaveformPosition(waveformImage, position) {
+    // Remove existing position indicator
+    const existingIndicator = waveformImage.parentElement.querySelector('.playback-line');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
+    // Create new position indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'playback-line';
+    indicator.style.left = `${position * 100}%`;
+    
+    // Add to waveform container
+    const container = waveformImage.parentElement;
+    if (container) {
+        container.style.position = 'relative';
+        container.appendChild(indicator);
+    }
+}
+
+// Handle save stem blend functionality
+window.handleSaveStemBlend = async () => {
+    if (!window.targetVocalPath || !window.targetInstrumentalPath || 
+        !window.processedVocalPath || !window.processedInstrumentalPath) {
+        alert('No processed stem audio available to save.');
+        return;
+    }
+    
+    const statusDiv = document.getElementById('save-blend-status') || document.getElementById('process-single-status');
+    
+    try {
+        statusDiv.innerHTML = '<div class="alert alert-info">Saving stem blend...</div>';
+        
+        // Extract original filename
+        let originalFilename = null;
+        if (window.targetVocalPath) {
+            originalFilename = window.targetVocalPath.split('/').pop().replace('_(Vocals)_', '_').replace('.wav', '.wav');
+        }
+        
+        const formData = new FormData();
+        formData.append('target_vocal_path', window.targetVocalPath);
+        formData.append('target_instrumental_path', window.targetInstrumentalPath);
+        formData.append('processed_vocal_path', window.processedVocalPath);
+        formData.append('processed_instrumental_path', window.processedInstrumentalPath);
+        formData.append('vocal_blend_ratio', (window.currentVocalBlend || 50) / 100.0);
+        formData.append('instrumental_blend_ratio', (window.currentInstrumentalBlend || 50) / 100.0);
+        formData.append('vocal_gain_db', window.currentVocalGain || 0.0);
+        formData.append('instrumental_gain_db', window.currentInstrumentalGain || 0.0);
+        formData.append('master_gain_db', window.currentMasterGain || 0.0);
+        formData.append('vocal_muted', window.vocalMuted || false);
+        formData.append('instrumental_muted', window.instrumentalMuted || false);
+        formData.append('apply_limiter', window.limiterEnabled !== undefined ? window.limiterEnabled : true);
+        
+        if (originalFilename) {
+            formData.append('original_filename', originalFilename);
+        }
+        if (window.vocalPresetFilename) {
+            formData.append('vocal_preset_filename', window.vocalPresetFilename);
+        }
+        if (window.instrumentalPresetFilename) {
+            formData.append('instrumental_preset_filename', window.instrumentalPresetFilename);
+        }
+        
+        const response = await fetch('/api/save_stem_blend', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            if (result.blended_file_path) {
+                // Extract filename from path for download URL
+                const filename = result.blended_file_path.split('/').pop();
+                console.log('Stem blend save result:', result);
+                console.log('Extracted filename:', filename);
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        Stem blend saved successfully! 
+                        <a href="/download/output/${filename}" target="_blank" class="btn btn-sm btn-outline-success ms-2">Download</a>
+                    </div>
+                `;
+            } else {
+                console.warn('No blended_file_path in response:', result);
+                statusDiv.innerHTML = '<div class="alert alert-success">Stem blend saved successfully!</div>';
+            }
+        } else {
+            const error = await response.json();
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error saving stem blend: ${error.detail || 'Save failed'}</div>`;
+        }
+    } catch (error) {
+        console.error('Error saving stem blend:', error);
+        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to save stem blend</div>';
+    }
 };
 
 

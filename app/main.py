@@ -1048,6 +1048,178 @@ async def blend_stems_and_save(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/save_stem_blend")
+async def save_stem_blend(
+    target_vocal_path: str = Form(...),
+    target_instrumental_path: str = Form(...),
+    processed_vocal_path: str = Form(...),
+    processed_instrumental_path: str = Form(...),
+    vocal_blend_ratio: float = Form(...),
+    instrumental_blend_ratio: float = Form(...),
+    vocal_gain_db: float = Form(0.0),
+    instrumental_gain_db: float = Form(0.0),
+    master_gain_db: float = Form(0.0),
+    vocal_muted: bool = Form(False),
+    instrumental_muted: bool = Form(False),
+    apply_limiter: bool = Form(True),
+    original_filename: str = Form(None),
+    vocal_preset_filename: str = Form(None),
+    instrumental_preset_filename: str = Form(None)
+):
+    """Save stem blend with meaningful filename."""
+    
+    if not (0.0 <= vocal_blend_ratio <= 1.0) or not (0.0 <= instrumental_blend_ratio <= 1.0):
+        raise HTTPException(status_code=400, detail="Blend ratios must be between 0.0 and 1.0.")
+    
+    try:
+        # Load all stem audio files
+        target_vocal_audio, sr_vocal = sf.read(target_vocal_path)
+        target_instrumental_audio, sr_instrumental = sf.read(target_instrumental_path)
+        processed_vocal_audio, sr_proc_vocal = sf.read(processed_vocal_path)
+        processed_instrumental_audio, sr_proc_instrumental = sf.read(processed_instrumental_path)
+
+        # Verify sample rates match
+        if not all(sr == sr_vocal for sr in [sr_instrumental, sr_proc_vocal, sr_proc_instrumental]):
+            raise HTTPException(status_code=400, detail="Sample rates of all audio files must match.")
+        
+        # Ensure all arrays have the same number of channels
+        def ensure_stereo(audio):
+            if audio.ndim == 1:
+                return np.expand_dims(audio, axis=1)
+            return audio
+        
+        target_vocal_audio = ensure_stereo(target_vocal_audio)
+        target_instrumental_audio = ensure_stereo(target_instrumental_audio)
+        processed_vocal_audio = ensure_stereo(processed_vocal_audio)
+        processed_instrumental_audio = ensure_stereo(processed_instrumental_audio)
+
+        # Find the maximum length and pad all arrays to match
+        max_len = max(len(target_vocal_audio), len(target_instrumental_audio), 
+                     len(processed_vocal_audio), len(processed_instrumental_audio))
+        
+        def pad_to_length(audio, target_len):
+            if len(audio) < target_len:
+                return np.pad(audio, ((0, target_len - len(audio)), (0,0)), 'constant')
+            return audio[:target_len]
+        
+        target_vocal_audio = pad_to_length(target_vocal_audio, max_len)
+        target_instrumental_audio = pad_to_length(target_instrumental_audio, max_len)
+        processed_vocal_audio = pad_to_length(processed_vocal_audio, max_len)
+        processed_instrumental_audio = pad_to_length(processed_instrumental_audio, max_len)
+
+        # Blend each stem separately
+        blended_vocal = target_vocal_audio * (1 - vocal_blend_ratio) + processed_vocal_audio * vocal_blend_ratio
+        blended_instrumental = target_instrumental_audio * (1 - instrumental_blend_ratio) + processed_instrumental_audio * instrumental_blend_ratio
+
+        # Apply gain adjustments (convert dB to linear gain)
+        vocal_gain_linear = 10.0 ** (vocal_gain_db / 20.0)
+        instrumental_gain_linear = 10.0 ** (instrumental_gain_db / 20.0)
+        
+        blended_vocal = blended_vocal * vocal_gain_linear
+        blended_instrumental = blended_instrumental * instrumental_gain_linear
+        
+        # Apply mute (set to zero if muted)
+        if vocal_muted:
+            blended_vocal = np.zeros_like(blended_vocal)
+        if instrumental_muted:
+            blended_instrumental = np.zeros_like(blended_instrumental)
+
+        # Combine the processed stems
+        combined_audio = blended_vocal + blended_instrumental
+        
+        # Apply master gain
+        master_gain_linear = 10.0 ** (master_gain_db / 20.0)
+        combined_audio = combined_audio * master_gain_linear
+
+        if apply_limiter:
+            # Apply limiter for soft clipping
+            combined_audio = limit(combined_audio, mg.Config())
+        
+        # Generate meaningful filename
+        if original_filename:
+            original_base = os.path.splitext(original_filename)[0]
+            vocal_percentage = int(vocal_blend_ratio * 100)
+            instrumental_percentage = int(instrumental_blend_ratio * 100)
+            
+            # Create reference indication from preset filenames
+            reference_parts = []
+            if vocal_preset_filename:
+                vocal_ref = os.path.splitext(vocal_preset_filename)[0][:5]  # First 5 chars
+                reference_parts.append(f"V{vocal_ref}")
+            if instrumental_preset_filename:
+                inst_ref = os.path.splitext(instrumental_preset_filename)[0][:5]  # First 5 chars
+                reference_parts.append(f"I{inst_ref}")
+                
+            if reference_parts:
+                reference_indication = "-".join(reference_parts)
+                blended_filename = f"{original_base}-out-{reference_indication}-stemblend{vocal_percentage}v{instrumental_percentage}i.wav"
+            else:
+                blended_filename = f"{original_base}-out-stemblend{vocal_percentage}v{instrumental_percentage}i.wav"
+        else:
+            # Fallback to UUID-based naming
+            blended_filename = f"stem_blend_{uuid.uuid4()}.wav"
+
+        # Save the result
+        blended_path = os.path.join(OUTPUT_DIR, blended_filename)
+        sf.write(blended_path, combined_audio, sr_vocal)
+
+        return {"message": "Stem blend saved successfully", "blended_file_path": blended_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/create_stem_session")
+async def create_stem_session(
+    target_vocal_path: str = Form(...),
+    target_instrumental_path: str = Form(...),
+    processed_vocal_path: str = Form(...),
+    processed_instrumental_path: str = Form(...)
+):
+    """
+    Create a streaming session for stem mode processing.
+    """
+    try:
+        # Create streaming session for real-time parameter updates
+        session_id = f"stem_stream_{int(time.time() * 1000)}"
+        
+        # Import here to avoid circular imports
+        from app.api.frame_endpoints import preview_generators, session_parameters
+        
+        preview_generators[session_id] = {
+            "target_vocal_path": target_vocal_path,
+            "target_instrumental_path": target_instrumental_path, 
+            "processed_vocal_path": processed_vocal_path,
+            "processed_instrumental_path": processed_instrumental_path,
+            "output_dir": OUTPUT_DIR,
+            "is_stem_mode": True
+        }
+        
+        print(f"Created stem session {session_id} with paths:")
+        print(f"  Vocal: {target_vocal_path}")
+        print(f"  Instrumental: {target_instrumental_path}")
+        print(f"  Processed vocal: {processed_vocal_path}")
+        print(f"  Processed instrumental: {processed_instrumental_path}")
+        
+        # Initialize default stem parameters
+        session_parameters[session_id] = {
+            "vocal_blend_ratio": 0.5,
+            "instrumental_blend_ratio": 0.5,
+            "vocal_gain_db": 0.0,
+            "instrumental_gain_db": 0.0,
+            "master_gain_db": 0.0,
+            "vocal_muted": False,
+            "instrumental_muted": False,
+            "limiter_enabled": True,
+            "is_stem_mode": True
+        }
+        
+        return {
+            "message": "Stem streaming session created successfully",
+            "session_id": session_id
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/process_batch")
 async def process_batch(
     background_tasks: BackgroundTasks,
