@@ -841,6 +841,7 @@ async def process_single(
                 "processed_file_path": processed_path,
                 "created_preset_path": created_preset_path,
                 "created_preset_filename": preset_filename,
+                "reference_filename": reference_file.filename,
                 "session_id": session_id
             }
         elif preset_file:
@@ -881,6 +882,7 @@ async def process_single(
                 "message": "Single file processed successfully",
                 "original_file_path": target_path,
                 "processed_file_path": processed_path,
+                "reference_filename": preset_file.filename,
                 "session_id": session_id
             }
     except Exception as e:
@@ -894,7 +896,9 @@ async def blend_and_save(
     original_path: str = Form(...),
     processed_path: str = Form(...),
     blend_ratio: float = Form(...),
-    apply_limiter: bool = Form(True)
+    apply_limiter: bool = Form(True),
+    original_filename: str = Form(None),
+    reference_filename: str = Form(None)
 ):
     if not (0.0 <= blend_ratio <= 1.0):
         raise HTTPException(status_code=400, detail="Blend ratio must be between 0.0 and 1.0.")
@@ -927,7 +931,24 @@ async def blend_and_save(
             # Apply limiter for soft clipping
             blended_audio = limit(blended_audio, mg.Config())
 
-        blended_filename = f"blended_{uuid.uuid4()}.wav"
+        # Generate meaningful filename based on original file and reference
+        if original_filename:
+            # Extract base name without extension
+            original_base = os.path.splitext(original_filename)[0]
+            blend_percentage = int(blend_ratio * 100)
+            
+            # Add reference indication if available
+            if reference_filename:
+                # Extract reference base name and limit to 10 characters
+                reference_base = os.path.splitext(reference_filename)[0][:10]
+                blended_filename = f"{original_base}-out-{reference_base}-blend{blend_percentage}.wav"
+            else:
+                # Fallback without reference indication
+                blended_filename = f"{original_base}-out-blend{blend_percentage}.wav"
+        else:
+            # Fallback to UUID-based naming
+            blended_filename = f"blended_{uuid.uuid4()}.wav"
+            
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
         sf.write(blended_path, blended_audio, sr_orig)
 

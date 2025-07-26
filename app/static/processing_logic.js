@@ -219,11 +219,24 @@ window.handleSaveBlend = async () => {
     try {
         statusDiv.innerHTML = '<div class="alert alert-info">Saving blended audio...</div>';
         
+        // Extract original filename from the file path or stored filename
+        let originalFilename = null;
+        if (window.originalFilePath) {
+            // Extract filename from path
+            originalFilename = window.originalFilePath.split('/').pop();
+        }
+        
         const formData = new FormData();
         formData.append('original_path', window.originalFilePath);
         formData.append('processed_path', window.processedFilePath);
         formData.append('blend_ratio', blendRatio);
         formData.append('apply_limiter', true);
+        if (originalFilename) {
+            formData.append('original_filename', originalFilename);
+        }
+        if (window.referenceFilename) {
+            formData.append('reference_filename', window.referenceFilename);
+        }
         
         const response = await fetch('/api/blend_and_save', {
             method: 'POST',
@@ -470,6 +483,7 @@ window.handleProcessSingleFormSubmit = async (event) => {
                     if (typeof window !== 'undefined') {
                         window.originalFilePath = result.original_file_path;
                         window.processedFilePath = result.processed_file_path;
+                        window.referenceFilename = result.reference_filename;
                     }
                     
                     // Show the appropriate channel based on processing mode
