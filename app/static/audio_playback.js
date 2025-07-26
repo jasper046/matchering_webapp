@@ -92,7 +92,7 @@ async function seekAudio(event) {
     }
 
     const rect = playheadCanvas.getBoundingClientRect();
-    const width = playheadCanvas.width;
+    const width = rect.width; // Use displayed width, not canvas element width
     const x = event.clientX - rect.left;
 
     // Calculate seek position (0.0 to 1.0)

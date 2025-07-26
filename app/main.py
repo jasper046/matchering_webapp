@@ -1141,18 +1141,13 @@ async def save_stem_blend(
             vocal_percentage = int(vocal_blend_ratio * 100)
             instrumental_percentage = int(instrumental_blend_ratio * 100)
             
-            # Create reference indication from preset filenames
-            reference_parts = []
-            if vocal_preset_filename:
-                vocal_ref = os.path.splitext(vocal_preset_filename)[0][:5]  # First 5 chars
-                reference_parts.append(f"V{vocal_ref}")
-            if instrumental_preset_filename:
-                inst_ref = os.path.splitext(instrumental_preset_filename)[0][:5]  # First 5 chars
-                reference_parts.append(f"I{inst_ref}")
+            # Create reference indication from preset filenames with grouped pattern
+            if vocal_preset_filename or instrumental_preset_filename:
+                vocal_ref = os.path.splitext(vocal_preset_filename)[0][:10] if vocal_preset_filename else "default"
+                inst_ref = os.path.splitext(instrumental_preset_filename)[0][:10] if instrumental_preset_filename else "default"
                 
-            if reference_parts:
-                reference_indication = "-".join(reference_parts)
-                blended_filename = f"{original_base}-out-{reference_indication}-stemblend{vocal_percentage}v{instrumental_percentage}i.wav"
+                # New grouped pattern: {source}-out-v_{reference}_{blend80}-i_{reference}_{blend43}.wav
+                blended_filename = f"{original_base}-out-v_{vocal_ref}_{vocal_percentage}-i_{inst_ref}_{instrumental_percentage}.wav"
             else:
                 blended_filename = f"{original_base}-out-stemblend{vocal_percentage}v{instrumental_percentage}i.wav"
         else:

@@ -186,8 +186,14 @@ window.processedFilePath = processedFilePath;
 // Generate blend preview function for real-time mixing
 // Handle save blend functionality
 window.handleSaveBlend = async () => {
+    console.log('handleSaveBlend called');
+    console.log('originalFilePath:', window.originalFilePath);
+    console.log('processedFilePath:', window.processedFilePath);
+    console.log('referenceFilename:', window.referenceFilename);
+    
     if (!window.originalFilePath || !window.processedFilePath) {
-        alert('No processed audio available to save.');
+        console.warn('Missing required paths for saving');
+        alert('No processed audio available to save. Please process a file first.');
         return;
     }
     
@@ -580,6 +586,29 @@ window.handleTargetFileSingleChange = () => {
     const targetFileSingle = document.getElementById('target-file-single');
 
     console.log('targetFileSingle.files.length:', targetFileSingle.files.length);
+    
+    // Clean up any previous sessions to prevent interference
+    if (window.stemWebSocketAudioStream && window.stemWebSocketAudioStream.isConnected()) {
+        console.log('Cleaning up previous stem WebSocket connection');
+        window.stemWebSocketAudioStream.disconnect();
+        window.stemWebSocketAudioStream = null;
+    }
+    
+    if (window.webSocketAudioStream && window.webSocketAudioStream.isConnected()) {
+        console.log('Cleaning up previous WebSocket connection');
+        window.webSocketAudioStream.disconnect();
+        window.webSocketAudioStream = null;
+    }
+    
+    // Clear session IDs
+    window.stemStreamingSessionId = null;
+    window.streamingSessionId = null;
+    
+    // Stop any active audio playback
+    if (window.stopAudio) {
+        window.stopAudio();
+    }
+    
     processSingleStatus.textContent = ''; // Clear status
     if (targetFileSingle.files.length > 0) {
         console.log('File selected, attempting to show elements.');
@@ -782,6 +811,20 @@ async function handleStemProcessingComplete(progressData) {
             window.initializeDualKnobs();
         }
         
+        // Set preset data for download links (if presets were created from reference audio)
+        const processSingleStatus = document.getElementById('process-single-status');
+        if (processSingleStatus && progressData.vocal_preset_path && progressData.instrumental_preset_path) {
+            processSingleStatus.dataset.vocalPresetPath = progressData.vocal_preset_path;
+            processSingleStatus.dataset.instrumentalPresetPath = progressData.instrumental_preset_path;
+            processSingleStatus.dataset.vocalPresetFilename = progressData.vocal_preset_filename;
+            processSingleStatus.dataset.instrumentalPresetFilename = progressData.instrumental_preset_filename;
+            
+            // Show preset download links
+            if (window.showPresetDownloadLinks) {
+                window.showPresetDownloadLinks();
+            }
+        }
+        
         // Create streaming session for real-time parameter updates, then initialize audio
         const sessionCreated = await createStemStreamingSession();
         if (sessionCreated) {
@@ -948,7 +991,7 @@ async function initializeStemAudioPlayback() {
         
         // Set up playback state changes for stems
         window.stemWebSocketAudioStream.onPlaybackStateChange = (playing, position) => {
-            window.updatePlaybackButtons(playing ? 'playing' : 'paused');
+            window.updatePlaybackButtons(playing ? 'play' : 'pause');
             if (position !== undefined) {
                 updateStemPlaybackPosition(position);
             }
@@ -1061,6 +1104,10 @@ window.handleSaveStemBlend = async () => {
         if (originalFilename) {
             formData.append('original_filename', originalFilename);
         }
+        // Debug: Log preset filenames to understand the issue
+        console.log('Vocal preset filename:', window.vocalPresetFilename);
+        console.log('Instrumental preset filename:', window.instrumentalPresetFilename);
+        
         if (window.vocalPresetFilename) {
             formData.append('vocal_preset_filename', window.vocalPresetFilename);
         }
