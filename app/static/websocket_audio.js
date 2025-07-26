@@ -256,11 +256,19 @@ class WebSocketAudioStream {
         // Remember if we were playing
         const wasPlaying = this.isPlaying;
         
-        // Pause first to stop current audio
-        this.sendMessage({ type: 'pause' });
-        
-        // Reset audio timing for seeking
+        // Stop current audio completely and reset timing
+        this.sendMessage({ type: 'stop' });
         this.nextPlayTime = 0;
+        
+        // Clear any scheduled audio buffers
+        if (this.audioContext) {
+            // Force a small silence to clear Web Audio API buffers
+            const silenceBuffer = this.audioContext.createBuffer(this.channels, 1, this.sampleRate);
+            const source = this.audioContext.createBufferSource();
+            source.buffer = silenceBuffer;
+            source.connect(this.audioContext.destination);
+            source.start();
+        }
         
         // Send seek command
         this.sendMessage({ 
@@ -270,10 +278,10 @@ class WebSocketAudioStream {
         
         // Resume playing if we were playing before
         if (wasPlaying) {
-            // Small delay to let seek complete
+            // Longer delay to ensure complete reset
             setTimeout(() => {
                 this.sendMessage({ type: 'play' });
-            }, 50);
+            }, 100);
         }
     }
     
