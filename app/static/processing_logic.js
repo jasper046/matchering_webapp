@@ -151,12 +151,22 @@ window.handleSaveBlend = async () => {
         
         if (response.ok) {
             const result = await response.json();
-            statusDiv.innerHTML = `
-                <div class="alert alert-success">
-                    Blend saved successfully! 
-                    <a href="/download/output/${result.output_filename}" target="_blank" class="btn btn-sm btn-outline-success ms-2">Download</a>
-                </div>
-            `;
+            
+            if (result.blended_file_path) {
+                // Extract filename from path for download URL
+                const filename = result.blended_file_path.split('/').pop();
+                console.log('Save result:', result);
+                console.log('Extracted filename:', filename);
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        Blend saved successfully! 
+                        <a href="/download/output/${filename}" target="_blank" class="btn btn-sm btn-outline-success ms-2">Download</a>
+                    </div>
+                `;
+            } else {
+                console.warn('No blended_file_path in response:', result);
+                statusDiv.innerHTML = '<div class="alert alert-success">Blend saved successfully!</div>';
+            }
         } else {
             const error = await response.json();
             statusDiv.innerHTML = `<div class="alert alert-danger">Error saving blend: ${error.detail || 'Save failed'}</div>`;
@@ -167,15 +177,40 @@ window.handleSaveBlend = async () => {
     }
 };
 
+// Throttle blend preview generation to prevent flooding
+let blendPreviewTimeout = null;
+
 window.generateBlendPreview = async () => {
+    // Cancel any pending preview generation
+    if (blendPreviewTimeout) {
+        clearTimeout(blendPreviewTimeout);
+    }
+    
+    // Throttle the actual generation
+    return new Promise((resolve, reject) => {
+        blendPreviewTimeout = setTimeout(async () => {
+            try {
+                await generateBlendPreviewInternal();
+                resolve();
+            } catch (error) {
+                reject(error);
+            }
+        }, 150); // 150ms throttle
+    });
+};
+
+// Internal function that does the actual work
+async function generateBlendPreviewInternal() {
     if (!window.originalFilePath || !window.processedFilePath) {
         console.warn('Original or processed file path not available for blend preview');
         return;
     }
     
     // Get current blend value from knob (0-100, convert to 0.0-1.0)
-    const blendValue = window.currentBlendValue || 50;
+    const blendValue = (typeof window.currentBlendValue !== 'undefined') ? window.currentBlendValue : 50;
     const blendRatio = blendValue / 100.0;
+    
+    console.log('Generating blend preview with ratio:', blendRatio, 'from blend value:', blendValue);
     
     try {
         const formData = new FormData();
@@ -190,18 +225,41 @@ window.generateBlendPreview = async () => {
         });
         
         if (response.ok) {
-            const blob = await response.blob();
-            const audioUrl = URL.createObjectURL(blob);
+            const result = await response.json();
             
-            // Update the global preview audio element
-            if (window.previewAudioElement) {
+            if (result.preview_file_path) {
+                // Extract filename from path for download URL
+                const filename = result.preview_file_path.split('/').pop();
+                const audioUrl = `/download/output/${filename}`;
+                
+                // Update the global preview audio element
+                if (!window.previewAudioElement) {
+                    window.previewAudioElement = new Audio();
+                    console.log('Created new audio element');
+                }
+                
                 window.previewAudioElement.src = audioUrl;
                 window.currentPreviewPath = audioUrl;
-            } else {
-                // Create audio element if it doesn't exist
-                window.previewAudioElement = new Audio();
-                window.previewAudioElement.src = audioUrl;
-                window.currentPreviewPath = audioUrl;
+                
+                // Make sure the audio_playback.js variables are synced
+                // Force update the window reference since modules might have stale references
+                window.previewAudioElement = window.previewAudioElement;
+                
+                console.log('Audio element check:', !!window.previewAudioElement, 'path:', window.currentPreviewPath);
+                
+                console.log('Preview audio set up:', audioUrl);
+                
+                // Wait for audio to load
+                window.previewAudioElement.addEventListener('loadeddata', () => {
+                    console.log('Preview audio loaded successfully, duration:', window.previewAudioElement.duration);
+                }, { once: true });
+                
+                window.previewAudioElement.addEventListener('error', (e) => {
+                    console.error('Preview audio failed to load:', e, window.previewAudioElement.error);
+                }, { once: true });
+                
+                // Force load
+                window.previewAudioElement.load();
             }
         } else {
             console.error('Failed to generate blend preview:', response.statusText);
@@ -209,7 +267,7 @@ window.generateBlendPreview = async () => {
     } catch (error) {
         console.error('Error generating blend preview:', error);
     }
-};
+}
 
 // Form submit handler for single file processing
 window.handleProcessSingleFormSubmit = async (event) => {
@@ -289,6 +347,32 @@ window.handleProcessSingleFormSubmit = async (event) => {
                         window.processedFilePath = result.processed_file_path;
                     }
                     
+                    // Show the appropriate channel based on processing mode
+                    const useStemSeparation = document.getElementById('use-stem-separation');
+                    const isStemMode = useStemSeparation && useStemSeparation.checked;
+                    
+                    if (isStemMode) {
+                        // Show stem mode channels
+                        const vocalChannel = document.getElementById('vocal-channel');
+                        const instrumentalChannel = document.getElementById('instrumental-channel');
+                        if (vocalChannel) vocalChannel.style.display = 'block';
+                        if (instrumentalChannel) instrumentalChannel.style.display = 'block';
+                        
+                        // Hide standard channel
+                        const standardChannel = document.getElementById('standard-channel');
+                        if (standardChannel) standardChannel.style.display = 'none';
+                    } else {
+                        // Show standard channel for non-stem mode
+                        const standardChannel = document.getElementById('standard-channel');
+                        if (standardChannel) standardChannel.style.display = 'block';
+                        
+                        // Hide stem channels
+                        const vocalChannel = document.getElementById('vocal-channel');
+                        const instrumentalChannel = document.getElementById('instrumental-channel');
+                        if (vocalChannel) vocalChannel.style.display = 'none';
+                        if (instrumentalChannel) instrumentalChannel.style.display = 'none';
+                    }
+                    
                     // Initialize the knob controls
                     if (typeof window.initializeKnob === 'function') {
                         window.initializeKnob();
@@ -297,9 +381,20 @@ window.handleProcessSingleFormSubmit = async (event) => {
                     // Set up waveform display (placeholder - will need actual waveform generation)
                     const waveformImage = document.getElementById('combined-waveform-image');
                     if (waveformImage) {
-                        // For now, just clear the src until waveform generation is implemented
-                        waveformImage.src = '';
-                        waveformImage.alt = 'Waveform display not yet implemented';
+                        // For now, create a placeholder image
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 800;
+                        canvas.height = 120;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Draw placeholder waveform
+                        ctx.fillStyle = '#444';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#007bff';
+                        ctx.fillText('Waveform generation not yet implemented', 10, 60);
+                        
+                        waveformImage.src = canvas.toDataURL();
+                        waveformImage.alt = 'Placeholder waveform';
                     }
                     
                     // Initialize audio playback if available
@@ -310,8 +405,11 @@ window.handleProcessSingleFormSubmit = async (event) => {
                     // Generate initial blend preview at 50%
                     if (typeof window.generateBlendPreview === 'function') {
                         setTimeout(() => {
-                            window.generateBlendPreview();
-                        }, 100); // Small delay to ensure everything is initialized
+                            console.log('Generating initial blend preview...');
+                            window.generateBlendPreview().catch(error => {
+                                console.error('Failed to generate initial blend preview:', error);
+                            });
+                        }, 500); // Increased delay to ensure everything is initialized
                     }
                 }
             }

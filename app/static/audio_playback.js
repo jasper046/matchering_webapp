@@ -18,7 +18,27 @@ async function playAudio() {
     }
     
     // Fallback to traditional audio element
-    if (!previewAudioElement || !currentPreviewPath) return;
+    // Check both local and window variables
+    const audioElement = previewAudioElement || window.previewAudioElement;
+    const audioPath = currentPreviewPath || window.currentPreviewPath;
+    
+    console.log('Playback attempt - local audioElement:', !!previewAudioElement, 'window audioElement:', !!window.previewAudioElement);
+    console.log('Playback attempt - local path:', currentPreviewPath, 'window path:', window.currentPreviewPath);
+    
+    if (!audioElement || !audioPath) {
+        console.warn('Cannot play: missing audio element or path');
+        return;
+    }
+    
+    // Update local variables to match window
+    if (!previewAudioElement && window.previewAudioElement) {
+        previewAudioElement = window.previewAudioElement;
+        console.log('Synced local audio element from window');
+    }
+    if (!currentPreviewPath && window.currentPreviewPath) {
+        currentPreviewPath = window.currentPreviewPath;
+        console.log('Synced local audio path from window');
+    }
     
     previewAudioElement.play();
     isPlaying = true;
@@ -262,5 +282,13 @@ window.updatePreviewAudio = updatePreviewAudio;
 window.updatePlaybackControls = updatePlaybackControls;
 window.isPlaying = isPlaying;
 window.animationFrameId = animationFrameId;
-window.previewAudioElement = previewAudioElement;
+// Update the window reference dynamically
+Object.defineProperty(window, 'previewAudioElement', {
+    get: () => previewAudioElement,
+    set: (value) => {
+        previewAudioElement = value;
+        console.log('Audio element updated via window property');
+    },
+    configurable: true
+});
 window.currentPreviewPath = currentPreviewPath;
