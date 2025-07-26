@@ -74,13 +74,258 @@ function checkProcessButtonVisibility() {
     }
 }
 
+// Function to toggle reference input visibility based on radio selection
+function toggleReferenceInput() {
+    const radioReference = document.getElementById('radioReference');
+    const radioPreset = document.getElementById('radioPreset');
+    const useStemSeparation = document.getElementById('use-stem-separation');
+    
+    const referenceFileDiv = document.getElementById('reference-file-single-div');
+    const presetFileDiv = document.getElementById('preset-file-single-div');
+    const vocalPresetDiv = document.getElementById('vocal-preset-file-single-div');
+    const instrumentalPresetDiv = document.getElementById('instrumental-preset-file-single-div');
+    
+    if (!radioReference || !radioPreset) return;
+    
+    // Hide all divs first
+    if (referenceFileDiv) referenceFileDiv.style.display = 'none';
+    if (presetFileDiv) presetFileDiv.style.display = 'none';
+    if (vocalPresetDiv) vocalPresetDiv.style.display = 'none';
+    if (instrumentalPresetDiv) instrumentalPresetDiv.style.display = 'none';
+    
+    if (radioReference.checked) {
+        // Show reference file input
+        if (referenceFileDiv) referenceFileDiv.style.display = 'block';
+    } else if (radioPreset.checked) {
+        // Check if stem separation is enabled
+        const stemSeparationEnabled = useStemSeparation && useStemSeparation.checked;
+        
+        if (stemSeparationEnabled) {
+            // Show vocal and instrumental preset inputs
+            if (vocalPresetDiv) vocalPresetDiv.style.display = 'block';
+            if (instrumentalPresetDiv) instrumentalPresetDiv.style.display = 'block';
+        } else {
+            // Show single preset input
+            if (presetFileDiv) presetFileDiv.style.display = 'block';
+        }
+    }
+    
+    // Update process button visibility
+    checkProcessButtonVisibility();
+}
+
 // Export variables and functions that need to be accessed globally
 window.setProcessingState = setProcessingState;
 window.checkProcessButtonVisibility = checkProcessButtonVisibility;
+window.toggleReferenceInput = toggleReferenceInput;
 window.isProcessing = isProcessing;
 window.isJITInitializing = isJITInitializing;
 window.originalFilePath = originalFilePath;
 window.processedFilePath = processedFilePath;
+
+// Generate blend preview function for real-time mixing
+// Handle save blend functionality
+window.handleSaveBlend = async () => {
+    if (!window.originalFilePath || !window.processedFilePath) {
+        alert('No processed audio available to save.');
+        return;
+    }
+    
+    const blendValue = window.currentBlendValue || 50;
+    const blendRatio = blendValue / 100.0;
+    const statusDiv = document.getElementById('save-blend-status');
+    
+    try {
+        statusDiv.innerHTML = '<div class="alert alert-info">Saving blended audio...</div>';
+        
+        const formData = new FormData();
+        formData.append('original_path', window.originalFilePath);
+        formData.append('processed_path', window.processedFilePath);
+        formData.append('blend_ratio', blendRatio);
+        formData.append('apply_limiter', true);
+        
+        const response = await fetch('/api/blend_and_save', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    Blend saved successfully! 
+                    <a href="/download/output/${result.output_filename}" target="_blank" class="btn btn-sm btn-outline-success ms-2">Download</a>
+                </div>
+            `;
+        } else {
+            const error = await response.json();
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error saving blend: ${error.detail || 'Save failed'}</div>`;
+        }
+    } catch (error) {
+        console.error('Error saving blend:', error);
+        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to save blend</div>';
+    }
+};
+
+window.generateBlendPreview = async () => {
+    if (!window.originalFilePath || !window.processedFilePath) {
+        console.warn('Original or processed file path not available for blend preview');
+        return;
+    }
+    
+    // Get current blend value from knob (0-100, convert to 0.0-1.0)
+    const blendValue = window.currentBlendValue || 50;
+    const blendRatio = blendValue / 100.0;
+    
+    try {
+        const formData = new FormData();
+        formData.append('original_path', window.originalFilePath);
+        formData.append('processed_path', window.processedFilePath);
+        formData.append('blend_ratio', blendRatio);
+        formData.append('apply_limiter', true); // Default to applying limiter
+        
+        const response = await fetch('/api/preview_blend', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const audioUrl = URL.createObjectURL(blob);
+            
+            // Update the global preview audio element
+            if (window.previewAudioElement) {
+                window.previewAudioElement.src = audioUrl;
+                window.currentPreviewPath = audioUrl;
+            } else {
+                // Create audio element if it doesn't exist
+                window.previewAudioElement = new Audio();
+                window.previewAudioElement.src = audioUrl;
+                window.currentPreviewPath = audioUrl;
+            }
+        } else {
+            console.error('Failed to generate blend preview:', response.statusText);
+        }
+    } catch (error) {
+        console.error('Error generating blend preview:', error);
+    }
+};
+
+// Form submit handler for single file processing
+window.handleProcessSingleFormSubmit = async (event) => {
+    event.preventDefault(); // Prevent default form submission
+    
+    const form = event.target;
+    const statusDiv = document.getElementById('process-single-status');
+    
+    // Create FormData manually to only include relevant files
+    const formData = new FormData();
+    
+    // Always include target file
+    const targetFile = document.getElementById('target-file-single');
+    if (targetFile.files.length > 0) {
+        formData.append('target_file', targetFile.files[0]);
+    }
+    
+    // Include stem separation setting
+    const useStemSeparation = document.getElementById('use-stem-separation');
+    formData.append('use_stem_separation', useStemSeparation ? useStemSeparation.checked : false);
+    
+    // Include files based on selected mode
+    const radioReference = document.getElementById('radioReference');
+    const radioPreset = document.getElementById('radioPreset');
+    
+    if (radioReference && radioReference.checked) {
+        // Reference mode - include reference file
+        const referenceFile = document.getElementById('reference-file-single');
+        if (referenceFile && referenceFile.files.length > 0) {
+            formData.append('reference_file', referenceFile.files[0]);
+        }
+    } else if (radioPreset && radioPreset.checked) {
+        // Preset mode - check if stem separation is enabled
+        if (useStemSeparation && useStemSeparation.checked) {
+            // Include vocal and instrumental presets for stem separation
+            const vocalPreset = document.getElementById('vocal-preset-file-single');
+            const instrumentalPreset = document.getElementById('instrumental-preset-file-single');
+            if (vocalPreset && vocalPreset.files.length > 0) {
+                formData.append('vocal_preset_file', vocalPreset.files[0]);
+            }
+            if (instrumentalPreset && instrumentalPreset.files.length > 0) {
+                formData.append('instrumental_preset_file', instrumentalPreset.files[0]);
+            }
+        } else {
+            // Include single preset for standard processing
+            const presetFile = document.getElementById('preset-file-single');
+            if (presetFile && presetFile.files.length > 0) {
+                formData.append('preset_file', presetFile.files[0]);
+            }
+        }
+    }
+    
+    try {
+        // Set processing state
+        setProcessingState(true);
+        statusDiv.innerHTML = '<div class="alert alert-info">Processing audio file...</div>';
+        
+        // Make API call
+        const response = await fetch('/api/process_single', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            statusDiv.innerHTML = '<div class="alert alert-success">Processing completed successfully!</div>';
+            
+            // Show results or handle response
+            if (result.processed_file_path) {
+                const resultsDiv = document.getElementById('single-conversion-results');
+                if (resultsDiv) {
+                    resultsDiv.style.display = 'block';
+                    
+                    // Store file paths for blending
+                    if (typeof window !== 'undefined') {
+                        window.originalFilePath = result.original_file_path;
+                        window.processedFilePath = result.processed_file_path;
+                    }
+                    
+                    // Initialize the knob controls
+                    if (typeof window.initializeKnob === 'function') {
+                        window.initializeKnob();
+                    }
+                    
+                    // Set up waveform display (placeholder - will need actual waveform generation)
+                    const waveformImage = document.getElementById('combined-waveform-image');
+                    if (waveformImage) {
+                        // For now, just clear the src until waveform generation is implemented
+                        waveformImage.src = '';
+                        waveformImage.alt = 'Waveform display not yet implemented';
+                    }
+                    
+                    // Initialize audio playback if available
+                    if (typeof window.initializeAudioPlayback === 'function') {
+                        window.initializeAudioPlayback();
+                    }
+                    
+                    // Generate initial blend preview at 50%
+                    if (typeof window.generateBlendPreview === 'function') {
+                        setTimeout(() => {
+                            window.generateBlendPreview();
+                        }, 100); // Small delay to ensure everything is initialized
+                    }
+                }
+            }
+        } else {
+            const error = await response.json();
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.detail || 'Processing failed'}</div>`;
+        }
+    } catch (error) {
+        console.error('Error processing file:', error);
+        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to process file</div>';
+    } finally {
+        setProcessingState(false);
+    }
+};
 
 // Step-by-step display logic for Single File Conversion
 window.handleTargetFileSingleChange = () => {
@@ -96,11 +341,26 @@ window.handleTargetFileSingleChange = () => {
         // Show stem separation option first
         document.getElementById('stem-separation-selection').style.display = 'block';
         document.getElementById('reference-type-selection').style.display = 'block';
-        // Automatically check radioReference by default for non-stem mode
-        document.getElementById('radioReference').checked = true;
-        // Trigger the change event for radioReference to update the UI
-        const event = new Event('change');
-        document.getElementById('radioReference').dispatchEvent(event);
+        
+        // Only auto-select radioReference if no radio button is currently selected
+        const radioReference = document.getElementById('radioReference');
+        const radioPreset = document.getElementById('radioPreset');
+        if (!radioReference.checked && !radioPreset.checked) {
+            // Automatically check radioReference by default for non-stem mode
+            radioReference.checked = true;
+            // Trigger the change event for radioReference to update the UI
+            const event = new Event('change');
+            radioReference.dispatchEvent(event);
+        } else {
+            // If a radio button is already selected, just trigger its change event to update UI
+            if (radioReference.checked) {
+                const event = new Event('change');
+                radioReference.dispatchEvent(event);
+            } else if (radioPreset.checked) {
+                const event = new Event('change');
+                radioPreset.dispatchEvent(event);
+            }
+        }
     } else {
         console.log('No file selected, hiding elements.');
         document.getElementById('stem-separation-selection').style.display = 'none';

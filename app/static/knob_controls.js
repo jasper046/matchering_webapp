@@ -573,6 +573,75 @@ function drawKnob() {
     drawKnobOnCanvas('blend-knob', currentBlendValue);
 }
 
+// Main blend knob drag functions
+function startDrag(e) {
+    isDragging = true;
+    dragStartY = e.clientY;
+    dragStartValue = currentBlendValue;
+    document.getElementById('blend-knob').style.cursor = 'grabbing';
+    
+    // Add global mouse move and up listeners
+    document.addEventListener('mousemove', handleDrag);
+    document.addEventListener('mouseup', endDrag);
+}
+
+function startDragTouch(e) {
+    e.preventDefault();
+    isDragging = true;
+    dragStartY = e.touches[0].clientY;
+    dragStartValue = currentBlendValue;
+    
+    // Add global touch move and end listeners
+    document.addEventListener('touchmove', handleDragTouch);
+    document.addEventListener('touchend', endDrag);
+}
+
+function handleDrag(e) {
+    if (!isDragging) return;
+    
+    const deltaY = dragStartY - e.clientY;
+    const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY));
+    
+    currentBlendValue = newValue;
+    drawKnob();
+    updateTextInput();
+    
+    // Generate blend preview
+    if (typeof window.generateBlendPreview === 'function') {
+        window.generateBlendPreview();
+    }
+}
+
+function handleDragTouch(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    const deltaY = dragStartY - e.touches[0].clientY;
+    const newValue = Math.max(0, Math.min(100, dragStartValue + deltaY));
+    
+    currentBlendValue = newValue;
+    drawKnob();
+    updateTextInput();
+    
+    // Generate blend preview
+    if (typeof window.generateBlendPreview === 'function') {
+        window.generateBlendPreview();
+    }
+}
+
+function endDrag(e) {
+    if (!isDragging) return;
+    
+    isDragging = false;
+    document.getElementById('blend-knob').style.cursor = 'grab';
+    
+    // Remove global listeners
+    document.removeEventListener('mousemove', handleDrag);
+    document.removeEventListener('mouseup', endDrag);
+    document.removeEventListener('touchmove', handleDragTouch);
+    document.removeEventListener('touchend', endDrag);
+}
+
 function drawDualKnobs() {
     drawKnobOnCanvas('vocal-blend-knob', currentVocalBlend);
     drawKnobOnCanvas('instrumental-blend-knob', currentInstrumentalBlend);

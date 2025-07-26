@@ -117,3 +117,9 @@
 
     // Set initial state for playback buttons
     window.updatePlaybackButtons('stop');
+
+    // Save blend button event listener
+    const saveBlendButton = document.getElementById('save-blend-button');
+    if (saveBlendButton) {
+        saveBlendButton.addEventListener('click', window.handleSaveBlend);
+    }
