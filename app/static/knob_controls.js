@@ -569,6 +569,10 @@ function endDragMasterGain() {
     document.removeEventListener('touchend', endDragMasterGain);
 }
 
+function drawKnob() {
+    drawKnobOnCanvas('blend-knob', currentBlendValue);
+}
+
 function drawDualKnobs() {
     drawKnobOnCanvas('vocal-blend-knob', currentVocalBlend);
     drawKnobOnCanvas('instrumental-blend-knob', currentInstrumentalBlend);

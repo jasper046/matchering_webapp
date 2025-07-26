@@ -407,29 +407,3 @@ async def stream_audio(session_id: str):
     except Exception as e:
         logger.error(f"Failed to stream audio for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@frame_router.get("/stream/{session_id}")
-async def stream_audio(session_id: str):
-    """
-    Streams the audio file for a given session.
-    """
-    if not session_id or session_id not in preview_generators:
-        raise HTTPException(
-            status_code=404,
-            detail="Invalid or expired session ID"
-        )
-
-    try:
-        session_data = preview_generators[session_id]
-        audio_path = session_data["audio_path"]
-
-        def iterfile():
-            with open(audio_path, mode="rb") as file_like:
-                yield from file_like
-
-        return StreamingResponse(iterfile(), media_type="audio/wav")
-
-    except Exception as e:
-        logger.error(f"Failed to stream audio for session {session_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))

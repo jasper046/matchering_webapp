@@ -213,6 +213,28 @@ function updateFileStatus(fileIndex, status, outputPath = null) {
     }
 }
 
+// Function to check and update batch process button visibility
+function checkBatchProcessButtonVisibility() {
+    const batchPresetFile = document.getElementById('batch-preset-file');
+    const batchTargetFiles = document.getElementById('batch-target-files');
+    const processBatchButton = document.querySelector('#process-batch-form button[type="submit"]');
+    
+    if (!batchPresetFile || !batchTargetFiles || !processBatchButton) {
+        return; // Exit if elements don't exist
+    }
+    
+    const hasPresetFile = batchPresetFile.files.length > 0;
+    const hasTargetFiles = batchTargetFiles.files.length > 0;
+    
+    // Show button only if both preset and target files are selected
+    if (hasPresetFile && hasTargetFiles) {
+        processBatchButton.style.display = 'block';
+    } else {
+        processBatchButton.style.display = 'none';
+    }
+}
+
 // Export variables and functions that need to be accessed globally
 window.batchLimiterEnabled = true; // Default to enabled
+window.checkBatchProcessButtonVisibility = checkBatchProcessButtonVisibility;
 

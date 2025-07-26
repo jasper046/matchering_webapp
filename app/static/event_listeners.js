@@ -42,14 +42,45 @@
     }
 
     // Batch processing file input change listener
-    document.getElementById('batch-target-files').addEventListener('change', window.handleBatchTargetFilesChange);
-    document.getElementById('batchRadioReference').addEventListener('change', window.toggleBatchReferenceInput);
-    document.getElementById('batchRadioPreset').addEventListener('change', window.toggleBatchReferenceInput);
-    document.getElementById('batch-use-stem-separation').addEventListener('change', window.toggleBatchReferenceInput);
-    document.getElementById('batch-reference-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
-    document.getElementById('batch-preset-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
-    document.getElementById('batch-vocal-preset-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
-    document.getElementById('batch-instrumental-preset-file').addEventListener('change', window.checkBatchProcessButtonVisibility);
+    const batchTargetFiles = document.getElementById('batch-target-files');
+    if (batchTargetFiles) {
+        batchTargetFiles.addEventListener('change', window.handleBatchTargetFilesChange);
+    }
+    
+    const batchRadioReference = document.getElementById('batchRadioReference');
+    if (batchRadioReference) {
+        batchRadioReference.addEventListener('change', window.toggleBatchReferenceInput);
+    }
+    
+    const batchRadioPreset = document.getElementById('batchRadioPreset');
+    if (batchRadioPreset) {
+        batchRadioPreset.addEventListener('change', window.toggleBatchReferenceInput);
+    }
+    
+    const batchUseStemSeparation = document.getElementById('batch-use-stem-separation');
+    if (batchUseStemSeparation) {
+        batchUseStemSeparation.addEventListener('change', window.toggleBatchReferenceInput);
+    }
+    
+    const batchReferenceFile = document.getElementById('batch-reference-file');
+    if (batchReferenceFile) {
+        batchReferenceFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+    }
+    
+    const batchPresetFile = document.getElementById('batch-preset-file');
+    if (batchPresetFile) {
+        batchPresetFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+    }
+    
+    const batchVocalPresetFile = document.getElementById('batch-vocal-preset-file');
+    if (batchVocalPresetFile) {
+        batchVocalPresetFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+    }
+    
+    const batchInstrumentalPresetFile = document.getElementById('batch-instrumental-preset-file');
+    if (batchInstrumentalPresetFile) {
+        batchInstrumentalPresetFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+    }
 
     // Initial check on page load for batch process button visibility
     window.checkBatchProcessButtonVisibility();
