@@ -166,7 +166,11 @@ window.isCurrentlyStemMode = () => {
 
 // Update dual stem mix for stem mode processing
 window.updateDualStemMix = () => {
-    if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
+    // Check if we're in stem mode with WebSocket streaming
+    if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
+        console.log('Updating dual stem mix via WebSocket');
+        window.sendStemParametersToBackendWS();
+    } else if (window.frameProcessingManager && window.frameProcessingManager.sessionId) {
         // Use frame processing for real-time stem mixing
         const vocalGain = (typeof window.currentVocalGain !== 'undefined') ? window.currentVocalGain : 0;
         const instrumentalGain = (typeof window.currentInstrumentalGain !== 'undefined') ? window.currentInstrumentalGain : 0;
@@ -188,10 +192,7 @@ window.updateDualStemMix = () => {
             is_stem_mode: true
         });
     } else {
-        // Fallback - generate basic blend preview
-        if (typeof window.generateBlendPreview === 'function') {
-            window.generateBlendPreview();
-        }
+        console.warn('No stem parameter update mechanism available');
     }
 };
 

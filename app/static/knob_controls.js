@@ -117,7 +117,7 @@ function initializeMasterGainKnob() {
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
         // Send parameters to backend
-        if (window.streamingSessionId) {
+        if (window.stemStreamingSessionId || window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
             // Send parameters via appropriate method based on mode
             if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
@@ -323,6 +323,9 @@ function initializeDualKnobs() {
     
     // Initialize master gain knob for stem flow
     initializeMasterGainKnob();
+    
+    // Initialize limiter button for stem flow
+    initializeLimiterButton();
     
     // Store globally for save function
     window.currentVocalBlend = currentVocalBlend;
@@ -565,7 +568,7 @@ function dragMasterGain(e) {
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
         // Send parameters to backend
-        if (window.streamingSessionId) {
+        if (window.stemStreamingSessionId || window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
             // Send parameters via appropriate method based on mode
             if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
@@ -594,7 +597,7 @@ function dragMasterGainTouch(e) {
         drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
         
         // Send parameters to backend
-        if (window.streamingSessionId) {
+        if (window.stemStreamingSessionId || window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
             // Send parameters via appropriate method based on mode
             if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
@@ -754,8 +757,12 @@ function initializeLimiterButton() {
     const limiterButton = document.getElementById('limiterButton');
     if (!limiterButton) return;
     
-    // Add click event listener
-    limiterButton.addEventListener('click', () => {
+    // Remove any existing event listeners by cloning the element
+    const newLimiterButton = limiterButton.cloneNode(true);
+    limiterButton.parentNode.replaceChild(newLimiterButton, limiterButton);
+    
+    // Add click event listener to the new button
+    newLimiterButton.addEventListener('click', () => {
         // Toggle limiter state
         limiterEnabled = !limiterEnabled;
         window.limiterEnabled = limiterEnabled;
@@ -772,7 +779,7 @@ function initializeLimiterButton() {
         }
         
         // Send parameters to backend
-        if (window.streamingSessionId) {
+        if (window.stemStreamingSessionId || window.streamingSessionId) {
             // Send parameters via WebSocket if available, fallback to HTTP
             // Send parameters via appropriate method based on mode
             if (window.stemStreamingSessionId && window.sendStemParametersToBackendWS) {
