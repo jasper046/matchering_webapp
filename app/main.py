@@ -463,7 +463,7 @@ async def process_stems(
 
         combined_filename = f"combined_{uuid.uuid4()}.wav"
         combined_path = os.path.join(OUTPUT_DIR, combined_filename)
-        sf.write(combined_path, combined_audio, sr)
+        sf.write(combined_path, combined_audio, sr, subtype='PCM_24')
 
         return {
             "message": "Stem processing completed successfully",
@@ -965,6 +965,7 @@ async def blend_and_save(
     processed_path: str = Form(...),
     blend_ratio: float = Form(...),
     apply_limiter: bool = Form(True),
+    master_gain: float = Form(0.0),
     original_filename: str = Form(None),
     reference_filename: str = Form(None)
 ):
@@ -993,7 +994,10 @@ async def blend_and_save(
 
         blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
 
-        # Simple blend without gain or mute adjustments
+        # Apply master gain (convert dB to linear multiplier)
+        if master_gain != 0.0:
+            gain_multiplier = 10 ** (master_gain / 20.0)
+            blended_audio = blended_audio * gain_multiplier
 
         if apply_limiter:
             # Apply limiter for soft clipping
@@ -1018,7 +1022,7 @@ async def blend_and_save(
             blended_filename = f"blended_{uuid.uuid4()}.wav"
             
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
-        sf.write(blended_path, blended_audio, sr_orig)
+        sf.write(blended_path, blended_audio, sr_orig, subtype='PCM_24')
 
         return {"message": "Blended audio saved successfully", "blended_file_path": blended_path}
     except Exception as e:
@@ -1110,7 +1114,7 @@ async def blend_stems_and_save(
         # Save the result
         blended_filename = f"stem_blend_{uuid.uuid4()}.wav"
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
-        sf.write(blended_path, combined_audio, sr_vocal)
+        sf.write(blended_path, combined_audio, sr_vocal, subtype='PCM_24')
 
         return {"message": "Stem blend saved successfully", "blended_file_path": blended_path}
     except Exception as e:
@@ -1224,7 +1228,7 @@ async def save_stem_blend(
 
         # Save the result
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
-        sf.write(blended_path, combined_audio, sr_vocal)
+        sf.write(blended_path, combined_audio, sr_vocal, subtype='PCM_24')
 
         return {"message": "Stem blend saved successfully", "blended_file_path": blended_path}
     except Exception as e:
@@ -1289,7 +1293,8 @@ async def process_batch(
     preset_file: UploadFile = File(...),
     target_files: List[UploadFile] = File(...),
     blend_ratio: float = Form(1.0),
-    apply_limiter: bool = Form(True)
+    apply_limiter: bool = Form(True),
+    master_gain: float = Form(0.0)
 ):
     if not (1 <= len(target_files) <= 20):
         raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
@@ -1333,12 +1338,13 @@ async def process_batch(
             preset_temp_path,
             target_file_paths,
             blend_ratio,
-            apply_limiter
+            apply_limiter,
+            master_gain
         )
 
     return {"message": "Batch processing started", "batch_id": batch_id}
 
-def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float, apply_limiter: bool):
+def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float, apply_limiter: bool, master_gain: float):
     try:
         # Get preset name for filename
         preset_name = os.path.splitext(os.path.basename(preset_path))[0][:8]  # Cap at 8 chars
@@ -1353,11 +1359,34 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 output_filename = f"{original_filename}-out-{preset_name}.wav"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
                 
-                mg.process_with_preset(
-                    target=target_path,
-                    preset_path=preset_path,
-                    results=[mg.pcm24(output_path)]
-                )
+                if master_gain == 0.0:
+                    # No gain adjustment needed, use direct processing
+                    mg.process_with_preset(
+                        target=target_path,
+                        preset_path=preset_path,
+                        results=[mg.pcm24(output_path)]
+                    )
+                else:
+                    # Apply master gain by processing to temp file then applying gain
+                    temp_processed_filename = f"batch_temp_{uuid.uuid4()}.wav"
+                    temp_processed_path = os.path.join(OUTPUT_DIR, temp_processed_filename)
+                    
+                    mg.process_with_preset(
+                        target=target_path,
+                        preset_path=preset_path,
+                        results=[mg.pcm24(temp_processed_path)]
+                    )
+                    
+                    # Read processed audio and apply master gain
+                    processed_audio, sr = sf.read(temp_processed_path)
+                    gain_multiplier = 10 ** (master_gain / 20.0)
+                    processed_audio = processed_audio * gain_multiplier
+                    
+                    if apply_limiter:
+                        processed_audio = limit(processed_audio, mg.Config())
+                    
+                    sf.write(output_path, processed_audio, sr, subtype='PCM_24')
+                    os.remove(temp_processed_path)  # Clean up temp file
             else:
                 # Blended processing - format: originalname_out_presetname-blend50.wav
                 processed_filename = f"batch_temp_{uuid.uuid4()}.wav"
@@ -1390,6 +1419,11 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 # Blend the audio
                 blended_audio = (original_audio * (1 - blend_ratio)) + (processed_audio * blend_ratio)
 
+                # Apply master gain (convert dB to linear multiplier)
+                if master_gain != 0.0:
+                    gain_multiplier = 10 ** (master_gain / 20.0)
+                    blended_audio = blended_audio * gain_multiplier
+
                 if apply_limiter:
                     # Apply limiter for soft clipping
                     blended_audio = limit(blended_audio, mg.Config())
@@ -1397,7 +1431,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 # Save the blended result with proper naming
                 output_filename = f"{original_filename}-out-{preset_name}-blend{blend_percentage}.wav"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
-                sf.write(output_path, blended_audio, sr_orig)
+                sf.write(output_path, blended_audio, sr_orig, subtype='PCM_24')
                 
                 # Clean up temporary processed file
                 os.remove(processed_path)
@@ -1594,11 +1628,17 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
         vocal_path = os.path.join(OUTPUT_DIR, vocal_filename)
         instrumental_path = os.path.join(OUTPUT_DIR, instrumental_filename)
         
-        # Rename files to clean names
+        # Rename files to clean names and convert to 24-bit
         if os.path.exists(temp_vocal_path):
-            shutil.move(temp_vocal_path, vocal_path)
+            # Read 16-bit file and re-save as 24-bit
+            vocal_audio, vocal_sr = sf.read(temp_vocal_path)
+            sf.write(vocal_path, vocal_audio, vocal_sr, subtype='PCM_24')
+            os.remove(temp_vocal_path)  # Remove 16-bit temporary file
         if os.path.exists(temp_instrumental_path):
-            shutil.move(temp_instrumental_path, instrumental_path)
+            # Read 16-bit file and re-save as 24-bit
+            instrumental_audio, instrumental_sr = sf.read(temp_instrumental_path)
+            sf.write(instrumental_path, instrumental_audio, instrumental_sr, subtype='PCM_24')
+            os.remove(temp_instrumental_path)  # Remove 16-bit temporary file
         
         # Complete
         processing_progress[job_id].update({

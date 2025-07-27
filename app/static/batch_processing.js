@@ -95,6 +95,10 @@ window.handleProcessBatchFormSubmit = async (e) => {
     const blendRatio = document.getElementById('batch-blend-ratio').value / 100.0;
     formData.append('blend_ratio', blendRatio);
     
+    // Add master gain
+    const masterGain = document.getElementById('batch-master-gain').value;
+    formData.append('master_gain', parseFloat(masterGain));
+    
     // Add limiter setting  
     formData.append('apply_limiter', window.batchLimiterEnabled);
 

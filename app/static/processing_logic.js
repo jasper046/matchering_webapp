@@ -233,6 +233,13 @@ window.handleSaveBlend = async () => {
         formData.append('processed_path', window.processedFilePath);
         formData.append('blend_ratio', blendRatio);
         formData.append('apply_limiter', true);
+        
+        // Add master gain value
+        const masterGainValue = document.getElementById('master-gain-value');
+        if (masterGainValue) {
+            formData.append('master_gain', parseFloat(masterGainValue.value));
+        }
+        
         if (originalFilename) {
             formData.append('original_filename', originalFilename);
         }
