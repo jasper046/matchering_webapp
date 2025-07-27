@@ -265,7 +265,7 @@
                             <label for="stem-audio-file" class="form-label">Audio File (.wav)</label>
                             <input type="file" class="form-control" id="stem-audio-file" name="audio_file" accept=".wav" required>
                         </div>
-                        <button type="submit" class="btn btn-primary">Separate Stems</button>
+                        <button type="submit" id="separate-stems-button" class="btn btn-primary">Separate Stems</button>
                     </form>
                     <div id="stem-separation-status" class="mt-3"></div>
                     <div id="stem-separation-results" class="mt-4" style="display:none;">
@@ -279,10 +279,51 @@
                 <section class="mt-3">
                     <h2>Batch Mastering</h2>
                     <form id="process-batch-form">
-                        <div class="mb-3">
+                        <!-- Future: Stem Separation Option (hidden for now) -->
+                        <div class="form-check mb-3" id="batch-stem-separation-selection" style="display:none;">
+                            <input class="form-check-input" type="checkbox" value="" id="batch-use-stem-separation">
+                            <label class="form-check-label" for="batch-use-stem-separation">
+                                Use Stem Separation
+                            </label>
+                        </div>
+                        
+                        <!-- Future: Mode Selection (hidden for now) -->
+                        <div class="mb-3" id="batch-reference-type-selection" style="display:none;">
+                            <label class="form-label">Mode:</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input visually-hidden" type="radio" name="batch_reference_type" id="batchRadioReference" value="reference">
+                                    <label class="form-check-label radio-button-label" for="batchRadioReference">Audio Reference File (.wav)</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input visually-hidden" type="radio" name="batch_reference_type" id="batchRadioPreset" value="preset" checked>
+                                    <label class="form-check-label radio-button-label" for="batchRadioPreset">Preset File (.pkl)</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Future: Reference File (hidden for now) -->
+                        <div class="mb-3" id="batch-reference-file-div" style="display:none;">
+                            <label for="batch-reference-file" class="form-label">Audio Reference File (.wav)</label>
+                            <input type="file" class="form-control" id="batch-reference-file" name="reference_file" accept=".wav">
+                        </div>
+                        
+                        <!-- Current: Standard Preset File -->
+                        <div class="mb-3" id="batch-preset-file-div">
                             <label for="batch-preset-file" class="form-label">Preset File (.pkl)</label>
                             <input type="file" class="form-control" id="batch-preset-file" name="preset_file" accept=".pkl" required>
                         </div>
+                        
+                        <!-- Future: Stem Preset Files (hidden for now) -->
+                        <div class="mb-3" id="batch-vocal-preset-file-div" style="display:none;">
+                            <label for="batch-vocal-preset-file" class="form-label">Vocal Preset File (.pkl)</label>
+                            <input type="file" class="form-control" id="batch-vocal-preset-file" name="vocal_preset_file" accept=".pkl">
+                        </div>
+                        <div class="mb-3" id="batch-instrumental-preset-file-div" style="display:none;">
+                            <label for="batch-instrumental-preset-file" class="form-label">Instrumental Preset File (.pkl)</label>
+                            <input type="file" class="form-control" id="batch-instrumental-preset-file" name="instrumental_preset_file" accept=".pkl">
+                        </div>
+                        
                         <div class="mb-3">
                             <label for="batch-blend-ratio" class="form-label">Blend Ratio (0% = dry/original, 100% = wet/processed)</label>
                             <div class="d-flex align-items-center gap-2">
@@ -303,7 +344,7 @@
                             <label for="batch-target-files" class="form-label">Audio Source Files (.wav) (1-20)</label>
                             <input type="file" class="form-control" id="batch-target-files" name="target_files" accept=".wav" multiple required>
                         </div>
-                        <button type="submit" class="btn btn-primary">Start Batch Mastering</button>
+                        <button type="submit" id="start-batch-button" class="btn btn-primary" style="display:none;">Start Batch Mastering</button>
                     </form>
                     <div id="process-batch-status" class="mt-3"></div>
                     <div id="batch-file-list" class="mt-3" style="display:none;">
@@ -321,7 +362,7 @@
                             <label for="reference-file-preset" class="form-label">Audio Reference File (.wav)</label>
                             <input type="file" class="form-control" id="reference-file-preset" name="reference_file" accept=".wav" required>
                         </div>
-                        <button type="submit" class="btn btn-primary">Create Preset</button>
+                        <button type="submit" id="create-preset-button" class="btn btn-primary">Create Preset</button>
                     </form>
                     <div id="create-preset-status" class="mt-3"></div>
                     <div id="create-preset-download" class="mt-3" style="display:none;">

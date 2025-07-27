@@ -110,6 +110,23 @@ function toggleReferenceInput() {
         }
     }
     
+    // Clear any existing preset download data when switching between modes
+    const processSingleStatus = document.getElementById('process-single-status');
+    if (processSingleStatus) {
+        delete processSingleStatus.dataset.vocalPresetPath;
+        delete processSingleStatus.dataset.instrumentalPresetPath;
+        delete processSingleStatus.dataset.vocalPresetFilename;
+        delete processSingleStatus.dataset.instrumentalPresetFilename;
+        delete processSingleStatus.dataset.createdPresetPath;
+        delete processSingleStatus.dataset.createdPresetFilename;
+    }
+    
+    // Remove any existing preset download section
+    const existingPresetSection = document.getElementById('preset-download-section');
+    if (existingPresetSection) {
+        existingPresetSection.remove();
+    }
+    
     // Update process button visibility
     checkProcessButtonVisibility();
 }
@@ -603,10 +620,45 @@ window.handleTargetFileSingleChange = () => {
     window.stemStreamingSessionId = null;
     window.streamingSessionId = null;
     
+    // Clear previous preset download data to prevent state pollution
+    if (processSingleStatus) {
+        delete processSingleStatus.dataset.vocalPresetPath;
+        delete processSingleStatus.dataset.instrumentalPresetPath;
+        delete processSingleStatus.dataset.vocalPresetFilename;
+        delete processSingleStatus.dataset.instrumentalPresetFilename;
+        delete processSingleStatus.dataset.createdPresetPath;
+        delete processSingleStatus.dataset.createdPresetFilename;
+    }
+    
+    // Remove any existing preset download section
+    const existingPresetSection = document.getElementById('preset-download-section');
+    if (existingPresetSection) {
+        existingPresetSection.remove();
+    }
+    
     // Stop any active audio playback
     if (window.stopAudio) {
         window.stopAudio();
     }
+    
+    // Reset processing state to ensure no deadlocks
+    setProcessingState(false);
+    
+    // Hide any results from previous processing
+    if (singleConversionResults) {
+        singleConversionResults.style.display = 'none';
+    }
+    
+    // Clear all secondary file inputs when target changes to prevent mode confusion
+    const referenceFileInput = document.getElementById('reference-file-single');
+    const presetFileInput = document.getElementById('preset-file-single');
+    const vocalPresetInput = document.getElementById('vocal-preset-file-single');
+    const instrumentalPresetInput = document.getElementById('instrumental-preset-file-single');
+    
+    if (referenceFileInput) referenceFileInput.value = '';
+    if (presetFileInput) presetFileInput.value = '';
+    if (vocalPresetInput) vocalPresetInput.value = '';
+    if (instrumentalPresetInput) instrumentalPresetInput.value = '';
     
     processSingleStatus.textContent = ''; // Clear status
     if (targetFileSingle.files.length > 0) {
@@ -662,9 +714,22 @@ window.handleStemSeparationChange = () => {
     }
     if (processSingleStatus) {
         processSingleStatus.innerHTML = '';
+        // Clear preset download data when switching modes
+        delete processSingleStatus.dataset.vocalPresetPath;
+        delete processSingleStatus.dataset.instrumentalPresetPath;
+        delete processSingleStatus.dataset.vocalPresetFilename;
+        delete processSingleStatus.dataset.instrumentalPresetFilename;
+        delete processSingleStatus.dataset.createdPresetPath;
+        delete processSingleStatus.dataset.createdPresetFilename;
     }
     if (saveBlendStatus) {
         saveBlendStatus.innerHTML = '';
+    }
+    
+    // Remove any existing preset download section
+    const existingPresetSection = document.getElementById('preset-download-section');
+    if (existingPresetSection) {
+        existingPresetSection.remove();
     }
     
     // Clear stored file paths and session data

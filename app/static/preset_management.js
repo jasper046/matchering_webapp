@@ -85,10 +85,19 @@ function showPresetDownloadLinks() {
             presetDownloadSection = document.createElement('div');
             presetDownloadSection.id = 'preset-download-section';
             presetDownloadSection.className = 'mt-4 p-3 bg-secondary rounded';
+            
+            // Determine description text and header based on preset type
+            const headerText = hasStemPresets 
+                ? "📥 Download Reference Presets"
+                : "📥 Download Reference Preset";
+            const descriptionText = hasStemPresets 
+                ? "These presets were created from your reference audio's separated stems. You can use them for future processing!"
+                : "This preset was created from your reference audio. You can use it for future processing!";
+            
             presetDownloadSection.innerHTML = `
-                <h5 class="text-light mb-3">📥 Download Reference Presets</h5>
+                <h5 class="text-light mb-3">${headerText}</h5>
                 <div class="alert alert-info">
-                    <small>These presets were created from your reference audio's separated stems. You can use them for future processing!</small>
+                    <small>${descriptionText}</small>
                 </div>
                 <div id="preset-download-links" class="d-flex flex-wrap gap-3"></div>
             `;
@@ -97,6 +106,24 @@ function showPresetDownloadLinks() {
             const waveformSection = document.querySelector('.channel-box');
             if (waveformSection) {
                 waveformSection.parentNode.insertBefore(presetDownloadSection, waveformSection);
+            }
+        } else {
+            // Update existing section with correct header and description
+            const headerText = hasStemPresets 
+                ? "📥 Download Reference Presets"
+                : "📥 Download Reference Preset";
+            const descriptionText = hasStemPresets 
+                ? "These presets were created from your reference audio's separated stems. You can use them for future processing!"
+                : "This preset was created from your reference audio. You can use it for future processing!";
+            
+            const headerDiv = presetDownloadSection.querySelector('h5');
+            if (headerDiv) {
+                headerDiv.textContent = headerText;
+            }
+            
+            const alertDiv = presetDownloadSection.querySelector('.alert.alert-info small');
+            if (alertDiv) {
+                alertDiv.textContent = descriptionText;
             }
         }
         

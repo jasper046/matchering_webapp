@@ -37,44 +37,66 @@ batchBlendRatio.addEventListener('blur', function() {
     }
 });
 
-// Add event listener to show file list when files are selected
-document.getElementById('batch-target-files').addEventListener('change', function() {
-    const targetFiles = this.files;
-    if (targetFiles.length > 0) {
-        createFileList(targetFiles);
-        batchFileList.style.display = 'block';
-    } else {
-        batchFileList.style.display = 'none';
-    }
-});
+// Batch target files change is now handled by window.handleBatchTargetFilesChange via event_listeners.js
 
-processBatchForm.addEventListener('submit', async (e) => {
+// Handle batch processing form submission
+window.handleProcessBatchFormSubmit = async (e) => {
+    console.log('Batch processing form submitted');
     e.preventDefault();
     window.showStatus(processBatchStatus, 'Starting batch processing...');
-    batchResultsDiv.style.display = 'none';
-    batchProgressBar.style.width = '0%';
-    batchProgressText.textContent = '0%';
+    
+    // Hide file list during processing
+    if (batchFileList) {
+        batchFileList.style.display = 'none';
+    }
 
     const formData = new FormData();
     const targetFiles = document.getElementById('batch-target-files').files;
     for (let i = 0; i < targetFiles.length; i++) {
         formData.append('target_files', targetFiles[i]);
     }
-    formData.append('use_stem_separation', document.getElementById('batch-use-stem-separation').checked);
-    formData.append('limiter_enabled', window.batchLimiterEnabled); // Use global batchLimiterEnabled
-
-    if (document.getElementById('batch-use-stem-separation').checked && document.getElementById('batchRadioPreset').checked) {
-        formData.append('vocal_preset_file', document.getElementById('batch-vocal-preset-file').files[0]);
-        formData.append('instrumental_preset_file', document.getElementById('batch-instrumental-preset-file').files[0]);
-    }
-
-    if (document.getElementById('batchRadioReference').checked) {
-        formData.append('reference_file', document.getElementById('batch-reference-file').files[0]);
-    } else if (document.getElementById('batchRadioPreset').checked) {
-        if (!document.getElementById('batch-use-stem-separation').checked) {
-            formData.append('preset_file', document.getElementById('batch-preset-file').files[0]);
+    
+    // Check if stem separation is enabled (future feature)
+    const useStemSeparation = document.getElementById('batch-use-stem-separation');
+    const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
+    
+    if (isUsingStemSeparation) {
+        formData.append('use_stem_separation', true);
+        
+        // Check which mode is selected (reference vs preset)
+        const batchRadioReference = document.getElementById('batchRadioReference');
+        const batchRadioPreset = document.getElementById('batchRadioPreset');
+        
+        if (batchRadioReference && batchRadioReference.checked) {
+            // Reference file mode
+            const referenceFile = document.getElementById('batch-reference-file').files[0];
+            if (referenceFile) {
+                formData.append('reference_file', referenceFile);
+            }
+        } else if (batchRadioPreset && batchRadioPreset.checked) {
+            // Preset mode with stem separation
+            const vocalPresetFile = document.getElementById('batch-vocal-preset-file').files[0];
+            const instrumentalPresetFile = document.getElementById('batch-instrumental-preset-file').files[0];
+            if (vocalPresetFile && instrumentalPresetFile) {
+                formData.append('vocal_preset_file', vocalPresetFile);
+                formData.append('instrumental_preset_file', instrumentalPresetFile);
+            }
+        }
+    } else {
+        // Current implementation: Standard preset processing
+        formData.append('use_stem_separation', false);
+        const presetFile = document.getElementById('batch-preset-file').files[0];
+        if (presetFile) {
+            formData.append('preset_file', presetFile);
         }
     }
+    
+    // Add blend ratio
+    const blendRatio = document.getElementById('batch-blend-ratio').value / 100.0;
+    formData.append('blend_ratio', blendRatio);
+    
+    // Add limiter setting  
+    formData.append('apply_limiter', window.batchLimiterEnabled);
 
     try {
         const response = await fetch('/api/process_batch', {
@@ -84,7 +106,7 @@ processBatchForm.addEventListener('submit', async (e) => {
         const data = await response.json();
 
         if (response.ok) {
-            batchProcessingJobId = data.job_id;
+            batchProcessingJobId = data.batch_id;
             window.showStatus(processBatchStatus, 'Batch processing started. Monitoring progress...');
             batchProcessingInterval = setInterval(() => pollBatchProgress(batchProcessingJobId), 1000);
         } else {
@@ -93,7 +115,7 @@ processBatchForm.addEventListener('submit', async (e) => {
     } catch (error) {
         window.showStatus(processBatchStatus, `Network error: ${error.message}`, true);
     }
-});
+};
 
 // Create file list with initial pending status
 function createFileList(files) {
@@ -124,9 +146,10 @@ function createFileList(files) {
 async function pollBatchProgress(batchId) {
     let lastProcessedCount = 0;
     
-    const batchProgressBar = document.getElementById('batch-progress-bar');
-    const batchProgressText = document.getElementById('batch-progress-text');
-    const batchResultsDiv = document.getElementById('batch-results');
+    // Show file list for progress tracking
+    if (batchFileList) {
+        batchFileList.style.display = 'block';
+    }
 
     const interval = setInterval(async () => {
         try {
@@ -153,20 +176,14 @@ async function pollBatchProgress(batchId) {
 
             if (data.status === 'completed') {
                 clearInterval(interval);
-                window.showStatus(processBatchStatus, 'Batch processing completed: Right Click to Save As');
-                batchResultsDiv.innerHTML = '';
-                data.results.forEach(result => {
-                    const p = document.createElement('p');
-                    const link = document.createElement('a');
-                    link.href = `/download/temp_file/${result.output_path.split('/').pop()}?download_name=${encodeURIComponent(result.output_filename)}`;
-                    link.download = result.output_filename;
-                    link.textContent = result.output_filename;
-                    link.className = 'alert-link';
-                    p.appendChild(document.createTextNode(`Processed: `));
-                    p.appendChild(link);
-                    batchResultsDiv.appendChild(p);
-                });
-                batchResultsDiv.style.display = 'block';
+                window.showStatus(processBatchStatus, 'Batch processing completed successfully! All files are ready for download.');
+                
+                // Display download links in the file list using output_files
+                if (data.output_files && Array.isArray(data.output_files)) {
+                    data.output_files.forEach((outputPath, index) => {
+                        updateFileStatus(index, 'completed', outputPath);
+                    });
+                }
             } else if (data.status === 'failed') {
                 clearInterval(interval);
                 window.showStatus(processBatchStatus, `Batch processing failed: ${data.error}`, true);
@@ -215,24 +232,74 @@ function updateFileStatus(fileIndex, status, outputPath = null) {
 
 // Function to check and update batch process button visibility
 function checkBatchProcessButtonVisibility() {
-    const batchPresetFile = document.getElementById('batch-preset-file');
     const batchTargetFiles = document.getElementById('batch-target-files');
-    const processBatchButton = document.querySelector('#process-batch-form button[type="submit"]');
+    const processBatchButton = document.getElementById('start-batch-button');
     
-    if (!batchPresetFile || !batchTargetFiles || !processBatchButton) {
+    console.log('Checking batch button visibility:', {
+        batchTargetFiles: !!batchTargetFiles,
+        processBatchButton: !!processBatchButton
+    });
+    
+    if (!batchTargetFiles || !processBatchButton) {
+        console.warn('Missing batch elements');
         return; // Exit if elements don't exist
     }
     
-    const hasPresetFile = batchPresetFile.files.length > 0;
     const hasTargetFiles = batchTargetFiles.files.length > 0;
     
-    // Show button only if both preset and target files are selected
-    if (hasPresetFile && hasTargetFiles) {
+    // Check if stem separation is enabled (future feature)
+    const useStemSeparation = document.getElementById('batch-use-stem-separation');
+    const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
+    
+    let hasRequiredFiles = false;
+    
+    if (isUsingStemSeparation) {
+        // Future: Complex validation for stem mode
+        const batchRadioReference = document.getElementById('batchRadioReference');
+        const batchRadioPreset = document.getElementById('batchRadioPreset');
+        
+        if (batchRadioReference && batchRadioReference.checked) {
+            // Reference mode: need reference file + target files
+            const referenceFile = document.getElementById('batch-reference-file');
+            hasRequiredFiles = hasTargetFiles && referenceFile && referenceFile.files.length > 0;
+        } else if (batchRadioPreset && batchRadioPreset.checked) {
+            // Preset mode: need vocal + instrumental presets + target files
+            const vocalPreset = document.getElementById('batch-vocal-preset-file');
+            const instrumentalPreset = document.getElementById('batch-instrumental-preset-file');
+            hasRequiredFiles = hasTargetFiles && vocalPreset && vocalPreset.files.length > 0 && 
+                              instrumentalPreset && instrumentalPreset.files.length > 0;
+        }
+    } else {
+        // Current: Simple preset mode - need preset file + target files
+        const batchPresetFile = document.getElementById('batch-preset-file');
+        hasRequiredFiles = hasTargetFiles && batchPresetFile && batchPresetFile.files.length > 0;
+    }
+    
+    console.log('File status:', { hasTargetFiles, hasRequiredFiles, isUsingStemSeparation });
+    
+    // Show button only if all required files are selected
+    if (hasRequiredFiles) {
+        console.log('Showing batch button');
         processBatchButton.style.display = 'block';
     } else {
+        console.log('Hiding batch button');
         processBatchButton.style.display = 'none';
     }
 }
+
+// Handle batch target files change
+window.handleBatchTargetFilesChange = function() {
+    const targetFiles = this.files;
+    if (targetFiles.length > 0) {
+        createFileList(targetFiles);
+        batchFileList.style.display = 'block';
+    } else {
+        batchFileList.style.display = 'none';
+    }
+    
+    // Update button visibility
+    window.checkBatchProcessButtonVisibility();
+};
 
 // Export variables and functions that need to be accessed globally
 window.batchLimiterEnabled = true; // Default to enabled

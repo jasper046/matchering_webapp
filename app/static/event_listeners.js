@@ -11,7 +11,10 @@
     // Event listeners for batch processing form
     const processBatchForm = document.getElementById('process-batch-form');
     if (processBatchForm) {
+        console.log('Attaching batch processing form listener');
         processBatchForm.addEventListener('submit', window.handleProcessBatchFormSubmit);
+    } else {
+        console.warn('process-batch-form not found');
     }
 
     // Event listeners for preset creation form
@@ -20,11 +23,7 @@
         createPresetForm.addEventListener('submit', window.handleCreatePresetFormSubmit);
     }
 
-    // Event listeners for stem separation form
-    const stemSeparationForm = document.getElementById('stem-separation-form');
-    if (stemSeparationForm) {
-        stemSeparationForm.addEventListener('submit', window.handleStemSeparationFormSubmit);
-    }
+    // Stem separation form listener is handled in stem_separation.js
 
     // Event listeners for file input changes to update process button visibility
     document.getElementById('target-file-single').addEventListener('change', window.handleTargetFileSingleChange);

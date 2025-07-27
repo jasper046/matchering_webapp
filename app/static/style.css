@@ -487,7 +487,10 @@ canvas[id*="blend-knob"] {
     z-index: 2; /* Ensure it's above waveforms */
 }
 
-#process-file-button {
+#process-file-button,
+#separate-stems-button,
+#start-batch-button,
+#create-preset-button {
     background-color: #343a40; /* Default background for unselected */
     color: #f8f9fa; /* Ensure text is readable */
     padding: 0.5rem 1rem; /* Padding to encompass content */
@@ -497,7 +500,10 @@ canvas[id*="blend-knob"] {
     transition: all 0.2s ease-in-out;
 }
 
-#process-file-button:hover {
+#process-file-button:hover,
+#separate-stems-button:hover,
+#start-batch-button:hover,
+#create-preset-button:hover {
     background-color: #495057; /* Slightly lighter on hover */
 }
 

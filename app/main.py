@@ -22,6 +22,7 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 from io import BytesIO
+import hashlib
 
 # --- PyInstaller-aware path helpers ---
 def get_base_dir():
@@ -265,6 +266,40 @@ batch_jobs = {}
 # In-memory storage for processing progress
 processing_progress = {}
 
+# In-memory storage for active jobs to prevent duplicates
+active_jobs = set()
+
+def start_job(job_id: str, job_type: str, file_hash: str = None) -> bool:
+    """
+    Start a new job if not already running.
+    Returns True if job started, False if duplicate.
+    """
+    # Create unique key for duplicate detection
+    job_key = f"{job_type}_{file_hash}" if file_hash else job_id
+    
+    if job_key in active_jobs:
+        return False
+    
+    active_jobs.add(job_key)
+    processing_progress[job_id] = {
+        "stage": "starting",
+        "message": f"Starting {job_type}...",
+        "progress": 0,
+        "job_key": job_key
+    }
+    return True
+
+def finish_job(job_id: str):
+    """Clean up job tracking when complete"""
+    if job_id in processing_progress:
+        job_key = processing_progress[job_id].get("job_key")
+        if job_key and job_key in active_jobs:
+            active_jobs.remove(job_key)
+
+def get_file_hash(file_content: bytes) -> str:
+    """Generate a hash for file content to detect duplicates"""
+    return hashlib.md5(file_content).hexdigest()[:16]
+
 def extract_loudest_segment(audio_path: str, segment_duration: float = 30.0, sample_rate: int = 44100) -> str:
     """
     Extract the loudest segment from audio file, similar to matchering's approach.
@@ -344,13 +379,24 @@ async def get_progress(job_id: str):
 
 @app.post("/api/create_preset")
 async def create_preset(reference_file: UploadFile = File(...)):
+    # Read file content for duplicate detection
+    content = await reference_file.read()
+    reference_file.file.seek(0)  # Reset file pointer
+    
+    # Generate file hash and check for duplicates
+    file_hash = get_file_hash(content)
+    job_id = str(uuid.uuid4())
+    
+    if not start_job(job_id, "create_preset", file_hash):
+        raise HTTPException(status_code=429, detail="Preset creation already in progress for this file")
+    
     # Clean up processing files, preserving the current upload
     cleanup_processing_files([reference_file.filename])
     
     original_filename_base = os.path.splitext(reference_file.filename)[0]
     file_location = os.path.join(UPLOAD_DIR, reference_file.filename)
     with open(file_location, "wb") as f:
-        shutil.copyfileobj(reference_file.file, f)
+        f.write(content)
 
     preset_filename = f"{uuid.uuid4()}.pkl"
     preset_path = os.path.join(PRESET_DIR, preset_filename)
@@ -361,6 +407,7 @@ async def create_preset(reference_file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
+        finish_job(job_id)
         os.remove(file_location)
 
 
@@ -525,6 +572,8 @@ def process_stems_with_presets_sync(
             "progress": 0,
             "message": f"Error during processing: {str(e)}"
         })
+    finally:
+        finish_job(job_id)
 
 
 def process_stems_with_reference_sync(
@@ -684,6 +733,8 @@ def process_stems_with_reference_sync(
             "progress": 0,
             "message": str(e)
         })
+    finally:
+        finish_job(job_id)
 
 @app.post("/api/process_single")
 async def process_single(
@@ -695,6 +746,17 @@ async def process_single(
     vocal_preset_file: Optional[UploadFile] = File(None),
     instrumental_preset_file: Optional[UploadFile] = File(None),
 ):
+    # Read target file content for duplicate detection
+    target_content = await target_file.read()
+    target_file.file.seek(0)  # Reset file pointer
+    
+    # Generate file hash and check for duplicates
+    file_hash = get_file_hash(target_content)
+    job_id = str(uuid.uuid4())
+    
+    if not start_job(job_id, "process_single", file_hash):
+        raise HTTPException(status_code=429, detail="Single file processing already in progress for this file")
+    
     # Clean up previous processing files at start of new processing
     # We'll preserve the files we're about to upload
     files_to_preserve = []
@@ -714,12 +776,12 @@ async def process_single(
     if use_stem_separation:
         if reference_file:
             # Stem separation with reference file - create presets from separated reference
-            job_id = str(uuid.uuid4())
             processing_progress[job_id] = {
                 "stage": "initializing",
                 "progress": 0,
                 "message": "Initializing stem separation with reference...",
-                "device": "GPU" if torch.cuda.is_available() else "CPU"
+                "device": "GPU" if torch.cuda.is_available() else "CPU",
+                "job_key": processing_progress[job_id]["job_key"]
             }
             
             # Save files before starting background task (to avoid "read of closed file" error)
@@ -727,7 +789,7 @@ async def process_single(
             reference_path = os.path.join(UPLOAD_DIR, reference_file.filename)
             
             with open(target_path, "wb") as f:
-                shutil.copyfileobj(target_file.file, f)
+                f.write(target_content)
             with open(reference_path, "wb") as f:
                 shutil.copyfileobj(reference_file.file, f)
             
@@ -743,12 +805,12 @@ async def process_single(
             }
         elif vocal_preset_file and instrumental_preset_file:
             # Stem separation with presets - use background task for progress tracking
-            job_id = str(uuid.uuid4())
             processing_progress[job_id] = {
                 "stage": "initializing",
                 "progress": 0,
                 "message": "Initializing stem separation with presets...",
-                "device": "GPU" if torch.cuda.is_available() else "CPU"
+                "device": "GPU" if torch.cuda.is_available() else "CPU",
+                "job_key": processing_progress[job_id]["job_key"]
             }
             
             # Save files before starting background task
@@ -757,7 +819,7 @@ async def process_single(
             instrumental_preset_path = os.path.join(UPLOAD_DIR, instrumental_preset_file.filename)
             
             with open(target_path, "wb") as f:
-                shutil.copyfileobj(target_file.file, f)
+                f.write(target_content)
             with open(vocal_preset_path, "wb") as f:
                 shutil.copyfileobj(vocal_preset_file.file, f)
             with open(instrumental_preset_path, "wb") as f:
@@ -774,16 +836,19 @@ async def process_single(
                 "job_id": job_id
             }
         else:
+            finish_job(job_id)
             raise HTTPException(status_code=400, detail="For stem separation, either a reference file or both vocal and instrumental presets are required.")
 
     if not reference_file and not preset_file:
+        finish_job(job_id)
         raise HTTPException(status_code=400, detail="Either a reference file or a preset file must be provided.")
     if reference_file and preset_file:
+        finish_job(job_id)
         raise HTTPException(status_code=400, detail="Only one of reference file or preset file can be provided.")
 
     target_path = os.path.join(UPLOAD_DIR, target_file.filename)
     with open(target_path, "wb") as f:
-        shutil.copyfileobj(target_file.file, f)
+        f.write(target_content)
 
     processed_filename = f"processed_{uuid.uuid4()}.wav"
     processed_path = os.path.join(OUTPUT_DIR, processed_filename)
@@ -835,6 +900,7 @@ async def process_single(
                 "is_stem_mode": False
             }
             
+            finish_job(job_id)
             return {
                 "message": "Single file processed successfully",
                 "original_file_path": target_path,
@@ -878,6 +944,7 @@ async def process_single(
                 "is_stem_mode": False
             }
             
+            finish_job(job_id)
             return {
                 "message": "Single file processed successfully",
                 "original_file_path": target_path,
@@ -886,6 +953,7 @@ async def process_single(
                 "session_id": session_id
             }
     except Exception as e:
+        finish_job(job_id)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         # Keep target_path for blending, it will be cleaned up later or by a separate cleanup process
@@ -1226,12 +1294,26 @@ async def process_batch(
     if not (1 <= len(target_files) <= 20):
         raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
 
+    # Read all target file contents for duplicate detection
+    target_contents = []
+    for target_file in target_files:
+        content = await target_file.read()
+        target_file.file.seek(0)  # Reset file pointer
+        target_contents.append(content)
+    
+    # Create combined hash for all files
+    combined_content = b"".join(target_contents)
+    file_hash = get_file_hash(combined_content)
+    batch_id = str(uuid.uuid4())
+    
+    if not start_job(batch_id, "process_batch", file_hash):
+        raise HTTPException(status_code=429, detail="Batch processing already in progress for these files")
+
     # Clean up previous processing files at start of batch processing
     files_to_preserve = [preset_file.filename]
     files_to_preserve.extend([f.filename for f in target_files])
     cleanup_processing_files(files_to_preserve)
 
-    batch_id = str(uuid.uuid4())
     batch_jobs[batch_id] = {"status": "pending", "processed_count": 0, "total_count": len(target_files), "output_files": []}
 
     preset_temp_path = os.path.join(UPLOAD_DIR, preset_file.filename)
@@ -1239,10 +1321,10 @@ async def process_batch(
         shutil.copyfileobj(preset_file.file, f)
 
     target_file_paths = []
-    for target_file in target_files:
+    for i, target_file in enumerate(target_files):
         file_location = os.path.join(UPLOAD_DIR, target_file.filename)
         with open(file_location, "wb") as f:
-            shutil.copyfileobj(target_file.file, f)
+            f.write(target_contents[i])
         target_file_paths.append(file_location)
 
     background_tasks.add_task(
@@ -1329,6 +1411,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
         batch_jobs[batch_id]["status"] = "failed"
         batch_jobs[batch_id]["error"] = str(e)
     finally:
+        finish_job(batch_id)
         os.remove(preset_path) # Clean up preset file
 
 @app.get("/api/batch_status/{batch_id}")
@@ -1535,7 +1618,8 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
             "message": f"Error during separation: {str(e)}"
         })
     finally:
-        # Clean up input file
+        # Clean up job tracking and input file
+        finish_job(job_id)
         if os.path.exists(audio_path):
             os.remove(audio_path)
 
@@ -1546,8 +1630,16 @@ async def separate_stems(
     audio_file: UploadFile = File(...)
 ):
     """Separate audio file into vocal and instrumental stems with progress tracking"""
-    # Create job ID for tracking
+    # Read file content for duplicate detection
+    content = await audio_file.read()
+    audio_file.file.seek(0)  # Reset file pointer
+    
+    # Generate file hash and check for duplicates
+    file_hash = get_file_hash(content)
     job_id = str(uuid.uuid4())
+    
+    if not start_job(job_id, "stem_separation", file_hash):
+        raise HTTPException(status_code=429, detail="Stem separation already in progress for this file")
     
     # Save uploaded file
     audio_filename = f"stem_input_{uuid.uuid4()}.wav"
@@ -1556,7 +1648,7 @@ async def separate_stems(
     
     audio_path = os.path.join(UPLOAD_DIR, audio_filename)
     with open(audio_path, "wb") as f:
-        shutil.copyfileobj(audio_file.file, f)
+        f.write(content)
     
     # Start background task
     background_tasks.add_task(
