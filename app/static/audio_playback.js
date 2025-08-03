@@ -264,9 +264,15 @@ Object.defineProperty(window, 'previewAudioElement', {
 });
 window.currentPreviewPath = currentPreviewPath;
 
-// Clean up WebSocket connection when page unloads
+// Comprehensive cleanup when page unloads
 window.addEventListener('beforeunload', () => {
+    // Clean up WebSocket connections
     if (webSocketAudioStream) {
         webSocketAudioStream.disconnect();
+    }
+    
+    // Call comprehensive cleanup
+    if (window.clearAllProcessing) {
+        window.clearAllProcessing();
     }
 });

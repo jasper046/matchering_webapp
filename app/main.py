@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import hashlib
 import subprocess
+import asyncio
 
 # --- PyInstaller-aware path helpers ---
 def get_base_dir():
@@ -56,6 +57,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Periodic cleanup task
+async def periodic_cleanup():
+    """Periodically clean old files to prevent disk space issues"""
+    while True:
+        try:
+            # Clean up old files every hour
+            await asyncio.sleep(3600)  # 1 hour
+            
+            # Clean temp files older than 4 hours (allows for long stem/batch processing)
+            cleanup_old_files(UPLOAD_DIR, max_age_hours=4)
+            
+            # Clean output files older than 24 hours
+            cleanup_old_files(OUTPUT_DIR, max_age_hours=24)
+            
+            # Clean presets older than 7 days
+            cleanup_old_files(PRESET_DIR, max_age_hours=168)
+            
+            logging.info("Periodic cleanup completed")
+            
+        except Exception as e:
+            logging.error(f"Periodic cleanup failed: {e}")
+
+# Start periodic cleanup task
+@app.on_event("startup")
+async def startup_event():
+    """Initialize periodic cleanup on server startup"""
+    asyncio.create_task(periodic_cleanup())
 
 # Get the base directory for the application
 BASE_DIR = get_base_dir()
@@ -1748,6 +1777,138 @@ async def get_batch_status(batch_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Batch job not found.")
     return job
+
+@app.post("/api/cancel_batch_processing")
+async def cancel_batch_processing():
+    """Cancel any active batch processing and clean up temporary files"""
+    global batch_jobs, processing_progress, active_jobs
+    
+    # Clear all active batch jobs
+    for batch_id in list(batch_jobs.keys()):
+        if batch_jobs[batch_id].get("status") in ["pending", "processing"]:
+            batch_jobs[batch_id]["status"] = "cancelled"
+    
+    # Clear processing progress  
+    processing_progress.clear()
+    
+    # Clear active jobs tracking
+    active_jobs.clear()
+    
+    # Clean up temporary files
+    cleanup_directory_contents(UPLOAD_DIR)
+    
+    return {"message": "Batch processing cancelled and temporary files cleaned up"}
+
+@app.post("/api/cancel_stem_separation")
+async def cancel_stem_separation():
+    """Cancel any active stem separation processing and clean up temporary files"""
+    global active_jobs
+    
+    # Clear any active stem separation jobs (stem jobs use regular job system)
+    for job_id in list(active_jobs.keys()):
+        if "stem" in str(job_id).lower():
+            active_jobs[job_id]["status"] = "cancelled"
+    
+    # Clean up temporary files
+    cleanup_directory_contents(UPLOAD_DIR)
+    
+    return {"message": "Stem separation cancelled and temporary files cleaned up"}
+
+@app.post("/api/cancel_preset_creation")
+async def cancel_preset_creation():
+    """Cancel any active preset creation processing and clean up temporary files"""
+    global active_jobs
+    
+    # Clear any active preset creation jobs
+    for job_id in list(active_jobs.keys()):
+        if "preset" in str(job_id).lower():
+            active_jobs[job_id]["status"] = "cancelled"
+    
+    # Clean up temporary files
+    cleanup_directory_contents(UPLOAD_DIR)
+    
+    return {"message": "Preset creation cancelled and temporary files cleaned up"}
+
+@app.post("/api/reset_application_state")
+async def reset_application_state():
+    """Comprehensive cleanup for page reload - reset all application state"""
+    global batch_jobs, processing_progress, active_jobs
+    
+    # Clear all job tracking
+    batch_jobs.clear()
+    processing_progress.clear()
+    active_jobs.clear()
+    
+    # Clear frame processing sessions (if available)
+    try:
+        from .api.frame_endpoints import preview_generators, session_parameters, active_websockets, websocket_tasks
+        
+        # Close all WebSocket connections
+        for session_id, ws in active_websockets.items():
+            try:
+                # Don't await, just fire and forget
+                asyncio.create_task(ws.close())
+            except Exception:
+                pass
+        
+        # Cancel all streaming tasks
+        for session_id, task in websocket_tasks.items():
+            try:
+                task.cancel()
+            except Exception:
+                pass
+        
+        # Clear all session data
+        preview_generators.clear()
+        session_parameters.clear()
+        active_websockets.clear()
+        websocket_tasks.clear()
+        
+    except ImportError:
+        # Frame endpoints not available, skip
+        pass
+    
+    # Clean up all temporary directories
+    cleanup_directory_contents(UPLOAD_DIR)
+    
+    # Clean up old files in output directory (older than 4 hours)
+    cleanup_old_files(OUTPUT_DIR, max_age_hours=4)
+    cleanup_old_files(PRESET_DIR, max_age_hours=24)  # Keep presets longer
+    
+    return {
+        "message": "Application state reset successfully",
+        "cleared": {
+            "batch_jobs": True,
+            "processing_progress": True, 
+            "active_jobs": True,
+            "frame_sessions": True,
+            "temporary_files": True
+        }
+    }
+
+def cleanup_old_files(directory: str, max_age_hours: int = 1):
+    """Clean up files older than specified hours"""
+    import time
+    
+    if not os.path.exists(directory):
+        return
+        
+    current_time = time.time()
+    max_age_seconds = max_age_hours * 3600
+    
+    try:
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            if os.path.isfile(file_path):
+                file_age = current_time - os.path.getmtime(file_path)
+                if file_age > max_age_seconds:
+                    try:
+                        os.remove(file_path)
+                        logging.info(f"Cleaned up old file: {filename}")
+                    except Exception as e:
+                        logging.warning(f"Failed to cleanup file {filename}: {e}")
+    except Exception as e:
+        logging.warning(f"Failed to cleanup directory {directory}: {e}")
 
 @app.get("/download/{file_type}/{filename}")
 async def download_file(file_type: str, filename: str, download_name: Optional[str] = None):

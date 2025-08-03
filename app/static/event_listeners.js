@@ -2,6 +2,83 @@
 
 // event_listeners.js
 
+// Page load cleanup - ensure fresh start
+window.addEventListener('load', function() {
+    // Call comprehensive server-side reset first
+    fetch('/api/reset_application_state', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Application state reset:', data);
+            // Then call frontend cleanup
+            if (window.clearAllProcessing) {
+                window.clearAllProcessing();
+            }
+        })
+        .catch(err => {
+            console.log('Server reset failed, doing frontend cleanup only:', err);
+            // Still do frontend cleanup even if server reset fails
+            if (window.clearAllProcessing) {
+                window.clearAllProcessing();
+            }
+        });
+});
+
+// Comprehensive cleanup function 
+window.clearAllProcessing = function() {
+    // Clear batch processing
+    if (window.clearBatchProcessing) {
+        window.clearBatchProcessing();
+    }
+    
+    // Clear single file processing sessions
+    if (window.currentStreamingSessionId) {
+        if (window.unifiedAudioController && window.unifiedAudioController.websocket) {
+            window.unifiedAudioController.disconnect();
+        }
+        window.currentStreamingSessionId = null;
+    }
+    
+    // Call all backend cleanup endpoints
+    const cleanupEndpoints = [
+        '/api/cancel_batch_processing',
+        '/api/cancel_stem_separation', 
+        '/api/cancel_preset_creation',
+    ];
+    
+    cleanupEndpoints.forEach(endpoint => {
+        fetch(endpoint, { method: 'POST' })
+            .catch(err => console.log(`Cleanup failed for ${endpoint}:`, err));
+    });
+    
+    // Clear all status messages
+    const statusElements = [
+        'process-single-status',
+        'process-batch-status',
+        'stem-separation-status', 
+        'create-preset-status'
+    ];
+    statusElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.innerHTML = '';
+        }
+    });
+    
+    // Hide all result sections
+    const resultElements = [
+        'single-conversion-results',
+        'stem-separation-results',
+        'create-preset-download',
+        'batch-file-list'
+    ];
+    resultElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // Event listeners for single file conversion form
     const processSingleForm = document.getElementById('process-single-form');
@@ -64,23 +141,54 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const batchReferenceFile = document.getElementById('batch-reference-file');
     if (batchReferenceFile) {
-        batchReferenceFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+        batchReferenceFile.addEventListener('change', () => {
+            if (window.clearBatchProcessing) window.clearBatchProcessing();
+            window.checkBatchProcessButtonVisibility();
+        });
     }
     
     const batchPresetFile = document.getElementById('batch-preset-file');
     if (batchPresetFile) {
-        batchPresetFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+        batchPresetFile.addEventListener('change', () => {
+            if (window.clearBatchProcessing) window.clearBatchProcessing();
+            window.checkBatchProcessButtonVisibility();
+        });
     }
     
     const batchVocalPresetFile = document.getElementById('batch-vocal-preset-file');
     if (batchVocalPresetFile) {
-        batchVocalPresetFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+        batchVocalPresetFile.addEventListener('change', () => {
+            if (window.clearBatchProcessing) window.clearBatchProcessing();
+            window.checkBatchProcessButtonVisibility();
+        });
     }
     
     const batchInstrumentalPresetFile = document.getElementById('batch-instrumental-preset-file');
     if (batchInstrumentalPresetFile) {
-        batchInstrumentalPresetFile.addEventListener('change', window.checkBatchProcessButtonVisibility);
+        batchInstrumentalPresetFile.addEventListener('change', () => {
+            if (window.clearBatchProcessing) window.clearBatchProcessing();
+            window.checkBatchProcessButtonVisibility();
+        });
     }
+
+    // Add listeners for batch processing parameter changes
+    const batchControls = [
+        'batch-blend-ratio',
+        'batch-master-gain', 
+        'batch-vocal-blend-ratio',
+        'batch-instrumental-blend-ratio',
+        'batch-vocal-gain',
+        'batch-instrumental-gain'
+    ];
+    
+    batchControls.forEach(controlId => {
+        const control = document.getElementById(controlId);
+        if (control) {
+            control.addEventListener('input', () => {
+                if (window.clearBatchProcessing) window.clearBatchProcessing();
+            });
+        }
+    });
 
     // Initial check on page load for batch process button visibility
     window.checkBatchProcessButtonVisibility();
@@ -164,4 +272,59 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Tab switching cleanup - stop all active processing when switching tabs
+    const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
+    tabButtons.forEach(tabButton => {
+        tabButton.addEventListener('click', function() {
+            // Stop batch processing
+            if (window.clearBatchProcessing) {
+                window.clearBatchProcessing();
+            }
+            
+            // Stop single file processing (if there's an active session)
+            if (window.currentStreamingSessionId) {
+                // Stop any active WebSocket connections
+                if (window.unifiedAudioController && window.unifiedAudioController.websocket) {
+                    window.unifiedAudioController.disconnect();
+                }
+                window.currentStreamingSessionId = null;
+            }
+            
+            // Cancel stem separation processing (always call to ensure cleanup)
+            fetch('/api/cancel_stem_separation', { method: 'POST' })
+                .catch(err => console.log('Stem separation cleanup failed:', err));
+            
+            // Cancel preset creation processing (always call to ensure cleanup)
+            fetch('/api/cancel_preset_creation', { method: 'POST' })
+                .catch(err => console.log('Preset creation cleanup failed:', err));
+            
+            // Clear any status messages
+            const statusElements = [
+                'process-single-status',
+                'process-batch-status', 
+                'stem-separation-status',
+                'create-preset-status'
+            ];
+            statusElements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.innerHTML = '';
+                }
+            });
+            
+            // Hide result sections
+            const resultElements = [
+                'single-conversion-results',
+                'stem-separation-results', 
+                'create-preset-download'
+            ];
+            resultElements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+        });
+    });
 });

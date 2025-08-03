@@ -117,7 +117,7 @@ window.handleProcessBatchFormSubmit = async (e) => {
         if (response.ok) {
             batchProcessingJobId = data.batch_id;
             window.showStatus(processBatchStatus, 'Batch processing started. Monitoring progress...');
-            batchProcessingInterval = setInterval(() => pollBatchProgress(batchProcessingJobId), 1000);
+            pollBatchProgress(batchProcessingJobId);
         } else {
             window.showStatus(processBatchStatus, `Error: ${data.detail}`, true);
         }
@@ -160,7 +160,7 @@ async function pollBatchProgress(batchId) {
         batchFileList.style.display = 'block';
     }
 
-    const interval = setInterval(async () => {
+    batchProcessingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/batch_status/${batchId}`);
             const data = await response.json();
@@ -184,7 +184,8 @@ async function pollBatchProgress(batchId) {
             }
 
             if (data.status === 'completed') {
-                clearInterval(interval);
+                clearInterval(batchProcessingInterval);
+                batchProcessingInterval = null;
                 window.showStatus(processBatchStatus, 'Batch processing completed successfully! All files are ready for download.');
                 
                 // Display download links in the file list using output_files
@@ -194,11 +195,13 @@ async function pollBatchProgress(batchId) {
                     });
                 }
             } else if (data.status === 'failed') {
-                clearInterval(interval);
+                clearInterval(batchProcessingInterval);
+                batchProcessingInterval = null;
                 window.showStatus(processBatchStatus, `Batch processing failed: ${data.error}`, true);
             }
         } catch (error) {
-            clearInterval(interval);
+            clearInterval(batchProcessingInterval);
+            batchProcessingInterval = null;
             window.showStatus(processBatchStatus, `Network error: ${error.message}`, true);
         }
     }, 2000); // Poll every 2 seconds
@@ -287,13 +290,51 @@ function checkBatchProcessButtonVisibility() {
 }
 
 // Handle batch target files change
+// Clear any active batch processing and reset UI state
+function clearBatchProcessing() {
+    // Stop any active polling
+    if (batchProcessingInterval) {
+        clearInterval(batchProcessingInterval);
+        batchProcessingInterval = null;
+    }
+    
+    // Clear status
+    if (processBatchStatus) {
+        processBatchStatus.innerHTML = '';
+    }
+    
+    // Call server-side cleanup (don't await, fire and forget)
+    if (batchProcessingJobId) {
+        fetch('/api/cancel_batch_processing', { method: 'POST' })
+            .catch(err => console.log('Cleanup request failed:', err));
+    }
+    
+    // Clear job ID
+    batchProcessingJobId = null;
+    
+    // Clear the file list container completely
+    if (batchFilesContainer) {
+        batchFilesContainer.innerHTML = '';
+    }
+    
+    // Hide file list
+    if (batchFileList) {
+        batchFileList.style.display = 'none';
+    }
+}
+
 window.handleBatchTargetFilesChange = function() {
     const targetFiles = this.files;
+    
+    // Clear any previous processing state
+    clearBatchProcessing();
+    
     if (targetFiles.length > 0) {
+        // Show file list immediately with correct files
         createFileList(targetFiles);
-        batchFileList.style.display = 'block';
-    } else {
-        batchFileList.style.display = 'none';
+        if (batchFileList) {
+            batchFileList.style.display = 'block';
+        }
     }
     
     // Update button visibility
@@ -348,6 +389,29 @@ function toggleBatchReferenceInput() {
         if (instrumentalPresetInput) instrumentalPresetInput.removeAttribute('required');
     }
     
+    // Clear any active processing when settings change, but preserve file list
+    // Stop any active polling
+    if (batchProcessingInterval) {
+        clearInterval(batchProcessingInterval);
+        batchProcessingInterval = null;
+    }
+    
+    // Clear status
+    if (processBatchStatus) {
+        processBatchStatus.innerHTML = '';
+    }
+    
+    // Call server-side cleanup (don't await, fire and forget)
+    if (batchProcessingJobId) {
+        fetch('/api/cancel_batch_processing', { method: 'POST' })
+            .catch(err => console.log('Cleanup request failed:', err));
+    }
+    
+    // Clear job ID
+    batchProcessingJobId = null;
+    
+    // Note: We don't clear the file list here to preserve selected files when toggling settings
+    
     // Update button visibility
     window.checkBatchProcessButtonVisibility();
 };
@@ -356,4 +420,5 @@ function toggleBatchReferenceInput() {
 window.batchLimiterEnabled = true; // Default to enabled
 window.checkBatchProcessButtonVisibility = checkBatchProcessButtonVisibility;
 window.toggleBatchReferenceInput = toggleBatchReferenceInput;
+window.clearBatchProcessing = clearBatchProcessing;
 
