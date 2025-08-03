@@ -56,54 +56,59 @@ window.handleProcessBatchFormSubmit = async (e) => {
         formData.append('target_files', targetFiles[i]);
     }
     
-    // Check if stem separation is enabled (future feature)
+    // Check if stem separation is enabled
     const useStemSeparation = document.getElementById('batch-use-stem-separation');
     const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
     
+    let apiEndpoint = '/api/process_batch';
+    
     if (isUsingStemSeparation) {
-        formData.append('use_stem_separation', true);
+        // Stem mode batch processing
+        apiEndpoint = '/api/process_batch_stems';
         
-        // Check which mode is selected (reference vs preset)
-        const batchRadioReference = document.getElementById('batchRadioReference');
-        const batchRadioPreset = document.getElementById('batchRadioPreset');
+        const vocalPresetFile = document.getElementById('batch-vocal-preset-file').files[0];
+        const instrumentalPresetFile = document.getElementById('batch-instrumental-preset-file').files[0];
         
-        if (batchRadioReference && batchRadioReference.checked) {
-            // Reference file mode
-            const referenceFile = document.getElementById('batch-reference-file').files[0];
-            if (referenceFile) {
-                formData.append('reference_file', referenceFile);
-            }
-        } else if (batchRadioPreset && batchRadioPreset.checked) {
-            // Preset mode with stem separation
-            const vocalPresetFile = document.getElementById('batch-vocal-preset-file').files[0];
-            const instrumentalPresetFile = document.getElementById('batch-instrumental-preset-file').files[0];
-            if (vocalPresetFile && instrumentalPresetFile) {
-                formData.append('vocal_preset_file', vocalPresetFile);
-                formData.append('instrumental_preset_file', instrumentalPresetFile);
-            }
+        if (vocalPresetFile && instrumentalPresetFile) {
+            formData.append('vocal_preset_file', vocalPresetFile);
+            formData.append('instrumental_preset_file', instrumentalPresetFile);
         }
+        
+        // Add stem-specific blend ratios and gains
+        const vocalBlendRatio = document.getElementById('batch-vocal-blend-ratio').value / 100.0;
+        const instrumentalBlendRatio = document.getElementById('batch-instrumental-blend-ratio').value / 100.0;
+        const vocalGain = document.getElementById('batch-vocal-gain').value;
+        const instrumentalGain = document.getElementById('batch-instrumental-gain').value;
+        
+        formData.append('vocal_blend_ratio', vocalBlendRatio);
+        formData.append('instrumental_blend_ratio', instrumentalBlendRatio);
+        formData.append('vocal_gain_db', parseFloat(vocalGain));
+        formData.append('instrumental_gain_db', parseFloat(instrumentalGain));
     } else {
-        // Current implementation: Standard preset processing
-        formData.append('use_stem_separation', false);
+        // Standard preset processing
         const presetFile = document.getElementById('batch-preset-file').files[0];
         if (presetFile) {
             formData.append('preset_file', presetFile);
         }
+        
+        // Add standard blend ratio
+        const blendRatio = document.getElementById('batch-blend-ratio').value / 100.0;
+        formData.append('blend_ratio', blendRatio);
     }
     
-    // Add blend ratio
-    const blendRatio = document.getElementById('batch-blend-ratio').value / 100.0;
-    formData.append('blend_ratio', blendRatio);
-    
-    // Add master gain
+    // Add master gain (used in both modes)
     const masterGain = document.getElementById('batch-master-gain').value;
-    formData.append('master_gain', parseFloat(masterGain));
+    if (isUsingStemSeparation) {
+        formData.append('master_gain_db', parseFloat(masterGain));
+    } else {
+        formData.append('master_gain', parseFloat(masterGain));
+    }
     
     // Add limiter setting  
     formData.append('apply_limiter', window.batchLimiterEnabled);
 
     try {
-        const response = await fetch('/api/process_batch', {
+        const response = await fetch(apiEndpoint, {
             method: 'POST',
             body: formData,
         });
@@ -251,30 +256,20 @@ function checkBatchProcessButtonVisibility() {
     
     const hasTargetFiles = batchTargetFiles.files.length > 0;
     
-    // Check if stem separation is enabled (future feature)
+    // Check if stem separation is enabled
     const useStemSeparation = document.getElementById('batch-use-stem-separation');
     const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
     
     let hasRequiredFiles = false;
     
     if (isUsingStemSeparation) {
-        // Future: Complex validation for stem mode
-        const batchRadioReference = document.getElementById('batchRadioReference');
-        const batchRadioPreset = document.getElementById('batchRadioPreset');
-        
-        if (batchRadioReference && batchRadioReference.checked) {
-            // Reference mode: need reference file + target files
-            const referenceFile = document.getElementById('batch-reference-file');
-            hasRequiredFiles = hasTargetFiles && referenceFile && referenceFile.files.length > 0;
-        } else if (batchRadioPreset && batchRadioPreset.checked) {
-            // Preset mode: need vocal + instrumental presets + target files
-            const vocalPreset = document.getElementById('batch-vocal-preset-file');
-            const instrumentalPreset = document.getElementById('batch-instrumental-preset-file');
-            hasRequiredFiles = hasTargetFiles && vocalPreset && vocalPreset.files.length > 0 && 
-                              instrumentalPreset && instrumentalPreset.files.length > 0;
-        }
+        // Stem mode: need vocal + instrumental presets + target files
+        const vocalPreset = document.getElementById('batch-vocal-preset-file');
+        const instrumentalPreset = document.getElementById('batch-instrumental-preset-file');
+        hasRequiredFiles = hasTargetFiles && vocalPreset && vocalPreset.files.length > 0 && 
+                          instrumentalPreset && instrumentalPreset.files.length > 0;
     } else {
-        // Current: Simple preset mode - need preset file + target files
+        // Standard preset mode - need preset file + target files
         const batchPresetFile = document.getElementById('batch-preset-file');
         hasRequiredFiles = hasTargetFiles && batchPresetFile && batchPresetFile.files.length > 0;
     }
@@ -305,7 +300,60 @@ window.handleBatchTargetFilesChange = function() {
     window.checkBatchProcessButtonVisibility();
 };
 
+// Toggle batch reference input visibility based on stem separation mode
+function toggleBatchReferenceInput() {
+    const useStemSeparation = document.getElementById('batch-use-stem-separation');
+    const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
+    
+    // Elements to control
+    const standardPresetDiv = document.getElementById('batch-preset-file-div');
+    const vocalPresetDiv = document.getElementById('batch-vocal-preset-file-div');
+    const instrumentalPresetDiv = document.getElementById('batch-instrumental-preset-file-div');
+    const standardBlendDiv = document.getElementById('batch-standard-blend-div');
+    const stemControlsDiv = document.getElementById('batch-stem-controls');
+    
+    if (isUsingStemSeparation) {
+        // Stem mode: show stem-specific controls
+        if (standardPresetDiv) standardPresetDiv.style.display = 'none';
+        if (vocalPresetDiv) vocalPresetDiv.style.display = 'block';
+        if (instrumentalPresetDiv) instrumentalPresetDiv.style.display = 'block';
+        if (standardBlendDiv) standardBlendDiv.style.display = 'none';
+        if (stemControlsDiv) stemControlsDiv.style.display = 'block';
+        
+        // Remove required attribute from standard preset
+        const standardPresetInput = document.getElementById('batch-preset-file');
+        if (standardPresetInput) standardPresetInput.removeAttribute('required');
+        
+        // Add required attribute to stem presets
+        const vocalPresetInput = document.getElementById('batch-vocal-preset-file');
+        const instrumentalPresetInput = document.getElementById('batch-instrumental-preset-file');
+        if (vocalPresetInput) vocalPresetInput.setAttribute('required', 'required');
+        if (instrumentalPresetInput) instrumentalPresetInput.setAttribute('required', 'required');
+    } else {
+        // Standard mode: show standard controls
+        if (standardPresetDiv) standardPresetDiv.style.display = 'block';
+        if (vocalPresetDiv) vocalPresetDiv.style.display = 'none';
+        if (instrumentalPresetDiv) instrumentalPresetDiv.style.display = 'none';
+        if (standardBlendDiv) standardBlendDiv.style.display = 'block';
+        if (stemControlsDiv) stemControlsDiv.style.display = 'none';
+        
+        // Add required attribute to standard preset
+        const standardPresetInput = document.getElementById('batch-preset-file');
+        if (standardPresetInput) standardPresetInput.setAttribute('required', 'required');
+        
+        // Remove required attribute from stem presets
+        const vocalPresetInput = document.getElementById('batch-vocal-preset-file');
+        const instrumentalPresetInput = document.getElementById('batch-instrumental-preset-file');
+        if (vocalPresetInput) vocalPresetInput.removeAttribute('required');
+        if (instrumentalPresetInput) instrumentalPresetInput.removeAttribute('required');
+    }
+    
+    // Update button visibility
+    window.checkBatchProcessButtonVisibility();
+};
+
 // Export variables and functions that need to be accessed globally
 window.batchLimiterEnabled = true; // Default to enabled
 window.checkBatchProcessButtonVisibility = checkBatchProcessButtonVisibility;
+window.toggleBatchReferenceInput = toggleBatchReferenceInput;
 

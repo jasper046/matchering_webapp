@@ -1287,6 +1287,86 @@ async def create_stem_session(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/process_batch_stems")
+async def process_batch_stems(
+    background_tasks: BackgroundTasks,
+    vocal_preset_file: UploadFile = File(...),
+    instrumental_preset_file: UploadFile = File(...),
+    target_files: List[UploadFile] = File(...),
+    vocal_blend_ratio: float = Form(1.0),
+    instrumental_blend_ratio: float = Form(1.0),
+    vocal_gain_db: float = Form(0.0),
+    instrumental_gain_db: float = Form(0.0),
+    master_gain_db: float = Form(0.0),
+    apply_limiter: bool = Form(True)
+):
+    if not (1 <= len(target_files) <= 20):
+        raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
+
+    if not (0.0 <= vocal_blend_ratio <= 1.0) or not (0.0 <= instrumental_blend_ratio <= 1.0):
+        raise HTTPException(status_code=400, detail="Blend ratios must be between 0.0 and 1.0.")
+
+    if not (-12.0 <= vocal_gain_db <= 12.0) or not (-12.0 <= instrumental_gain_db <= 12.0):
+        raise HTTPException(status_code=400, detail="Gain values must be between -12.0dB and +12.0dB.")
+
+    if not (-12.0 <= master_gain_db <= 12.0):
+        raise HTTPException(status_code=400, detail="Master gain must be between -12.0dB and +12.0dB.")
+
+    # Read all target file contents for duplicate detection
+    target_contents = []
+    for target_file in target_files:
+        content = await target_file.read()
+        target_file.file.seek(0)  # Reset file pointer
+        target_contents.append(content)
+    
+    # Create combined hash for all files
+    combined_content = b"".join(target_contents)
+    file_hash = get_file_hash(combined_content)
+    batch_id = str(uuid.uuid4())
+    
+    if not start_job(batch_id, "process_batch_stems", file_hash):
+        raise HTTPException(status_code=429, detail="Stem batch processing already in progress for these files")
+
+    # Clean up previous processing files
+    files_to_preserve = [vocal_preset_file.filename, instrumental_preset_file.filename]
+    files_to_preserve.extend([f.filename for f in target_files])
+    cleanup_processing_files(files_to_preserve)
+
+    batch_jobs[batch_id] = {"status": "pending", "processed_count": 0, "total_count": len(target_files), "output_files": []}
+
+    # Save preset files
+    vocal_preset_path = os.path.join(UPLOAD_DIR, vocal_preset_file.filename)
+    with open(vocal_preset_path, "wb") as f:
+        shutil.copyfileobj(vocal_preset_file.file, f)
+    
+    instrumental_preset_path = os.path.join(UPLOAD_DIR, instrumental_preset_file.filename)
+    with open(instrumental_preset_path, "wb") as f:
+        shutil.copyfileobj(instrumental_preset_file.file, f)
+
+    # Save target files
+    target_file_paths = []
+    for i, target_file in enumerate(target_files):
+        file_location = os.path.join(UPLOAD_DIR, target_file.filename)
+        with open(file_location, "wb") as f:
+            f.write(target_contents[i])
+        target_file_paths.append(file_location)
+
+    background_tasks.add_task(
+        _run_stem_batch_processing,
+        batch_id,
+        vocal_preset_path,
+        instrumental_preset_path,
+        target_file_paths,
+        vocal_blend_ratio,
+        instrumental_blend_ratio,
+        vocal_gain_db,
+        instrumental_gain_db,
+        master_gain_db,
+        apply_limiter
+    )
+
+    return {"message": "Stem batch processing started", "batch_id": batch_id}
+
 @app.post("/api/process_batch")
 async def process_batch(
     background_tasks: BackgroundTasks,
@@ -1343,6 +1423,138 @@ async def process_batch(
         )
 
     return {"message": "Batch processing started", "batch_id": batch_id}
+
+def _run_stem_batch_processing(
+    batch_id: str, 
+    vocal_preset_path: str, 
+    instrumental_preset_path: str, 
+    target_paths: List[str], 
+    vocal_blend_ratio: float, 
+    instrumental_blend_ratio: float, 
+    vocal_gain_db: float, 
+    instrumental_gain_db: float, 
+    master_gain_db: float, 
+    apply_limiter: bool
+):
+    try:
+        # Get preset names for filename generation
+        vocal_preset_name = os.path.splitext(os.path.basename(vocal_preset_path))[0][:8]
+        instrumental_preset_name = os.path.splitext(os.path.basename(instrumental_preset_path))[0][:8]
+        vocal_blend_percentage = int(vocal_blend_ratio * 100)
+        instrumental_blend_percentage = int(instrumental_blend_ratio * 100)
+        
+        for i, target_path in enumerate(target_paths):
+            # Get original filename without extension
+            original_filename = os.path.splitext(os.path.basename(target_path))[0]
+            
+            # Step 1: Separate target into stems
+            separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
+            separator.separate(target_path)
+            
+            # Construct paths for separated target files
+            target_base = os.path.splitext(os.path.basename(target_path))[0]
+            target_vocal_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
+            target_instrumental_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
+            
+            # Step 2: Process vocal stem with vocal preset
+            processed_vocal_path = os.path.join(OUTPUT_DIR, f"batch_vocal_{uuid.uuid4()}.wav")
+            mg.process_with_preset(
+                target=target_vocal_path,
+                preset_path=vocal_preset_path,
+                results=[mg.pcm24(processed_vocal_path)]
+            )
+            
+            # Step 3: Process instrumental stem with instrumental preset
+            processed_instrumental_path = os.path.join(OUTPUT_DIR, f"batch_instrumental_{uuid.uuid4()}.wav")
+            mg.process_with_preset(
+                target=target_instrumental_path,
+                preset_path=instrumental_preset_path,
+                results=[mg.pcm24(processed_instrumental_path)]
+            )
+            
+            # Step 4: Load all audio files for blending
+            target_vocal_audio, sr_vocal = sf.read(target_vocal_path)
+            target_instrumental_audio, sr_instrumental = sf.read(target_instrumental_path)
+            processed_vocal_audio, sr_proc_vocal = sf.read(processed_vocal_path)
+            processed_instrumental_audio, sr_proc_instrumental = sf.read(processed_instrumental_path)
+            
+            # Ensure all arrays have the same number of channels
+            def ensure_stereo(audio):
+                if audio.ndim == 1:
+                    return np.expand_dims(audio, axis=1)
+                return audio
+            
+            target_vocal_audio = ensure_stereo(target_vocal_audio)
+            target_instrumental_audio = ensure_stereo(target_instrumental_audio)
+            processed_vocal_audio = ensure_stereo(processed_vocal_audio)
+            processed_instrumental_audio = ensure_stereo(processed_instrumental_audio)
+            
+            # Find the maximum length and pad all arrays to match
+            max_len = max(len(target_vocal_audio), len(target_instrumental_audio), 
+                         len(processed_vocal_audio), len(processed_instrumental_audio))
+            
+            def pad_to_length(audio, target_len):
+                if len(audio) < target_len:
+                    return np.pad(audio, ((0, target_len - len(audio)), (0,0)), 'constant')
+                return audio[:target_len]
+            
+            target_vocal_audio = pad_to_length(target_vocal_audio, max_len)
+            target_instrumental_audio = pad_to_length(target_instrumental_audio, max_len)
+            processed_vocal_audio = pad_to_length(processed_vocal_audio, max_len)
+            processed_instrumental_audio = pad_to_length(processed_instrumental_audio, max_len)
+            
+            # Step 5: Blend each stem separately
+            blended_vocal = target_vocal_audio * (1 - vocal_blend_ratio) + processed_vocal_audio * vocal_blend_ratio
+            blended_instrumental = target_instrumental_audio * (1 - instrumental_blend_ratio) + processed_instrumental_audio * instrumental_blend_ratio
+            
+            # Apply gain adjustments (convert dB to linear gain)
+            vocal_gain_linear = 10.0 ** (vocal_gain_db / 20.0)
+            instrumental_gain_linear = 10.0 ** (instrumental_gain_db / 20.0)
+            
+            blended_vocal = blended_vocal * vocal_gain_linear
+            blended_instrumental = blended_instrumental * instrumental_gain_linear
+            
+            # Step 6: Combine the processed stems
+            combined_audio = blended_vocal + blended_instrumental
+            
+            # Apply master gain
+            master_gain_linear = 10.0 ** (master_gain_db / 20.0)
+            combined_audio = combined_audio * master_gain_linear
+            
+            if apply_limiter:
+                combined_audio = limit(combined_audio, mg.Config())
+            
+            # Step 7: Generate meaningful filename and save
+            if vocal_blend_ratio == 1.0 and instrumental_blend_ratio == 1.0:
+                # Full processing - format: originalname-out-v_vocalpreset-i_instrumentalpreset.wav
+                output_filename = f"{original_filename}-out-v_{vocal_preset_name}-i_{instrumental_preset_name}.wav"
+            else:
+                # Blended processing - format: originalname-out-v_vocalpreset_blend80-i_instrumentalpreset_blend60.wav
+                output_filename = f"{original_filename}-out-v_{vocal_preset_name}_{vocal_blend_percentage}-i_{instrumental_preset_name}_{instrumental_blend_percentage}.wav"
+            
+            output_path = os.path.join(OUTPUT_DIR, output_filename)
+            sf.write(output_path, combined_audio, sr_vocal, subtype='PCM_24')
+            
+            # Clean up temporary files
+            os.remove(target_vocal_path)
+            os.remove(target_instrumental_path)
+            os.remove(processed_vocal_path)
+            os.remove(processed_instrumental_path)
+            os.remove(target_path)
+            
+            # Update progress
+            batch_jobs[batch_id]["processed_count"] = i + 1
+            batch_jobs[batch_id]["output_files"].append(output_path)
+        
+        batch_jobs[batch_id]["status"] = "completed"
+    except Exception as e:
+        batch_jobs[batch_id]["status"] = "failed"
+        batch_jobs[batch_id]["error"] = str(e)
+    finally:
+        finish_job(batch_id)
+        # Clean up preset files
+        os.remove(vocal_preset_path)
+        os.remove(instrumental_preset_path)
 
 def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float, apply_limiter: bool, master_gain: float):
     try:

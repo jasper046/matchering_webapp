@@ -279,8 +279,8 @@
                 <section class="mt-3">
                     <h2>Batch Mastering</h2>
                     <form id="process-batch-form">
-                        <!-- Future: Stem Separation Option (hidden for now) -->
-                        <div class="form-check mb-3" id="batch-stem-separation-selection" style="display:none;">
+                        <!-- Stem Separation Option -->
+                        <div class="form-check mb-3" id="batch-stem-separation-selection">
                             <input class="form-check-input" type="checkbox" value="" id="batch-use-stem-separation">
                             <label class="form-check-label" for="batch-use-stem-separation">
                                 Use Stem Separation
@@ -314,7 +314,7 @@
                             <input type="file" class="form-control" id="batch-preset-file" name="preset_file" accept=".pkl" required>
                         </div>
                         
-                        <!-- Future: Stem Preset Files (hidden for now) -->
+                        <!-- Stem Preset Files (shown when stem separation is enabled) -->
                         <div class="mb-3" id="batch-vocal-preset-file-div" style="display:none;">
                             <label for="batch-vocal-preset-file" class="form-label">Vocal Preset File (.pkl)</label>
                             <input type="file" class="form-control" id="batch-vocal-preset-file" name="vocal_preset_file" accept=".pkl">
@@ -324,11 +324,36 @@
                             <input type="file" class="form-control" id="batch-instrumental-preset-file" name="instrumental_preset_file" accept=".pkl">
                         </div>
                         
-                        <div class="mb-3">
+                        <!-- Standard Mode: Single Blend Ratio -->
+                        <div class="mb-3" id="batch-standard-blend-div">
                             <label for="batch-blend-ratio" class="form-label">Blend Ratio (0% = dry/original, 100% = wet/processed)</label>
                             <div class="d-flex align-items-center gap-2">
                                 <input type="number" class="form-control" id="batch-blend-ratio" min="0" max="100" value="100" style="width: 100px;">
                                 <span class="text-light">%</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Stem Mode: Separate Blend Ratios and Gains -->
+                        <div id="batch-stem-controls" style="display:none;">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="batch-vocal-blend-ratio" class="form-label">Vocal Blend Ratio (%)</label>
+                                    <input type="number" class="form-control" id="batch-vocal-blend-ratio" min="0" max="100" value="100">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="batch-instrumental-blend-ratio" class="form-label">Instrumental Blend Ratio (%)</label>
+                                    <input type="number" class="form-control" id="batch-instrumental-blend-ratio" min="0" max="100" value="100">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="batch-vocal-gain" class="form-label">Vocal Gain (dB)</label>
+                                    <input type="number" class="form-control" id="batch-vocal-gain" min="-12" max="12" step="0.1" value="0.0">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="batch-instrumental-gain" class="form-label">Instrumental Gain (dB)</label>
+                                    <input type="number" class="form-control" id="batch-instrumental-gain" min="-12" max="12" step="0.1" value="0.0">
+                                </div>
                             </div>
                         </div>
                         <div class="mb-3">

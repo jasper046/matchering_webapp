@@ -2,6 +2,7 @@
 
 // event_listeners.js
 
+document.addEventListener('DOMContentLoaded', function() {
     // Event listeners for single file conversion form
     const processSingleForm = document.getElementById('process-single-form');
     if (processSingleForm) {
@@ -83,6 +84,11 @@
 
     // Initial check on page load for batch process button visibility
     window.checkBatchProcessButtonVisibility();
+    
+    // Initial call to set the correct UI state for batch mode
+    if (window.toggleBatchReferenceInput) {
+        window.toggleBatchReferenceInput();
+    }
 
     // Limiter toggle for batch processing
     const batchLimiterButton = document.getElementById('batchLimiterButton');
@@ -158,3 +164,4 @@
             }
         });
     }
+});
