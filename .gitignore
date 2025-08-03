@@ -3,3 +3,4 @@ outputs/
 presets/
 uploads/
 docker-compose.override.yml
+server.log
