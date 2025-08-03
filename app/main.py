@@ -23,6 +23,7 @@ matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 from io import BytesIO
 import hashlib
+import subprocess
 
 # --- PyInstaller-aware path helpers ---
 def get_base_dir():
@@ -300,6 +301,51 @@ def get_file_hash(file_content: bytes) -> str:
     """Generate a hash for file content to detect duplicates"""
     return hashlib.md5(file_content).hexdigest()[:16]
 
+def convert_mp3_to_wav(input_path: str) -> str:
+    """
+    Convert MP3 file to WAV format using FFmpeg.
+    
+    Args:
+        input_path: Path to the input MP3 file
+        
+    Returns:
+        Path to the converted WAV file
+        
+    Raises:
+        Exception: If conversion fails
+    """
+    if not input_path.lower().endswith('.mp3'):
+        # Already a WAV file or supported format, return as-is
+        return input_path
+    
+    # Generate output path
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    output_path = os.path.join(os.path.dirname(input_path), f"{base_name}_converted.wav")
+    
+    try:
+        # Use FFmpeg to convert MP3 to WAV
+        # -y overwrites output file if it exists
+        # -acodec pcm_s24le ensures 24-bit PCM output
+        # -ar 44100 sets sample rate to 44.1kHz
+        cmd = [
+            'ffmpeg', '-y', '-i', input_path,
+            '-acodec', 'pcm_s24le',
+            '-ar', '44100',
+            output_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Remove the original MP3 file to save space
+        os.remove(input_path)
+        
+        return output_path
+        
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"FFmpeg conversion failed: {e.stderr}")
+    except Exception as e:
+        raise Exception(f"MP3 to WAV conversion failed: {str(e)}")
+
 def extract_loudest_segment(audio_path: str, segment_duration: float = 30.0, sample_rate: int = 44100) -> str:
     """
     Extract the loudest segment from audio file, similar to matchering's approach.
@@ -401,14 +447,20 @@ async def create_preset(reference_file: UploadFile = File(...)):
     preset_filename = f"{uuid.uuid4()}.pkl"
     preset_path = os.path.join(PRESET_DIR, preset_filename)
 
+    wav_file_location = None
     try:
-        mg.analyze_reference_track(reference=file_location, preset_path=preset_path)
+        # Convert MP3 to WAV if necessary
+        wav_file_location = convert_mp3_to_wav(file_location)
+        
+        mg.analyze_reference_track(reference=wav_file_location, preset_path=preset_path)
         return {"message": "Preset created successfully", "preset_path": preset_path, "suggested_filename": f"{original_filename_base}.pkl"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         finish_job(job_id)
-        os.remove(file_location)
+        # Clean up the converted WAV file (original MP3 was already removed during conversion)
+        if wav_file_location and os.path.exists(wav_file_location):
+            os.remove(wav_file_location)
 
 
 @app.post("/api/process_stems")
@@ -493,6 +545,9 @@ def process_stems_with_presets_sync(
             "message": "(10%) Loading audio separation model..."
         })
         
+        # Convert target from MP3 to WAV if necessary
+        target_wav_path = convert_mp3_to_wav(target_path)
+        
         # Separate the target file into vocal and instrumental stems
         separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
         
@@ -505,10 +560,10 @@ def process_stems_with_presets_sync(
         
         # Use progress interceptor for real-time updates during separation
         with ProgressInterceptor(job_id, "separating_target", 25, 50):
-            separator.separate(target_path)
+            separator.separate(target_wav_path)
         
         # Construct paths for separated target files
-        target_base = os.path.splitext(os.path.basename(target_path))[0]
+        target_base = os.path.splitext(os.path.basename(target_wav_path))[0]
         target_vocal_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
         target_instrumental_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
 
@@ -556,7 +611,9 @@ def process_stems_with_presets_sync(
         })
         
         # Clean up temporary files but KEEP stem files for frontend usage
-        os.remove(target_path)
+        # target_path was already removed during MP3 conversion if it was MP3
+        if os.path.exists(target_path):
+            os.remove(target_path)
         os.remove(vocal_preset_path)
         os.remove(instrumental_preset_path)
         
@@ -592,6 +649,10 @@ def process_stems_with_reference_sync(
             "message": "(10%) Loading audio separation model..."
         })
         
+        # Convert files from MP3 to WAV if necessary
+        target_wav_path = convert_mp3_to_wav(target_path)
+        reference_wav_path = convert_mp3_to_wav(reference_path)
+        
         # Separate the reference file into vocal and instrumental stems
         separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
         
@@ -603,7 +664,7 @@ def process_stems_with_reference_sync(
         })
         
         # Extract loudest segment from reference (much faster than processing entire file)
-        ref_segment_path = extract_loudest_segment(reference_path, segment_duration=30.0)
+        ref_segment_path = extract_loudest_segment(reference_wav_path, segment_duration=30.0)
         
         # Update progress: Separating reference segment
         processing_progress[job_id].update({
@@ -649,10 +710,10 @@ def process_stems_with_reference_sync(
         
         # Use progress interceptor for real-time updates during separation
         with ProgressInterceptor(job_id, "separating_target", 45, 65):
-            separator.separate(target_path)
+            separator.separate(target_wav_path)
         
         # Construct paths for separated target files
-        target_base = os.path.splitext(os.path.basename(target_path))[0]
+        target_base = os.path.splitext(os.path.basename(target_wav_path))[0]
         target_vocal_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
         target_instrumental_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
 
@@ -711,8 +772,11 @@ def process_stems_with_reference_sync(
         })
         
         # Clean up temporary files but KEEP stem files for frontend usage
-        os.remove(target_path)
-        os.remove(reference_path)
+        # target_path and reference_path were already removed during MP3 conversion if they were MP3
+        if os.path.exists(target_path):
+            os.remove(target_path)
+        if os.path.exists(reference_path):
+            os.remove(reference_path)
         if os.path.exists(ref_segment_path):
             os.remove(ref_segment_path)
         if 'ref_vocal_path' in locals():
@@ -850,6 +914,9 @@ async def process_single(
     with open(target_path, "wb") as f:
         f.write(target_content)
 
+    # Convert target file from MP3 to WAV if necessary
+    target_wav_path = convert_mp3_to_wav(target_path)
+
     processed_filename = f"processed_{uuid.uuid4()}.wav"
     processed_path = os.path.join(OUTPUT_DIR, processed_filename)
 
@@ -860,23 +927,27 @@ async def process_single(
             with open(ref_path, "wb") as f:
                 shutil.copyfileobj(reference_file.file, f)
             
+            # Convert reference file from MP3 to WAV if necessary
+            ref_wav_path = convert_mp3_to_wav(ref_path)
+            
             # Generate preset filename
             reference_base = os.path.splitext(reference_file.filename)[0]
             preset_filename = f"{reference_base}.pkl"
             created_preset_path = os.path.join(PRESET_DIR, preset_filename)
             
             # Create preset using analyze_reference_track
-            mg.analyze_reference_track(reference=ref_path, preset_path=created_preset_path)
+            mg.analyze_reference_track(reference=ref_wav_path, preset_path=created_preset_path)
             
             # Step 2: Process target using the created preset
             mg.process_with_preset(
-                target=target_path,
+                target=target_wav_path,
                 preset_path=created_preset_path,
                 results=[mg.pcm24(processed_path)]
             )
             
             # Clean up reference file
-            os.remove(ref_path)
+            if os.path.exists(ref_wav_path):
+                os.remove(ref_wav_path)
             
             # Create streaming session for real-time parameter updates
             session_id = f"stream_{int(time.time() * 1000)}"
@@ -885,7 +956,7 @@ async def process_single(
             from app.api.frame_endpoints import preview_generators, session_parameters
             
             preview_generators[session_id] = {
-                "original_audio_path": target_path,
+                "original_audio_path": target_wav_path,
                 "processed_audio_path": processed_path,
                 "output_dir": OUTPUT_DIR
             }
@@ -903,7 +974,7 @@ async def process_single(
             finish_job(job_id)
             return {
                 "message": "Single file processed successfully",
-                "original_file_path": target_path,
+                "original_file_path": target_wav_path,
                 "processed_file_path": processed_path,
                 "created_preset_path": created_preset_path,
                 "created_preset_filename": preset_filename,
@@ -916,7 +987,7 @@ async def process_single(
             with open(preset_temp_path, "wb") as f:
                 shutil.copyfileobj(preset_file.file, f)
             mg.process_with_preset(
-                target=target_path,
+                target=target_wav_path,
                 preset_path=preset_temp_path,
                 results=[mg.pcm24(processed_path)]
             )
@@ -929,7 +1000,7 @@ async def process_single(
             from app.api.frame_endpoints import preview_generators, session_parameters
             
             preview_generators[session_id] = {
-                "original_audio_path": target_path,
+                "original_audio_path": target_wav_path,
                 "processed_audio_path": processed_path,
                 "output_dir": OUTPUT_DIR
             }
@@ -947,7 +1018,7 @@ async def process_single(
             finish_job(job_id)
             return {
                 "message": "Single file processed successfully",
-                "original_file_path": target_path,
+                "original_file_path": target_wav_path,
                 "processed_file_path": processed_path,
                 "reference_filename": preset_file.filename,
                 "session_id": session_id
@@ -956,7 +1027,7 @@ async def process_single(
         finish_job(job_id)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # Keep target_path for blending, it will be cleaned up later or by a separate cleanup process
+        # Keep target_wav_path for blending, it will be cleaned up later or by a separate cleanup process
         pass
 
 @app.post("/api/blend_and_save")
@@ -1444,15 +1515,18 @@ def _run_stem_batch_processing(
         instrumental_blend_percentage = int(instrumental_blend_ratio * 100)
         
         for i, target_path in enumerate(target_paths):
+            # Convert target from MP3 to WAV if necessary
+            target_wav_path = convert_mp3_to_wav(target_path)
+            
             # Get original filename without extension
             original_filename = os.path.splitext(os.path.basename(target_path))[0]
             
             # Step 1: Separate target into stems
             separator.load_model(model_filename="UVR-MDX-NET-Voc_FT.onnx")
-            separator.separate(target_path)
+            separator.separate(target_wav_path)
             
             # Construct paths for separated target files
-            target_base = os.path.splitext(os.path.basename(target_path))[0]
+            target_base = os.path.splitext(os.path.basename(target_wav_path))[0]
             target_vocal_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
             target_instrumental_path = os.path.join(OUTPUT_DIR, f"{target_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
             
@@ -1540,7 +1614,9 @@ def _run_stem_batch_processing(
             os.remove(target_instrumental_path)
             os.remove(processed_vocal_path)
             os.remove(processed_instrumental_path)
-            os.remove(target_path)
+            # target_path was already removed during MP3 conversion if it was MP3
+            if os.path.exists(target_path):
+                os.remove(target_path)
             
             # Update progress
             batch_jobs[batch_id]["processed_count"] = i + 1
@@ -1563,6 +1639,9 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
         blend_percentage = int(blend_ratio * 100)
         
         for i, target_path in enumerate(target_paths):
+            # Convert target from MP3 to WAV if necessary
+            target_wav_path = convert_mp3_to_wav(target_path)
+            
             # Get original filename without extension
             original_filename = os.path.splitext(os.path.basename(target_path))[0]
             
@@ -1574,7 +1653,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 if master_gain == 0.0:
                     # No gain adjustment needed, use direct processing
                     mg.process_with_preset(
-                        target=target_path,
+                        target=target_wav_path,
                         preset_path=preset_path,
                         results=[mg.pcm24(output_path)]
                     )
@@ -1584,7 +1663,7 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                     temp_processed_path = os.path.join(OUTPUT_DIR, temp_processed_filename)
                     
                     mg.process_with_preset(
-                        target=target_path,
+                        target=target_wav_path,
                         preset_path=preset_path,
                         results=[mg.pcm24(temp_processed_path)]
                     )
@@ -1606,13 +1685,13 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 
                 # Process the file first
                 mg.process_with_preset(
-                    target=target_path,
+                    target=target_wav_path,
                     preset_path=preset_path,
                     results=[mg.pcm24(processed_path)]
                 )
                 
                 # Then blend original and processed
-                original_audio, sr_orig = sf.read(target_path)
+                original_audio, sr_orig = sf.read(target_wav_path)
                 processed_audio, sr_proc = sf.read(processed_path)
                 
                 # Ensure both arrays have the same number of channels
@@ -1650,7 +1729,10 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
             
             batch_jobs[batch_id]["processed_count"] = i + 1
             batch_jobs[batch_id]["output_files"].append(output_path)
-            os.remove(target_path) # Clean up processed target file
+            # Clean up processed target files
+            # target_path was already removed during MP3 conversion if it was MP3
+            if os.path.exists(target_path):
+                os.remove(target_path)
 
         batch_jobs[batch_id]["status"] = "completed"
     except Exception as e:
@@ -1804,6 +1886,9 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
             "message": "Initializing stem separation..."
         }
         
+        # Convert from MP3 to WAV if necessary
+        audio_wav_path = convert_mp3_to_wav(audio_path)
+        
         # Initialize separator
         processing_progress[job_id].update({
             "stage": "loading_model",
@@ -1826,10 +1911,10 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
         
         # Use progress interceptor to track separation progress
         with ProgressInterceptor(job_id):
-            separator.separate(audio_path)
+            separator.separate(audio_wav_path)
         
         # Construct paths for separated files (library generates these)
-        audio_base = os.path.splitext(os.path.basename(audio_path))[0]
+        audio_base = os.path.splitext(os.path.basename(audio_wav_path))[0]
         temp_vocal_path = os.path.join(OUTPUT_DIR, f"{audio_base}_(Vocals)_UVR-MDX-NET-Voc_FT.wav")
         temp_instrumental_path = os.path.join(OUTPUT_DIR, f"{audio_base}_(Instrumental)_UVR-MDX-NET-Voc_FT.wav")
         
@@ -1872,6 +1957,7 @@ def separate_stems_background(audio_path: str, job_id: str, original_filename: s
     finally:
         # Clean up job tracking and input file
         finish_job(job_id)
+        # audio_path was already removed during MP3 conversion if it was MP3
         if os.path.exists(audio_path):
             os.remove(audio_path)
 

@@ -46,8 +46,8 @@
                     <h2>Single File Mastering</h2>
                     <form id="process-single-form">
                         <div class="mb-3">
-                            <label for="target-file-single" class="form-label">Audio Source File (.wav)</label>
-                            <input type="file" class="form-control" id="target-file-single" name="target_file" accept=".wav" required>
+                            <label for="target-file-single" class="form-label">Audio Source File (.wav, .mp3)</label>
+                            <input type="file" class="form-control" id="target-file-single" name="target_file" accept=".wav,.mp3" required>
                         </div>
                         <div class="form-check mb-3" id="stem-separation-selection" style="display:none;">
                             <input class="form-check-input" type="checkbox" value="" id="use-stem-separation">
@@ -60,7 +60,7 @@
                             <div class="d-flex gap-3">
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input visually-hidden" type="radio" name="reference_type" id="radioReference" value="reference">
-                                    <label class="form-check-label radio-button-label" for="radioReference">Audio Reference File (.wav)</label>
+                                    <label class="form-check-label radio-button-label" for="radioReference">Audio Reference File (.wav, .mp3)</label>
                                 </div>
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input visually-hidden" type="radio" name="reference_type" id="radioPreset" value="preset">
@@ -69,8 +69,8 @@
                             </div>
                         </div>
                         <div class="mb-3" id="reference-file-single-div" style="display:none;">
-                            <label for="reference-file-single" class="form-label">Audio Reference File (.wav)</label>
-                            <input type="file" class="form-control" id="reference-file-single" name="reference_file" accept=".wav">
+                            <label for="reference-file-single" class="form-label">Audio Reference File (.wav, .mp3)</label>
+                            <input type="file" class="form-control" id="reference-file-single" name="reference_file" accept=".wav,.mp3">
                         </div>
                         <div class="mb-3" id="preset-file-single-div" style="display:none;">
                             <label for="preset-file-single" class="form-label">Preset File (.pkl)</label>
@@ -262,8 +262,8 @@
                     <p class="text-muted">Separate any audio file into vocal and instrumental stems.</p>
                     <form id="stem-separation-form">
                         <div class="mb-3">
-                            <label for="stem-audio-file" class="form-label">Audio File (.wav)</label>
-                            <input type="file" class="form-control" id="stem-audio-file" name="audio_file" accept=".wav" required>
+                            <label for="stem-audio-file" class="form-label">Audio File (.wav, .mp3)</label>
+                            <input type="file" class="form-control" id="stem-audio-file" name="audio_file" accept=".wav,.mp3" required>
                         </div>
                         <button type="submit" id="separate-stems-button" class="btn btn-primary">Separate Stems</button>
                     </form>
@@ -293,7 +293,7 @@
                             <div class="d-flex gap-3">
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input visually-hidden" type="radio" name="batch_reference_type" id="batchRadioReference" value="reference">
-                                    <label class="form-check-label radio-button-label" for="batchRadioReference">Audio Reference File (.wav)</label>
+                                    <label class="form-check-label radio-button-label" for="batchRadioReference">Audio Reference File (.wav, .mp3)</label>
                                 </div>
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input visually-hidden" type="radio" name="batch_reference_type" id="batchRadioPreset" value="preset" checked>
@@ -304,8 +304,8 @@
                         
                         <!-- Future: Reference File (hidden for now) -->
                         <div class="mb-3" id="batch-reference-file-div" style="display:none;">
-                            <label for="batch-reference-file" class="form-label">Audio Reference File (.wav)</label>
-                            <input type="file" class="form-control" id="batch-reference-file" name="reference_file" accept=".wav">
+                            <label for="batch-reference-file" class="form-label">Audio Reference File (.wav, .mp3)</label>
+                            <input type="file" class="form-control" id="batch-reference-file" name="reference_file" accept=".wav,.mp3">
                         </div>
                         
                         <!-- Current: Standard Preset File -->
@@ -373,8 +373,8 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label for="batch-target-files" class="form-label">Audio Source Files (.wav) (1-20)</label>
-                            <input type="file" class="form-control" id="batch-target-files" name="target_files" accept=".wav" multiple required>
+                            <label for="batch-target-files" class="form-label">Audio Source Files (.wav, .mp3) (1-20)</label>
+                            <input type="file" class="form-control" id="batch-target-files" name="target_files" accept=".wav,.mp3" multiple required>
                         </div>
                         <button type="submit" id="start-batch-button" class="btn btn-primary" style="display:none;">Start Batch Mastering</button>
                     </form>
@@ -391,8 +391,8 @@
                     <h2>Create Preset</h2>
                     <form id="create-preset-form">
                         <div class="mb-3">
-                            <label for="reference-file-preset" class="form-label">Audio Reference File (.wav)</label>
-                            <input type="file" class="form-control" id="reference-file-preset" name="reference_file" accept=".wav" required>
+                            <label for="reference-file-preset" class="form-label">Audio Reference File (.wav, .mp3)</label>
+                            <input type="file" class="form-control" id="reference-file-preset" name="reference_file" accept=".wav,.mp3" required>
                         </div>
                         <button type="submit" id="create-preset-button" class="btn btn-primary">Create Preset</button>
                     </form>
