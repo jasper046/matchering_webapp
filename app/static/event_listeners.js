@@ -272,9 +272,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const vocalEnableBtn = document.getElementById('vocal-enable-btn');
     if (vocalEnableBtn) {
         vocalEnableBtn.addEventListener('click', () => {
+            console.log('Vocal mute button clicked, before:', window.vocalMuted);
             window.vocalMuted = !window.vocalMuted;
             vocalEnableBtn.setAttribute('data-enabled', !window.vocalMuted);
             vocalEnableBtn.querySelector('.btn-text').textContent = window.vocalMuted ? 'Off' : 'On';
+            console.log('Vocal mute button clicked, after:', window.vocalMuted, 'UI text:', vocalEnableBtn.querySelector('.btn-text').textContent);
             
             // Send parameters via unified controller
             if (window.unifiedAudioController) {
@@ -286,9 +288,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const instrumentalEnableBtn = document.getElementById('instrumental-enable-btn');
     if (instrumentalEnableBtn) {
         instrumentalEnableBtn.addEventListener('click', () => {
+            console.log('Instrumental mute button clicked, before:', window.instrumentalMuted);
             window.instrumentalMuted = !window.instrumentalMuted;
             instrumentalEnableBtn.setAttribute('data-enabled', !window.instrumentalMuted);
             instrumentalEnableBtn.querySelector('.btn-text').textContent = window.instrumentalMuted ? 'Off' : 'On';
+            console.log('Instrumental mute button clicked, after:', window.instrumentalMuted, 'UI text:', instrumentalEnableBtn.querySelector('.btn-text').textContent);
             
             // Send parameters via unified controller
             if (window.unifiedAudioController) {

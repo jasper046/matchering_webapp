@@ -58,7 +58,14 @@ class UnifiedAudioController {
             };
 
             audioStream.updateParameters(params);
-            console.log('Sent stem parameters via WebSocket');
+            console.log('Sent stem parameters via WebSocket:', {
+                vocal_blend: window.currentVocalBlend,
+                vocal_blend_ratio: params.vocal_blend_ratio,
+                vocal_muted: params.vocal_muted,
+                instrumental_blend: window.currentInstrumentalBlend,
+                instrumental_blend_ratio: params.instrumental_blend_ratio,
+                instrumental_muted: params.instrumental_muted
+            });
 
         } else if (mode === 'regular') {
             // Regular mode parameters

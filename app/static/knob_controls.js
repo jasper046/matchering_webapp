@@ -11,8 +11,8 @@ let currentVocalGain = 0;
 let currentInstrumentalGain = 0;
 let currentMasterGain = 0;  // Master gain adjust for limiter input
 let limiterEnabled = true;  // Limiter on/off state
-let vocalMuted = false;
-let instrumentalMuted = false;
+// Use global mute state variables managed by event_listeners.js
+// window.vocalMuted and window.instrumentalMuted are initialized there
 let isDraggingVocal = false;
 let isDraggingInstrumental = false;
 let isDraggingVocalGain = false;
@@ -279,27 +279,8 @@ function initializeDualKnobs() {
         }
     }
     
-    // Initialize enable buttons
-    const vocalEnableBtn = document.getElementById('vocal-enable-btn');
-    const instrumentalEnableBtn = document.getElementById('instrumental-enable-btn');
-    
-    if (vocalEnableBtn) {
-        vocalEnableBtn.addEventListener('click', () => {
-            vocalMuted = !vocalMuted;
-            vocalEnableBtn.setAttribute('data-enabled', !vocalMuted);
-            vocalEnableBtn.querySelector('.btn-text').textContent = vocalMuted ? 'MUTE' : 'ON';
-            window.updateDualStemMix();
-        });
-    }
-    
-    if (instrumentalEnableBtn) {
-        instrumentalEnableBtn.addEventListener('click', () => {
-            instrumentalMuted = !instrumentalMuted;
-            instrumentalEnableBtn.setAttribute('data-enabled', !instrumentalMuted);
-            instrumentalEnableBtn.querySelector('.btn-text').textContent = instrumentalMuted ? 'MUTE' : 'ON';
-            window.updateDualStemMix();
-        });
-    }
+    // Mute button event listeners are handled centrally in event_listeners.js
+    // This avoids duplicate listeners and ensures consistent text/state management
     
     // Initial draw
     drawDualKnobs();
@@ -316,8 +297,7 @@ function initializeDualKnobs() {
     window.currentInstrumentalBlend = currentInstrumentalBlend;
     window.currentVocalGain = currentVocalGain;
     window.currentInstrumentalGain = currentInstrumentalGain;
-    window.vocalMuted = vocalMuted;
-    window.instrumentalMuted = instrumentalMuted;
+    // Mute state is managed globally in window.vocalMuted and window.instrumentalMuted
 }
 
 function updateDualKnobTextInputs() {
@@ -876,8 +856,8 @@ window.resetKnobControls = function() {
     currentInstrumentalGain = 0;
     currentMasterGain = 0;
     limiterEnabled = true;
-    vocalMuted = false;
-    instrumentalMuted = false;
+    window.vocalMuted = false;
+    window.instrumentalMuted = false;
     
     // Reset all drag states
     isDragging = false;
@@ -928,8 +908,7 @@ window.resetKnobControls = function() {
     
     // Update window variables
     window.currentBlendValue = currentBlendValue;
-    window.vocalMuted = vocalMuted;
-    window.instrumentalMuted = instrumentalMuted;
+    // Mute state is managed globally in window.vocalMuted and window.instrumentalMuted
     
     console.log('Knob controls reset to defaults');
 };

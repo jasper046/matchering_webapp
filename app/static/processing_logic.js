@@ -373,6 +373,24 @@ async function generateBlendPreviewInternal() {
 window.handleProcessSingleFormSubmit = async (event) => {
     event.preventDefault(); // Prevent default form submission
     
+    // Always cleanup previous sessions when starting new processing
+    // This ensures fresh processing even when using the same file
+    if (window.stemWebSocketAudioStream && window.stemWebSocketAudioStream.isConnected()) {
+        console.log('Cleaning up previous stem WebSocket connection before processing');
+        window.stemWebSocketAudioStream.disconnect();
+        window.stemWebSocketAudioStream = null;
+    }
+    
+    if (window.webSocketAudioStream && window.webSocketAudioStream.isConnected()) {
+        console.log('Cleaning up previous WebSocket connection before processing');
+        window.webSocketAudioStream.disconnect();
+        window.webSocketAudioStream = null;
+    }
+    
+    // Clear session IDs to force fresh processing
+    window.stemStreamingSessionId = null;
+    window.streamingSessionId = null;
+    
     const form = event.target;
     const statusDiv = document.getElementById('process-single-status');
     
