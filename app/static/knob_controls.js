@@ -25,6 +25,7 @@ let instrumentalGainDragStartValue = 0;
 let masterGainDragStartY = 0;
 let masterGainDragStartValue = 0;
 
+
 function initializeKnob() {
     const blendKnobCanvas = document.getElementById('blend-knob');
     if (!blendKnobCanvas) return;
@@ -39,6 +40,14 @@ function initializeKnob() {
     
     // Add event listeners
     canvas.addEventListener('mousedown', startDrag);
+    canvas.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Double-click detected on blend knob');
+        // Stop any active dragging
+        isDragging = false;
+        resetBlendKnob();
+    });
     
     // Add touch events for mobile
     canvas.addEventListener('touchstart', startDragTouch);
@@ -96,6 +105,14 @@ function initializeMasterGainKnob() {
     
     // Add mouse event listeners
     masterGainKnob.addEventListener('mousedown', startDragMasterGain);
+    masterGainKnob.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Double-click detected on master gain knob');
+        // Stop any active dragging
+        isDraggingMasterGain = false;
+        resetMasterGainKnob();
+    });
     masterGainKnob.addEventListener('touchstart', startDragMasterGainTouch);
     
     // Add wheel event for fine adjustment
@@ -165,10 +182,26 @@ function initializeDualKnobs() {
     
     // Add event listeners for vocal knob
     vocalKnob.addEventListener('mousedown', (e) => startDragVocal(e));
+    vocalKnob.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Double-click detected on vocal blend knob');
+        // Stop any active dragging
+        isDraggingVocal = false;
+        resetVocalBlendKnob();
+    });
     vocalKnob.addEventListener('touchstart', (e) => startDragVocalTouch(e));
     
     // Add event listeners for instrumental knob
     instrumentalKnob.addEventListener('mousedown', (e) => startDragInstrumental(e));
+    instrumentalKnob.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Double-click detected on instrumental blend knob');
+        // Stop any active dragging
+        isDraggingInstrumental = false;
+        resetInstrumentalBlendKnob();
+    });
     instrumentalKnob.addEventListener('touchstart', (e) => startDragInstrumentalTouch(e));
     
     // Global mouse/touch events for dragging
@@ -227,8 +260,24 @@ function initializeDualKnobs() {
         
         // Add drag functionality for gain knobs
         vocalGainKnob.addEventListener('mousedown', (e) => startDragVocalGain(e));
+        vocalGainKnob.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Double-click detected on vocal gain knob');
+            // Stop any active dragging
+            isDraggingVocalGain = false;
+            resetVocalGainKnob();
+        });
         vocalGainKnob.addEventListener('touchstart', (e) => startDragVocalGainTouch(e));
         instrumentalGainKnob.addEventListener('mousedown', (e) => startDragInstrumentalGain(e));
+        instrumentalGainKnob.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Double-click detected on instrumental gain knob');
+            // Stop any active dragging
+            isDraggingInstrumentalGain = false;
+            resetInstrumentalGainKnob();
+        });
         instrumentalGainKnob.addEventListener('touchstart', (e) => startDragInstrumentalGainTouch(e));
         
         // Add gain knob wheel event listeners
@@ -824,8 +873,7 @@ window.currentVocalGain = currentVocalGain;
 window.currentInstrumentalGain = currentInstrumentalGain;
 window.currentMasterGain = currentMasterGain;
 window.limiterEnabled = limiterEnabled;
-window.vocalMuted = vocalMuted;
-window.instrumentalMuted = instrumentalMuted;
+// Mute state variables are managed globally as window.vocalMuted and window.instrumentalMuted
 window.updateDualKnobTextInputs = updateDualKnobTextInputs;
 window.startDragVocal = startDragVocal;
 window.startDragInstrumental = startDragInstrumental;
@@ -912,3 +960,130 @@ window.resetKnobControls = function() {
     
     console.log('Knob controls reset to defaults');
 };
+
+// Double-click reset functions for all knobs
+function resetBlendKnob() {
+    currentBlendValue = 50; // Default blend value
+    window.currentBlendValue = currentBlendValue;
+    
+    // Update text input
+    const textInput = document.getElementById('blend-value');
+    if (textInput) {
+        textInput.value = Math.round(currentBlendValue);
+    }
+    
+    // Redraw knob
+    drawKnob();
+    
+    // Update audio if session is active
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
+    }
+    
+    console.log('Blend knob reset to default:', currentBlendValue);
+}
+
+function resetMasterGainKnob() {
+    currentMasterGain = 0; // Default master gain
+    window.currentMasterGain = currentMasterGain;
+    
+    // Update text input
+    const textInput = document.getElementById('master-gain-value');
+    if (textInput) {
+        textInput.value = currentMasterGain.toFixed(1);
+    }
+    
+    // Redraw knob
+    drawGainKnobOnCanvas('master-gain-knob', currentMasterGain);
+    
+    // Update audio if session is active
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
+    }
+    
+    console.log('Master gain knob reset to default:', currentMasterGain);
+}
+
+function resetVocalBlendKnob() {
+    currentVocalBlend = 50; // Default vocal blend value
+    window.currentVocalBlend = currentVocalBlend;
+    
+    // Update text input
+    const textInput = document.getElementById('vocal-blend-value');
+    if (textInput) {
+        textInput.value = Math.round(currentVocalBlend);
+    }
+    
+    // Redraw knob
+    drawKnobOnCanvas('vocal-blend-knob', currentVocalBlend);
+    
+    // Update audio if session is active
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
+    }
+    
+    console.log('Vocal blend knob reset to default:', currentVocalBlend);
+}
+
+function resetInstrumentalBlendKnob() {
+    currentInstrumentalBlend = 50; // Default instrumental blend value
+    window.currentInstrumentalBlend = currentInstrumentalBlend;
+    
+    // Update text input
+    const textInput = document.getElementById('instrumental-blend-value');
+    if (textInput) {
+        textInput.value = Math.round(currentInstrumentalBlend);
+    }
+    
+    // Redraw knob
+    drawKnobOnCanvas('instrumental-blend-knob', currentInstrumentalBlend);
+    
+    // Update audio if session is active
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
+    }
+    
+    console.log('Instrumental blend knob reset to default:', currentInstrumentalBlend);
+}
+
+function resetVocalGainKnob() {
+    currentVocalGain = 0; // Default vocal gain
+    window.currentVocalGain = currentVocalGain;
+    
+    // Update text input
+    const textInput = document.getElementById('vocal-gain-value');
+    if (textInput) {
+        textInput.value = currentVocalGain.toFixed(1);
+    }
+    
+    // Redraw knob
+    drawGainKnobOnCanvas('vocal-gain-knob', currentVocalGain);
+    
+    // Update audio if session is active
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
+    }
+    
+    console.log('Vocal gain knob reset to default:', currentVocalGain);
+}
+
+function resetInstrumentalGainKnob() {
+    currentInstrumentalGain = 0; // Default instrumental gain
+    window.currentInstrumentalGain = currentInstrumentalGain;
+    
+    // Update text input
+    const textInput = document.getElementById('instrumental-gain-value');
+    if (textInput) {
+        textInput.value = currentInstrumentalGain.toFixed(1);
+    }
+    
+    // Redraw knob
+    drawGainKnobOnCanvas('instrumental-gain-knob', currentInstrumentalGain);
+    
+    // Update audio if session is active
+    if (window.unifiedAudioController) {
+        window.unifiedAudioController.sendParameters();
+    }
+    
+    console.log('Instrumental gain knob reset to default:', currentInstrumentalGain);
+}
