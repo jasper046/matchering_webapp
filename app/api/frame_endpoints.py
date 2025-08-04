@@ -424,31 +424,7 @@ def create_wav_header(num_samples, sample_rate, channels):
     
     return header
 
-@frame_router.post("/parameters/{session_id}")
-async def update_parameters(session_id: str, params: dict):
-    """
-    Updates the real-time processing parameters for a session.
-    Frontend calls this when controls change.
-    """
-    if not session_id or session_id not in preview_generators:
-        raise HTTPException(
-            status_code=404,
-            detail="Invalid or expired session ID"
-        )
-    
-    # Store current parameters for this session
-    session_parameters[session_id] = {
-        "blend_ratio": params.get('blend_ratio', 0.5),
-        "master_gain_db": params.get('master_gain_db', 0.0),
-        "vocal_gain_db": params.get('vocal_gain_db', 0.0),
-        "instrumental_gain_db": params.get('instrumental_gain_db', 0.0),
-        "limiter_enabled": params.get('limiter_enabled', True),
-        "is_stem_mode": params.get('is_stem_mode', False)
-    }
-    
-    logger.info(f"Updated parameters for session {session_id}: {session_parameters[session_id]}")
-    
-    return {"success": True, "message": "Parameters updated"}
+# HTTP parameter update endpoint removed - WebSocket-only parameter updates via /ws/{session_id}
 
 
 @frame_router.get("/websocket/status")

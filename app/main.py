@@ -178,9 +178,16 @@ def generate_waveform_png(original_path, processed_path, width=800, height=120):
         original_audio = downsample_audio(original_audio, target_samples)
         processed_audio = downsample_audio(processed_audio, target_samples)
         
-        # Normalize
-        original_audio = original_audio / (np.max(np.abs(original_audio)) + 1e-8)
-        processed_audio = processed_audio / (np.max(np.abs(processed_audio)) + 1e-8)
+        # Improved waveform scaling: use unified normalization to preserve relative amplitudes
+        # This prevents processed audio from appearing clipped when it's actually louder
+        original_max = np.max(np.abs(original_audio))
+        processed_max = np.max(np.abs(processed_audio))
+        global_max = max(original_max, processed_max)
+        
+        # Normalize both audio files using the same scale (preserving relative amplitudes)
+        scale_factor = 1.0 / (global_max + 1e-8)
+        original_audio = original_audio * scale_factor
+        processed_audio = processed_audio * scale_factor
         
         # Create plot
         fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
@@ -211,9 +218,14 @@ def generate_waveform_png(original_path, processed_path, width=800, height=120):
         # Center line
         ax.axhline(y=0, color='#666', linewidth=1, alpha=0.7)
         
-        # Style
+        # Style with improved Y scaling
         ax.set_xlim(0, 1)
-        ax.set_ylim(-1, 1)
+        
+        # Find actual data range and add 25% margin as suggested
+        actual_max = max(np.max(original_positive), abs(np.min(processed_negative)))
+        y_limit = actual_max * 1.25  # 25% margin for better visualization
+        
+        ax.set_ylim(-y_limit, y_limit)
         ax.axis('off')
         
         # Save to bytes

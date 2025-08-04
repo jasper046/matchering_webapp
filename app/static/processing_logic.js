@@ -132,41 +132,7 @@ function toggleReferenceInput() {
 }
 
 // Simple function to send current parameters to backend (seamless updates)
-window.sendParametersToBackend = async () => {
-    if (!window.streamingSessionId) {
-        console.warn('No streaming session ID available');
-        return;
-    }
-    
-    const params = {
-        blend_ratio: (window.currentBlendValue || 50) / 100.0,
-        master_gain_db: window.currentMasterGain || 0.0,
-        vocal_gain_db: window.currentVocalGain || 0.0,
-        instrumental_gain_db: window.currentInstrumentalGain || 0.0,
-        limiter_enabled: window.limiterEnabled !== undefined ? window.limiterEnabled : true,
-        is_stem_mode: window.isCurrentlyStemMode()
-    };
-    
-    try {
-        const response = await fetch(`/api/frame/parameters/${window.streamingSessionId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(params)
-        });
-        
-        if (response.ok) {
-            // Parameters updated successfully - no stream reload needed!
-            // The backend will apply new parameters to subsequent chunks seamlessly
-            console.log('Parameters updated seamlessly');
-        } else {
-            console.warn('Failed to update parameters:', response.statusText);
-        }
-    } catch (error) {
-        console.warn('Error sending parameters to backend:', error);
-    }
-};
+// Legacy HTTP parameter update function removed - we now use WebSocket-only updates via unified audio controller
 
 // Update preview function for master gain compatibility
 window.updatePreview = () => {
@@ -711,70 +677,23 @@ window.handleTargetFileSingleChange = () => {
 window.handleStemSeparationChange = () => {
     console.log('Stem separation mode changed');
     
-    // Clear any previous results and status
-    const singleConversionResults = document.getElementById('single-conversion-results');
-    const processSingleStatus = document.getElementById('process-single-status');
-    const saveBlendStatus = document.getElementById('save-blend-status');
+    // Only update UI visibility, don't clear active processing
+    // This allows users to switch between stem/non-stem modes without losing their session
     
-    if (singleConversionResults) {
-        singleConversionResults.style.display = 'none';
-    }
-    if (processSingleStatus) {
-        processSingleStatus.innerHTML = '';
-        // Clear preset download data when switching modes
-        delete processSingleStatus.dataset.vocalPresetPath;
-        delete processSingleStatus.dataset.instrumentalPresetPath;
-        delete processSingleStatus.dataset.vocalPresetFilename;
-        delete processSingleStatus.dataset.instrumentalPresetFilename;
-        delete processSingleStatus.dataset.createdPresetPath;
-        delete processSingleStatus.dataset.createdPresetFilename;
-    }
-    if (saveBlendStatus) {
-        saveBlendStatus.innerHTML = '';
-    }
-    
-    // Remove any existing preset download section
-    const existingPresetSection = document.getElementById('preset-download-section');
-    if (existingPresetSection) {
-        existingPresetSection.remove();
-    }
-    
-    // Clear stored file paths and session data
-    if (typeof window !== 'undefined') {
-        window.originalFilePath = null;
-        window.processedFilePath = null;
-        window.referenceFilename = null;
-        window.streamingSessionId = null;
-        
-        // Stop any active audio playback
-        if (window.stopAudio) {
-            window.stopAudio();
-        }
-        
-        // Disconnect WebSocket if active
-        if (window.webSocketAudioStream && window.webSocketAudioStream.isConnected()) {
-            window.webSocketAudioStream.disconnect();
-            window.webSocketAudioStream = null;
-        }
-    }
-    
-    // Reset waveform display
-    const waveformImage = document.getElementById('combined-waveform-image');
-    if (waveformImage) {
-        waveformImage.src = '';
-        waveformImage.alt = '';
-    }
-    
-    // Reset knob controls to default values
-    if (window.resetKnobControls) {
-        window.resetKnobControls();
-    }
-    
-    // Update file input visibility based on current selection
+    // Update the reference input display (show/hide appropriate preset inputs)
     window.toggleReferenceInput();
     
-    // Update process button visibility after cleanup
+    // Update process button visibility
     window.checkProcessButtonVisibility();
+    
+    // Note: We intentionally DON'T clear:
+    // - Active audio sessions (streamingSessionId, webSocketAudioStream)
+    // - Processing results (single-conversion-results)  
+    // - File paths (originalFilePath, processedFilePath)
+    // - Audio playback state
+    // - Waveform displays
+    // - Knob control values
+    // This allows seamless switching between processing modes without interrupting active sessions
 };
 
 // Poll for stem processing progress and handle completion

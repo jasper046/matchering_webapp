@@ -2,25 +2,24 @@
 
 // event_listeners.js
 
-// Page load cleanup - ensure fresh start
+// Page load cleanup - ensure fresh start (but don't disrupt normal usage)
 window.addEventListener('load', function() {
-    // Call comprehensive server-side reset first
-    fetch('/api/reset_application_state', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Application state reset:', data);
-            // Then call frontend cleanup
-            if (window.clearAllProcessing) {
-                window.clearAllProcessing();
-            }
-        })
-        .catch(err => {
-            console.log('Server reset failed, doing frontend cleanup only:', err);
-            // Still do frontend cleanup even if server reset fails
-            if (window.clearAllProcessing) {
-                window.clearAllProcessing();
-            }
-        });
+    // Only do comprehensive reset if this appears to be a page refresh/reload
+    // Check if there are any URL parameters that indicate intentional navigation
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPageRefresh = !urlParams.has('tab') && !document.referrer;
+    
+    if (isPageRefresh) {
+        // Call comprehensive server-side reset only on actual page refreshes
+        fetch('/api/reset_application_state', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Application state reset on page refresh:', data);
+            })
+            .catch(err => {
+                console.log('Server reset failed:', err);
+            });
+    }
 });
 
 // Comprehensive cleanup function 
@@ -77,6 +76,31 @@ window.clearAllProcessing = function() {
             element.style.display = 'none';
         }
     });
+    
+    // Reset mute button states to default (unmuted)
+    window.vocalMuted = false;
+    window.instrumentalMuted = false;
+    
+    // Update mute button UI to reflect reset state
+    const vocalBtn = document.getElementById('vocal-enable-btn');
+    const instrumentalBtn = document.getElementById('instrumental-enable-btn');
+    
+    if (vocalBtn) {
+        vocalBtn.setAttribute('data-enabled', 'true');
+        const btnText = vocalBtn.querySelector('.btn-text');
+        if (btnText) btnText.textContent = 'On';
+    }
+    
+    if (instrumentalBtn) {
+        instrumentalBtn.setAttribute('data-enabled', 'true');
+        const btnText = instrumentalBtn.querySelector('.btn-text');
+        if (btnText) btnText.textContent = 'On';
+    }
+    
+    // Also reset knob controls if available
+    if (window.resetKnobControls) {
+        window.resetKnobControls();
+    }
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -276,19 +300,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Tab switching cleanup - stop all active processing when switching tabs
     const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
     tabButtons.forEach(tabButton => {
-        tabButton.addEventListener('click', function() {
-            // Stop batch processing
-            if (window.clearBatchProcessing) {
-                window.clearBatchProcessing();
+        tabButton.addEventListener('click', function(event) {
+            const targetTab = event.target.getAttribute('data-bs-target');
+            
+            // Only clear processing that's not related to the target tab
+            if (targetTab !== '#single') {
+                // Stop single file processing only when NOT switching to single file tab
+                if (window.currentStreamingSessionId) {
+                    // Stop any active WebSocket connections
+                    if (window.unifiedAudioController && window.unifiedAudioController.websocket) {
+                        window.unifiedAudioController.disconnect();
+                    }
+                    window.currentStreamingSessionId = null;
+                }
             }
             
-            // Stop single file processing (if there's an active session)
-            if (window.currentStreamingSessionId) {
-                // Stop any active WebSocket connections
-                if (window.unifiedAudioController && window.unifiedAudioController.websocket) {
-                    window.unifiedAudioController.disconnect();
+            if (targetTab !== '#batch') {
+                // Stop batch processing only when NOT switching to batch tab
+                if (window.clearBatchProcessing) {
+                    window.clearBatchProcessing();
                 }
-                window.currentStreamingSessionId = null;
             }
             
             // Cancel stem separation processing (always call to ensure cleanup)
@@ -325,6 +356,35 @@ document.addEventListener('DOMContentLoaded', function() {
                     element.style.display = 'none';
                 }
             });
+            
+            // Initialize target tab if needed
+            if (targetTab === '#single') {
+                // Ensure single file processing state is properly initialized
+                setTimeout(() => {
+                    // Restore mute button states if there's an active session
+                    if (window.currentStreamingSessionId) {
+                        const vocalBtn = document.getElementById('vocal-enable-btn');
+                        const instrumentalBtn = document.getElementById('instrumental-enable-btn');
+                        
+                        if (vocalBtn) {
+                            vocalBtn.setAttribute('data-enabled', window.vocalMuted ? 'false' : 'true');
+                            const btnText = vocalBtn.querySelector('.btn-text');
+                            if (btnText) btnText.textContent = window.vocalMuted ? 'Off' : 'On';
+                        }
+                        
+                        if (instrumentalBtn) {
+                            instrumentalBtn.setAttribute('data-enabled', window.instrumentalMuted ? 'false' : 'true');
+                            const btnText = instrumentalBtn.querySelector('.btn-text');
+                            if (btnText) btnText.textContent = window.instrumentalMuted ? 'Off' : 'On';
+                        }
+                        
+                        // Ensure audio controller is connected and ready
+                        if (window.unifiedAudioController) {
+                            window.unifiedAudioController.sendParameters();
+                        }
+                    }
+                }, 100); // Small delay to ensure tab switch is complete
+            }
         });
     });
 });

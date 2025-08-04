@@ -227,28 +227,10 @@ function initializeWebSocketAudio(sessionId) {
 }
 
 // Send parameters to backend via WebSocket
-function sendParametersToBackendWS() {
-    if (!webSocketAudioStream || !webSocketAudioStream.isConnected()) {
-        console.warn('Cannot send parameters: WebSocket audio not connected');
-        return;
-    }
-    
-    const params = {
-        blend_ratio: (window.currentBlendValue || 50) / 100.0,
-        master_gain_db: window.currentMasterGain || 0.0,
-        vocal_gain_db: window.currentVocalGain || 0.0,
-        instrumental_gain_db: window.currentInstrumentalGain || 0.0,
-        limiter_enabled: window.limiterEnabled !== undefined ? window.limiterEnabled : true,
-        is_stem_mode: window.isCurrentlyStemMode()
-    };
-    
-    webSocketAudioStream.updateParameters(params);
-    console.log('Parameters sent via WebSocket');
-}
+// Legacy WebSocket parameter function removed - unified audio controller handles all parameter updates
 
 // Export additional WebSocket functions
 window.initializeWebSocketAudio = initializeWebSocketAudio;
-window.sendParametersToBackendWS = sendParametersToBackendWS;
 
 // Export webSocketAudioStream directly
 window.webSocketAudioStream = webSocketAudioStream;

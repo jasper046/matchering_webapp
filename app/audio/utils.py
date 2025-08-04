@@ -216,7 +216,11 @@ def generate_waveform_image(audio_path: str, output_path: str, width: int = 800,
         fig.patch.set_facecolor('#212529') # Dark background for the figure itself
 
         ax.axis('off')  # Turn off axes
-        ax.set_ylim([-1, 1])  # Normalize y-axis to audio range
+        
+        # Improved Y scaling with 25% margin
+        data_max = np.max(np.abs(data))
+        y_limit = data_max * 1.25 if data_max > 0 else 1.0
+        ax.set_ylim([-y_limit, y_limit])  # Dynamic y-axis range with margin
         ax.set_xlim([0, len(data)]) # Set x-axis limits to data length
 
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0) # Remove padding

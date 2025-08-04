@@ -71,28 +71,14 @@ class UnifiedAudioController {
                 is_stem_mode: false
             };
 
-            if (audioStream && audioStream.isConnected()) {
-                // Use WebSocket if available
-                audioStream.updateParameters(params);
-                console.log('Sent regular parameters via WebSocket');
-            } else {
-                // Fallback to HTTP API
-                try {
-                    const response = await fetch(`/api/frame/parameters/${sessionId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(params)
-                    });
-                    
-                    if (response.ok) {
-                        console.log('Sent regular parameters via HTTP');
-                    } else {
-                        console.warn('Failed to update parameters via HTTP:', response.statusText);
-                    }
-                } catch (error) {
-                    console.warn('Error sending parameters via HTTP:', error);
-                }
+            if (!audioStream || !audioStream.isConnected()) {
+                console.warn('Regular WebSocket not connected - cannot update parameters');
+                return;
             }
+
+            // WebSocket only - no HTTP fallback!
+            audioStream.updateParameters(params);
+            console.log('Sent regular parameters via WebSocket');
         }
     }
 
