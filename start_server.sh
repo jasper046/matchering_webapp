@@ -1,5 +1,17 @@
 #!/bin/bash
 
+if [ ! -d "venv" ]; then
+    echo "Virtual environment 'venv' not found. Creating..."
+    python3 -m venv venv
+    echo "Virtual environment created. Installing dependencies..."
+    source venv/bin/activate
+    pip install -r requirements.txt
+    pip install ./python-audio-separator
+    pip install ./matchering-fork
+    deactivate
+    echo "Dependencies installed."
+fi
+
 PORT=${1:-8000}
 
 # Check if nvidia-smi is available
