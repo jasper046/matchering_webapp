@@ -11,6 +11,7 @@ scipy>=1.16.0
 soundfile>=0.13.0
 resampy>=0.4.3
 statsmodels>=0.14.5
+onnxruntime==1.23.2
 
 # Visualization
 matplotlib>=3.10.0
