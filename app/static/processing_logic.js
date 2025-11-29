@@ -1081,7 +1081,7 @@ window.handleSaveStemBlend = async () => {
     const statusDiv = document.getElementById('save-blend-status') || document.getElementById('process-single-status');
     
     try {
-        statusDiv.innerHTML = '<div class="alert alert-info">Saving stem blend...</div>';
+        statusDiv.innerHTML = '<div class="alert alert-info">Rendering blended output...</div>';
         
         // Extract original filename
         let originalFilename = null;
@@ -1094,11 +1094,17 @@ window.handleSaveStemBlend = async () => {
         formData.append('target_instrumental_path', window.targetInstrumentalPath);
         formData.append('processed_vocal_path', window.processedVocalPath);
         formData.append('processed_instrumental_path', window.processedInstrumentalPath);
-        formData.append('vocal_blend_ratio', (window.currentVocalBlend || 50) / 100.0);
-        formData.append('instrumental_blend_ratio', (window.currentInstrumentalBlend || 50) / 100.0);
-        formData.append('vocal_gain_db', window.currentVocalGain || 0.0);
-        formData.append('instrumental_gain_db', window.currentInstrumentalGain || 0.0);
-        formData.append('master_gain_db', window.currentMasterGain || 0.0);
+        const vocalBlendValue = document.getElementById('vocal-blend-value').value;
+        const instrumentalBlendValue = document.getElementById('instrumental-blend-value').value;
+        const vocalGainValue = document.getElementById('vocal-gain-value').value;
+        const instrumentalGainValue = document.getElementById('instrumental-gain-value').value;
+        const masterGainValue = document.getElementById('master-gain-value').value;
+
+        formData.append('vocal_blend_ratio', (parseFloat(vocalBlendValue) || 50) / 100.0);
+        formData.append('instrumental_blend_ratio', (parseFloat(instrumentalBlendValue) || 50) / 100.0);
+        formData.append('vocal_gain_db', parseFloat(vocalGainValue) || 0.0);
+        formData.append('instrumental_gain_db', parseFloat(instrumentalGainValue) || 0.0);
+        formData.append('master_gain_db', parseFloat(masterGainValue) || 0.0);
         formData.append('vocal_muted', window.vocalMuted || false);
         formData.append('instrumental_muted', window.instrumentalMuted || false);
         formData.append('apply_limiter', window.limiterEnabled !== undefined ? window.limiterEnabled : true);
@@ -1142,10 +1148,10 @@ window.handleSaveStemBlend = async () => {
             }
         } else {
             const error = await response.json();
-            statusDiv.innerHTML = `<div class="alert alert-danger">Error saving stem blend: ${error.detail || 'Save failed'}</div>`;
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error rendering blended output: ${error.detail || 'Save failed'}</div>`;
         }
     } catch (error) {
-        console.error('Error saving stem blend:', error);
+        console.error('Error rendering blended output:', error);
         statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to save stem blend</div>';
     }
 };

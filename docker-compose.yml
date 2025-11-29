@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.cpu
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       - "8010:8000"
     volumes:
@@ -25,6 +28,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.cpu
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       - "8011:8000"
     volumes:
@@ -47,6 +53,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.cpu
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       - "8012:8000"
     volumes:
@@ -70,6 +79,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.gpu
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       - "8000:8000"
     volumes:
@@ -99,6 +111,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.gpu
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       - "8001:8000"
     volumes:

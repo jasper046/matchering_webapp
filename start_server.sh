@@ -18,6 +18,7 @@ PORT=${1:-8000}
 if ! command -v nvidia-smi &> /dev/null
 then
     echo "nvidia-smi not found. Running on CPU."
+    export CUDA_VISIBLE_DEVICES=""
     source venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     exit
 fi
@@ -33,7 +34,7 @@ echo "Available devices:"
 select device in "${choices[@]}"; do
     if [[ "$device" == "CPU" ]]; then
         echo "Starting server on CPU..."
-        # No need to set CUDA_VISIBLE_DEVICES
+        export CUDA_VISIBLE_DEVICES=""
         source venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port $PORT
         break
     elif [[ -n "$device" ]]; then
