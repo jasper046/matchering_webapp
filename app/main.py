@@ -344,27 +344,26 @@ def get_file_hash(file_content: bytes) -> str:
 
 def convert_mp3_to_wav(input_path: str) -> str:
     """
-    Convert MP3 file to WAV format using FFmpeg.
-    
+    Convert any audio file to WAV format at 44100 Hz sample rate using FFmpeg.
+    Originally only converted MP3, now converts all audio to ensure consistent 44100 Hz sample rate.
+
     Args:
-        input_path: Path to the input MP3 file
-        
+        input_path: Path to the input audio file
+
     Returns:
-        Path to the converted WAV file
-        
+        Path to the converted WAV file at 44100 Hz
+
     Raises:
         Exception: If conversion fails
     """
-    if not input_path.lower().endswith('.mp3'):
-        # Already a WAV file or supported format, return as-is
-        return input_path
-    
+    # Check if already WAV and might be 44100 Hz
+    # For now, convert all files to ensure consistent sample rate
     # Generate output path
     base_name = os.path.splitext(os.path.basename(input_path))[0]
     output_path = os.path.join(os.path.dirname(input_path), f"{base_name}_converted.wav")
     
     try:
-        # Use FFmpeg to convert MP3 to WAV
+        # Use FFmpeg to convert any audio to WAV at 44100 Hz
         # -y overwrites output file if it exists
         # -acodec pcm_s24le ensures 24-bit PCM output
         # -ar 44100 sets sample rate to 44.1kHz
@@ -374,18 +373,20 @@ def convert_mp3_to_wav(input_path: str) -> str:
             '-ar', '44100',
             output_path
         ]
-        
+
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        
-        # Remove the original MP3 file to save space
-        os.remove(input_path)
-        
+
+        # Only remove the original if it's MP3 (to save space)
+        # Keep WAV originals since conversion might be lossy
+        if input_path.lower().endswith('.mp3'):
+            os.remove(input_path)
+
         return output_path
-        
+
     except subprocess.CalledProcessError as e:
         raise Exception(f"FFmpeg conversion failed: {e.stderr}")
     except Exception as e:
-        raise Exception(f"MP3 to WAV conversion failed: {str(e)}")
+        raise Exception(f"Audio to WAV conversion failed: {str(e)}")
 
 def extract_loudest_segment(audio_path: str, segment_duration: float = 30.0, sample_rate: int = 44100) -> str:
     """
