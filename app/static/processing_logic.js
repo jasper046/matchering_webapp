@@ -185,7 +185,7 @@ window.handleSaveBlend = async () => {
     const statusDiv = document.getElementById('save-blend-status');
     
     try {
-        statusDiv.innerHTML = '<div class="alert alert-info">Saving blended audio...</div>';
+        statusDiv.innerHTML = '<div class="alert alert-info">Rendering output file...</div>';
         
         // Extract original filename from the file path or stored filename
         let originalFilename = null;
@@ -228,21 +228,21 @@ window.handleSaveBlend = async () => {
                 console.log('Extracted filename:', filename);
                 statusDiv.innerHTML = `
                     <div class="alert alert-success">
-                        Blend saved successfully! 
+                        Render complete!
                         <a href="/download/output/${filename}" target="_blank" class="btn btn-sm btn-outline-success ms-2">Download</a>
                     </div>
                 `;
             } else {
                 console.warn('No blended_file_path in response:', result);
-                statusDiv.innerHTML = '<div class="alert alert-success">Blend saved successfully!</div>';
+                statusDiv.innerHTML = '<div class="alert alert-success">Render complete!</div>';
             }
         } else {
             const error = await response.json();
-            statusDiv.innerHTML = `<div class="alert alert-danger">Error saving blend: ${error.detail || 'Save failed'}</div>`;
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error rendering output file: ${error.detail || 'Render failed'}</div>`;
         }
     } catch (error) {
-        console.error('Error saving blend:', error);
-        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to save blend</div>';
+        console.error('Error rendering output file:', error);
+        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to render output file</div>';
     }
 };
 
@@ -1139,7 +1139,7 @@ window.handleSaveStemBlend = async () => {
     const statusDiv = document.getElementById('save-blend-status') || document.getElementById('process-single-status');
     
     try {
-        statusDiv.innerHTML = '<div class="alert alert-info">Rendering blended output...</div>';
+        statusDiv.innerHTML = '<div class="alert alert-info">Rendering output file...</div>';
         
         // Extract original filename
         let originalFilename = null;
@@ -1196,21 +1196,21 @@ window.handleSaveStemBlend = async () => {
                 console.log('Extracted filename:', filename);
                 statusDiv.innerHTML = `
                     <div class="alert alert-success">
-                        Stem blend saved successfully! 
+                        Render complete!
                         <a href="/download/output/${filename}" target="_blank" class="btn btn-sm btn-outline-success ms-2">Download</a>
                     </div>
                 `;
             } else {
                 console.warn('No blended_file_path in response:', result);
-                statusDiv.innerHTML = '<div class="alert alert-success">Stem blend saved successfully!</div>';
+                statusDiv.innerHTML = '<div class="alert alert-success">Render complete!</div>';
             }
         } else {
             const error = await response.json();
-            statusDiv.innerHTML = `<div class="alert alert-danger">Error rendering blended output: ${error.detail || 'Save failed'}</div>`;
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error rendering output file: ${error.detail || 'Render failed'}</div>`;
         }
     } catch (error) {
-        console.error('Error rendering blended output:', error);
-        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to save stem blend</div>';
+        console.error('Error rendering output file:', error);
+        statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to render output file</div>';
     }
 };
 

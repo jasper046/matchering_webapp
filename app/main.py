@@ -1137,7 +1137,7 @@ async def blend_and_save(
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
         sf.write(blended_path, blended_audio, sr_orig, subtype='PCM_24')
 
-        return {"message": "Blended audio saved successfully", "blended_file_path": blended_path}
+        return {"message": "Render complete!", "blended_file_path": blended_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1229,7 +1229,7 @@ async def blend_stems_and_save(
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
         sf.write(blended_path, combined_audio, sr_vocal, subtype='PCM_24')
 
-        return {"message": "Stem blend saved successfully", "blended_file_path": blended_path}
+        return {"message": "Render complete!", "blended_file_path": blended_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1343,7 +1343,7 @@ async def save_stem_blend(
         blended_path = os.path.join(OUTPUT_DIR, blended_filename)
         sf.write(blended_path, combined_audio, sr_vocal, subtype='PCM_24')
 
-        return {"message": "Stem blend saved successfully", "blended_file_path": blended_path}
+        return {"message": "Render complete!", "blended_file_path": blended_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
