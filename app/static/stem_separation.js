@@ -23,53 +23,106 @@ document.addEventListener('DOMContentLoaded', function() {
 window.handleStemSeparationFormSubmit = async (event) => {
     console.log('Stem separation form submitted');
     event.preventDefault(); // Prevent default form submission and page navigation
-    
+
     const statusDiv = document.getElementById('stem-separation-status');
     const resultsDiv = document.getElementById('stem-separation-results');
     const stemForm = document.getElementById('stem-separation-form');
-    
+
     // Hide previous results
     if (resultsDiv) {
         resultsDiv.style.display = 'none';
     }
-    
+
     // Get form data
     const formData = new FormData(stemForm);
     const audioFile = document.getElementById('stem-audio-file').files[0];
-    
+
     if (!audioFile) {
         statusDiv.innerHTML = '<div class="alert alert-danger">Please select an audio file.</div>';
         return;
     }
-    
+
     try {
-        // Show processing status
-        statusDiv.innerHTML = '<div class="alert alert-info">Starting stem separation...</div>';
-        
-        // Submit to backend
-        const response = await fetch('/api/separate_stems', {
-            method: 'POST',
-            body: formData
+        // Show upload progress initially with progress bar
+        statusDiv.innerHTML = `
+            <div class="alert alert-info">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Uploading audio file...</span>
+                    <span id="stem-upload-progress">0%</span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div id="stem-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar" style="width: 0%"
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Use XMLHttpRequest for upload progress tracking
+        const xhr = new XMLHttpRequest();
+
+        // Create a promise to handle the XHR request
+        const response = await new Promise((resolve, reject) => {
+            xhr.open('POST', '/api/separate_stems');
+
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    const progressSpan = document.getElementById('stem-upload-progress');
+                    const progressBar = document.getElementById('stem-upload-progress-bar');
+
+                    if (progressSpan) {
+                        progressSpan.textContent = `${percentComplete}%`;
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = `${percentComplete}%`;
+                        progressBar.setAttribute('aria-valuenow', percentComplete);
+                    }
+                }
+            });
+
+            // Handle completion
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr);
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            });
+
+            // Handle errors
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during upload'));
+            });
+
+            // Handle timeout
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('Upload timeout'));
+            });
+
+            // Send the form data
+            xhr.send(formData);
         });
-        
-        if (response.ok) {
-            const result = await response.json();
-            
-            // Start polling for progress
-            if (result.job_id) {
-                pollStemSeparationProgress(result.job_id, statusDiv, resultsDiv);
-            } else {
-                statusDiv.innerHTML = '<div class="alert alert-danger">No job ID received from server.</div>';
-            }
+
+        // Upload complete, now processing starts
+        statusDiv.innerHTML = '<div class="alert alert-info">Starting stem separation...</div>';
+
+        // Parse response
+        const result = JSON.parse(response.responseText);
+
+        // Start polling for progress
+        if (result.job_id) {
+            pollStemSeparationProgress(result.job_id, statusDiv, resultsDiv);
         } else {
-            const error = await response.json();
-            statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.detail || 'Separation failed'}</div>`;
+            statusDiv.innerHTML = '<div class="alert alert-danger">No job ID received from server.</div>';
         }
     } catch (error) {
         console.error('Error submitting stem separation:', error);
         statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to start stem separation</div>';
     }
-    
+
     return false; // Prevent form submission
 };
 

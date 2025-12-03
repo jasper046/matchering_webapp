@@ -75,14 +75,29 @@ function createDownloadLink(href, text, title = '', className = 'btn btn-outline
 
 createPresetForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     // Prevent submission during active processing
     if (window.isProcessing) { // Use global isProcessing from processing_logic.js
         window.showStatus(createPresetStatus, 'Please wait for current processing to complete.', true);
         return;
     }
-    
-    window.showStatus(createPresetStatus, 'Creating preset...');
+
+    // Show upload progress initially with progress bar
+    createPresetStatus.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span>Uploading reference file...</span>
+                <span id="preset-upload-progress">0%</span>
+            </div>
+            <div class="progress" style="height: 6px;">
+                <div id="preset-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%"
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+    `;
+
     createPresetDownloadDiv.style.display = 'none';
     presetDownloadLinkContainer.innerHTML = ''; // Clear previous link
 
@@ -92,12 +107,60 @@ createPresetForm.addEventListener('submit', async (e) => {
     formData.append('reference_file', referenceFile);
 
     try {
-        const response = await fetch('/api/create_preset', {
-            method: 'POST',
-            body: formData,
+        // Use XMLHttpRequest for upload progress tracking
+        const xhr = new XMLHttpRequest();
+
+        // Create a promise to handle the XHR request
+        const response = await new Promise((resolve, reject) => {
+            xhr.open('POST', '/api/create_preset');
+
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    const progressSpan = document.getElementById('preset-upload-progress');
+                    const progressBar = document.getElementById('preset-upload-progress-bar');
+
+                    if (progressSpan) {
+                        progressSpan.textContent = `${percentComplete}%`;
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = `${percentComplete}%`;
+                        progressBar.setAttribute('aria-valuenow', percentComplete);
+                    }
+                }
+            });
+
+            // Handle completion
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr);
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            });
+
+            // Handle errors
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during upload'));
+            });
+
+            // Handle timeout
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('Upload timeout'));
+            });
+
+            // Send the form data
+            xhr.send(formData);
         });
-        const data = await response.json();
-        if (response.ok) {
+
+        // Upload complete, now processing starts
+        createPresetStatus.innerHTML = '<div class="alert alert-info">Creating preset...</div>';
+
+        // Parse response
+        const data = JSON.parse(response.responseText);
+
+        if (response.status >= 200 && response.status < 300) {
             window.showStatus(createPresetStatus, `Preset created.`);
             generatedPresetPath = data.preset_path;
             suggestedPresetFilename = data.suggested_filename; // Store suggested filename

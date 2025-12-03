@@ -43,8 +43,23 @@ batchBlendRatio.addEventListener('blur', function() {
 window.handleProcessBatchFormSubmit = async (e) => {
     console.log('Batch processing form submitted');
     e.preventDefault();
-    window.showStatus(processBatchStatus, 'Starting batch processing...');
-    
+
+    // Show upload progress initially with progress bar
+    processBatchStatus.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span>Uploading batch files...</span>
+                <span id="batch-upload-progress">0%</span>
+            </div>
+            <div class="progress" style="height: 6px;">
+                <div id="batch-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%"
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+    `;
+
     // Hide file list during processing
     if (batchFileList) {
         batchFileList.style.display = 'none';
@@ -55,31 +70,31 @@ window.handleProcessBatchFormSubmit = async (e) => {
     for (let i = 0; i < targetFiles.length; i++) {
         formData.append('target_files', targetFiles[i]);
     }
-    
+
     // Check if stem separation is enabled
     const useStemSeparation = document.getElementById('batch-use-stem-separation');
     const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
-    
+
     let apiEndpoint = '/api/process_batch';
-    
+
     if (isUsingStemSeparation) {
         // Stem mode batch processing
         apiEndpoint = '/api/process_batch_stems';
-        
+
         const vocalPresetFile = document.getElementById('batch-vocal-preset-file').files[0];
         const instrumentalPresetFile = document.getElementById('batch-instrumental-preset-file').files[0];
-        
+
         if (vocalPresetFile && instrumentalPresetFile) {
             formData.append('vocal_preset_file', vocalPresetFile);
             formData.append('instrumental_preset_file', instrumentalPresetFile);
         }
-        
+
         // Add stem-specific blend ratios and gains
         const vocalBlendRatio = document.getElementById('batch-vocal-blend-ratio').value / 100.0;
         const instrumentalBlendRatio = document.getElementById('batch-instrumental-blend-ratio').value / 100.0;
         const vocalGain = document.getElementById('batch-vocal-gain').value;
         const instrumentalGain = document.getElementById('batch-instrumental-gain').value;
-        
+
         formData.append('vocal_blend_ratio', vocalBlendRatio);
         formData.append('instrumental_blend_ratio', instrumentalBlendRatio);
         formData.append('vocal_gain_db', parseFloat(vocalGain));
@@ -90,12 +105,12 @@ window.handleProcessBatchFormSubmit = async (e) => {
         if (presetFile) {
             formData.append('preset_file', presetFile);
         }
-        
+
         // Add standard blend ratio
         const blendRatio = document.getElementById('batch-blend-ratio').value / 100.0;
         formData.append('blend_ratio', blendRatio);
     }
-    
+
     // Add master gain (used in both modes)
     const masterGain = document.getElementById('batch-master-gain').value;
     if (isUsingStemSeparation) {
@@ -103,20 +118,66 @@ window.handleProcessBatchFormSubmit = async (e) => {
     } else {
         formData.append('master_gain', parseFloat(masterGain));
     }
-    
-    // Add limiter setting  
+
+    // Add limiter setting
     formData.append('apply_limiter', window.batchLimiterEnabled);
 
     try {
-        const response = await fetch(apiEndpoint, {
-            method: 'POST',
-            body: formData,
-        });
-        const data = await response.json();
+        // Use XMLHttpRequest for upload progress tracking
+        const xhr = new XMLHttpRequest();
 
-        if (response.ok) {
+        // Create a promise to handle the XHR request
+        const response = await new Promise((resolve, reject) => {
+            xhr.open('POST', apiEndpoint);
+
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    const progressSpan = document.getElementById('batch-upload-progress');
+                    const progressBar = document.getElementById('batch-upload-progress-bar');
+
+                    if (progressSpan) {
+                        progressSpan.textContent = `${percentComplete}%`;
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = `${percentComplete}%`;
+                        progressBar.setAttribute('aria-valuenow', percentComplete);
+                    }
+                }
+            });
+
+            // Handle completion
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr);
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            });
+
+            // Handle errors
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during upload'));
+            });
+
+            // Handle timeout
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('Upload timeout'));
+            });
+
+            // Send the form data
+            xhr.send(formData);
+        });
+
+        // Upload complete, now processing starts
+        processBatchStatus.innerHTML = '<div class="alert alert-info">Batch processing started. Monitoring progress...</div>';
+
+        // Parse response
+        const data = JSON.parse(response.responseText);
+
+        if (response.status >= 200 && response.status < 300) {
             batchProcessingJobId = data.batch_id;
-            window.showStatus(processBatchStatus, 'Batch processing started. Monitoring progress...');
             pollBatchProgress(batchProcessingJobId);
         } else {
             window.showStatus(processBatchStatus, `Error: ${data.detail}`, true);
