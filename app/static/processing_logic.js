@@ -441,23 +441,85 @@ window.handleProcessSingleFormSubmit = async (event) => {
     try {
         // Set processing state
         setProcessingState(true);
-        statusDiv.innerHTML = '<div class="alert alert-info">Processing audio file...</div>';
-        
+
+        // Show upload progress initially with progress bar
+        statusDiv.innerHTML = `
+            <div class="alert alert-info">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Uploading audio file...</span>
+                    <span id="upload-progress">0%</span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div id="upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar" style="width: 0%"
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        `;
+
         // Show dummy waveform while processing
         const waveformImage = document.getElementById('combined-waveform-image');
         if (waveformImage) {
             waveformImage.src = '/api/waveform/dummy?' + new Date().getTime();
             waveformImage.alt = 'Processing...';
         }
-        
-        // Make API call
-        const response = await fetch('/api/process_single', {
-            method: 'POST',
-            body: formData
+
+        // Use XMLHttpRequest for upload progress tracking
+        const xhr = new XMLHttpRequest();
+
+        // Create a promise to handle the XHR request
+        const response = await new Promise((resolve, reject) => {
+            xhr.open('POST', '/api/process_single');
+
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    const progressSpan = document.getElementById('upload-progress');
+                    const progressBar = document.getElementById('upload-progress-bar');
+
+                    if (progressSpan) {
+                        progressSpan.textContent = `${percentComplete}%`;
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = `${percentComplete}%`;
+                        progressBar.setAttribute('aria-valuenow', percentComplete);
+                    }
+
+                    // No need to update HTML structure, just update the elements directly
+                    // The progressSpan and progressBar variables already hold the elements
+                }
+            });
+
+            // Handle completion
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr);
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            });
+
+            // Handle errors
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during upload'));
+            });
+
+            // Handle timeout
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('Upload timeout'));
+            });
+
+            // Send the form data
+            xhr.send(formData);
         });
-        
-        if (response.ok) {
-            const result = await response.json();
+
+        // Upload complete, now processing starts
+        statusDiv.innerHTML = '<div class="alert alert-info">Processing audio file...</div>';
+
+        // Parse response
+        const result = JSON.parse(response.responseText);
             
             // Handle stem processing (background job) vs regular processing
             if (result.job_id) {
@@ -573,10 +635,6 @@ window.handleProcessSingleFormSubmit = async (event) => {
                     
                 }
             }
-        } else {
-            const error = await response.json();
-            statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.detail || 'Processing failed'}</div>`;
-        }
     } catch (error) {
         console.error('Error processing file:', error);
         statusDiv.innerHTML = '<div class="alert alert-danger">Error: Failed to process file</div>';
