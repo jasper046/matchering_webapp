@@ -272,12 +272,17 @@ class FrameProcessingManager {
         
         if (resultsContainer && resultUrl) {
             // Create download link for frame-processed result
-            const downloadLink = document.createElement('a');
-            downloadLink.href = resultUrl;
-            downloadLink.textContent = 'Download Frame-Processed Audio';
-            downloadLink.className = 'btn btn-success me-2';
-            downloadLink.download = 'frame_processed_audio.wav';
-            
+            const downloadLink = window.createDownloadLink ?
+                window.createDownloadLink(resultUrl, 'Download Frame-Processed Audio', 'Download frame-processed audio', 'btn btn-success me-2', 'frame_processed_audio.wav') :
+                (() => {
+                    const link = document.createElement('a');
+                    link.href = resultUrl;
+                    link.textContent = 'Download Frame-Processed Audio';
+                    link.className = 'btn btn-success me-2';
+                    link.download = 'frame_processed_audio.wav';
+                    return link;
+                })();
+
             // Add to results container
             resultsContainer.innerHTML = ''; // Clear previous results
             resultsContainer.appendChild(downloadLink);

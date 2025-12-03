@@ -22,8 +22,11 @@ window.addEventListener('load', function() {
     }
 });
 
-// Comprehensive cleanup function 
+// Comprehensive cleanup function
 window.clearAllProcessing = function() {
+    console.log('clearAllProcessing called - checking if this is from download');
+    console.trace(); // Log stack trace to see who called this
+
     // Clear batch processing
     if (window.clearBatchProcessing) {
         window.clearBatchProcessing();
@@ -49,11 +52,12 @@ window.clearAllProcessing = function() {
             .catch(err => console.log(`Cleanup failed for ${endpoint}:`, err));
     });
     
-    // Clear all status messages
+    // Don't clear status messages on page unload - they'll be destroyed anyway
+    /*
     const statusElements = [
         'process-single-status',
         'process-batch-status',
-        'stem-separation-status', 
+        'stem-separation-status',
         'create-preset-status'
     ];
     statusElements.forEach(id => {
@@ -62,8 +66,11 @@ window.clearAllProcessing = function() {
             element.innerHTML = '';
         }
     });
+    */
     
-    // Hide all result sections
+    // Don't hide result sections on page unload - they'll be destroyed anyway
+    // This prevents UI reset when downloading files
+    /*
     const resultElements = [
         'single-conversion-results',
         'stem-separation-results',
@@ -76,6 +83,7 @@ window.clearAllProcessing = function() {
             element.style.display = 'none';
         }
     });
+    */
     
     // Reset mute button states to default (unmuted)
     window.vocalMuted = false;

@@ -10,6 +10,69 @@ const presetDownloadLinkContainer = document.getElementById('preset-download-lin
 let generatedPresetPath = '';
 let suggestedPresetFilename = ''; // New variable to store suggested filename
 
+// Helper function to create download links that don't cause page navigation
+function createDownloadLink(href, text, title = '', className = 'btn btn-outline-primary btn-sm', downloadFilename = '') {
+    const link = document.createElement('a');
+    link.href = href;
+    link.className = className;
+    link.innerHTML = text;
+    if (title) link.title = title;
+    if (downloadFilename) link.download = downloadFilename;
+
+    // Prevent default navigation and trigger download programmatically
+    const handleDownload = function(e) {
+        console.log('Download link activated, preventing default navigation', e.type, href);
+        e.preventDefault();
+        e.stopPropagation(); // Stop event bubbling
+        e.stopImmediatePropagation(); // Stop other handlers
+
+        // Log current UI state before download
+        console.log('UI state before download:');
+        const resultSection = document.getElementById('single-conversion-results');
+        console.log('single-conversion-results visible:', resultSection ? resultSection.style.display : 'not found');
+
+        // Use window.open to avoid beforeunload events
+        // Add a small delay to ensure event handlers complete
+        setTimeout(() => {
+            console.log('Attempting to open download in new tab...');
+            const newWindow = window.open(href, '_blank');
+            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                // Popup blocked or failed, try direct download
+                console.log('Popup blocked, trying direct download');
+                const tempLink = document.createElement('a');
+                tempLink.href = href;
+                if (downloadFilename) tempLink.download = downloadFilename;
+                tempLink.style.display = 'none';
+                document.body.appendChild(tempLink);
+                console.log('Triggering tempLink.click()...');
+                tempLink.click();
+                setTimeout(() => {
+                    document.body.removeChild(tempLink);
+                    console.log('tempLink removed');
+                }, 100);
+            } else {
+                console.log('Download opened in new tab successfully');
+            }
+
+            // Check UI state after a short delay
+            setTimeout(() => {
+                console.log('UI state after download attempt:');
+                console.log('single-conversion-results visible:', resultSection ? resultSection.style.display : 'not found');
+            }, 500);
+        }, 10);
+    };
+
+    link.addEventListener('click', handleDownload);
+    link.addEventListener('keydown', function(e) {
+        // Handle Enter or Space key
+        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 32) {
+            handleDownload(e);
+        }
+    });
+
+    return link;
+}
+
 createPresetForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -40,12 +103,9 @@ createPresetForm.addEventListener('submit', async (e) => {
             suggestedPresetFilename = data.suggested_filename; // Store suggested filename
 
             // Generate and display the download link
-            const link = document.createElement('a');
-            link.href = `/download/preset/${generatedPresetPath.split('/').pop()}?download_name=${encodeURIComponent(suggestedPresetFilename)}`;
-            link.download = suggestedPresetFilename; // Suggest filename for download
-            link.textContent = suggestedPresetFilename; // Only filename as link text
-            link.className = 'alert-link'; // Apply Bootstrap link styling
-            
+            const downloadUrl = `/download/preset/${generatedPresetPath.split('/').pop()}?download_name=${encodeURIComponent(suggestedPresetFilename)}`;
+            const link = createDownloadLink(downloadUrl, suggestedPresetFilename, 'Download preset', 'alert-link', suggestedPresetFilename);
+
             const instructionText = document.createTextNode(' (Right Click to Save As)');
 
             presetDownloadLinkContainer.appendChild(link);
@@ -62,22 +122,40 @@ createPresetForm.addEventListener('submit', async (e) => {
 
 // Export functions that need to be accessed globally
 window.showPresetDownloadLinks = showPresetDownloadLinks;
+window.createDownloadLink = createDownloadLink;
 
 // Show preset download links for both stem and non-stem processing
 function showPresetDownloadLinks() {
+    console.log('showPresetDownloadLinks called');
     const processSingleStatus = document.getElementById('process-single-status');
+    if (!processSingleStatus) {
+        console.error('process-single-status element not found');
+        return;
+    }
+
     const vocalPresetPath = processSingleStatus.dataset.vocalPresetPath;
     const instrumentalPresetPath = processSingleStatus.dataset.instrumentalPresetPath;
     const vocalPresetFilename = processSingleStatus.dataset.vocalPresetFilename;
     const instrumentalPresetFilename = processSingleStatus.dataset.instrumentalPresetFilename;
-    
+
     const createdPresetPath = processSingleStatus.dataset.createdPresetPath;
     const createdPresetFilename = processSingleStatus.dataset.createdPresetFilename;
-    
+
+    console.log('Preset data:', {
+        vocalPresetPath,
+        instrumentalPresetPath,
+        vocalPresetFilename,
+        instrumentalPresetFilename,
+        createdPresetPath,
+        createdPresetFilename
+    });
+
     // Check if we have presets to show
     const hasStemPresets = (vocalPresetPath && instrumentalPresetPath);
     const hasStandardPreset = (createdPresetPath);
-    
+
+    console.log('hasStemPresets:', hasStemPresets, 'hasStandardPreset:', hasStandardPreset);
+
     if (hasStemPresets || hasStandardPreset) {
         // Find or create preset download section
         let presetDownloadSection = document.getElementById('preset-download-section');
@@ -133,29 +211,26 @@ function showPresetDownloadLinks() {
         
         if (hasStemPresets) {
             // Vocal preset link
-            const vocalLink = document.createElement('a');
-            vocalLink.href = `/download/preset/${vocalPresetPath.split('/').pop()}?download_name=${encodeURIComponent(vocalPresetFilename)}`;
-            vocalLink.className = 'btn btn-outline-primary btn-sm';
-            vocalLink.innerHTML = '🎤 ' + vocalPresetFilename;
-            vocalLink.title = 'Download vocal preset';
-            
+            const vocalDownloadUrl = `/download/preset/${vocalPresetPath.split('/').pop()}?download_name=${encodeURIComponent(vocalPresetFilename)}`;
+            const vocalLink = (typeof createDownloadLink === 'function' ? createDownloadLink : window.createDownloadLink)(
+                vocalDownloadUrl, '🎤 ' + vocalPresetFilename, 'Download vocal preset', 'btn btn-outline-primary btn-sm', vocalPresetFilename
+            );
+
             // Instrumental preset link
-            const instrumentalLink = document.createElement('a');
-            instrumentalLink.href = `/download/preset/${instrumentalPresetPath.split('/').pop()}?download_name=${encodeURIComponent(instrumentalPresetFilename)}`;
-            instrumentalLink.className = 'btn btn-outline-primary btn-sm';
-            instrumentalLink.innerHTML = '🎹 ' + instrumentalPresetFilename;
-            instrumentalLink.title = 'Download instrumental preset';
-            
+            const instrumentalDownloadUrl = `/download/preset/${instrumentalPresetPath.split('/').pop()}?download_name=${encodeURIComponent(instrumentalPresetFilename)}`;
+            const instrumentalLink = (typeof createDownloadLink === 'function' ? createDownloadLink : window.createDownloadLink)(
+                instrumentalDownloadUrl, '🎹 ' + instrumentalPresetFilename, 'Download instrumental preset', 'btn btn-outline-primary btn-sm', instrumentalPresetFilename
+            );
+
             linksContainer.appendChild(vocalLink);
             linksContainer.appendChild(instrumentalLink);
         } else if (hasStandardPreset) {
             // Standard preset link
-            const standardLink = document.createElement('a');
-            standardLink.href = `/download/preset/${createdPresetPath.split('/').pop()}?download_name=${encodeURIComponent(createdPresetFilename)}`;
-            standardLink.className = 'btn btn-outline-primary btn-sm';
-            standardLink.innerHTML = '🎵 ' + createdPresetFilename;
-            standardLink.title = 'Download preset';
-            
+            const standardDownloadUrl = `/download/preset/${createdPresetPath.split('/').pop()}?download_name=${encodeURIComponent(createdPresetFilename)}`;
+            const standardLink = (typeof createDownloadLink === 'function' ? createDownloadLink : window.createDownloadLink)(
+                standardDownloadUrl, '🎵 ' + createdPresetFilename, 'Download preset', 'btn btn-outline-primary btn-sm', createdPresetFilename
+            );
+
             linksContainer.appendChild(standardLink);
         }
     }

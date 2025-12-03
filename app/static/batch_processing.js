@@ -227,13 +227,19 @@ function updateFileStatus(fileIndex, status, outputPath = null) {
             if (outputPath) {
                 // Convert filename to download link
                 const outputFilename = outputPath.split('/').pop();
-                const link = document.createElement('a');
-                link.href = `/download/output/${outputFilename}`;
-                link.target = '_blank';
-                link.textContent = outputFilename;
-                link.className = 'text-light';
-                link.style.textDecoration = 'none';
-                
+                const downloadUrl = `/download/output/${outputFilename}`;
+                const link = window.createDownloadLink ?
+                    window.createDownloadLink(downloadUrl, outputFilename, 'Download processed audio', 'text-light', outputFilename) :
+                    (() => {
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.target = '_blank';
+                        link.textContent = outputFilename;
+                        link.className = 'text-light';
+                        link.style.textDecoration = 'none';
+                        return link;
+                    })();
+
                 // Replace filename with download link
                 fileName.innerHTML = '';
                 fileName.appendChild(link);

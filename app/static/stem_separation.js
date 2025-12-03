@@ -154,19 +154,33 @@ function showStemDownloadLinks(progressData, resultsDiv) {
     
     if (progressData.vocal_path && progressData.instrumental_path) {
         // Create vocal download link
-        const vocalLink = document.createElement('a');
-        vocalLink.href = `/download/output/${progressData.vocal_filename || 'vocal.wav'}`;
-        vocalLink.className = 'btn btn-success me-2';
-        vocalLink.innerHTML = '🎤 Download Vocal';
-        vocalLink.download = progressData.vocal_filename || 'vocal.wav';
-        
+        const vocalFilename = progressData.vocal_filename || 'vocal.wav';
+        const vocalDownloadUrl = `/download/output/${vocalFilename}`;
+        const vocalLink = window.createDownloadLink ?
+            window.createDownloadLink(vocalDownloadUrl, '🎤 Download Vocal', 'Download vocal stem', 'btn btn-success me-2', vocalFilename) :
+            (() => {
+                const link = document.createElement('a');
+                link.href = vocalDownloadUrl;
+                link.className = 'btn btn-success me-2';
+                link.innerHTML = '🎤 Download Vocal';
+                link.download = vocalFilename;
+                return link;
+            })();
+
         // Create instrumental download link
-        const instrumentalLink = document.createElement('a');
-        instrumentalLink.href = `/download/output/${progressData.instrumental_filename || 'instrumental.wav'}`;
-        instrumentalLink.className = 'btn btn-info';
-        instrumentalLink.innerHTML = '🎹 Download Instrumental';
-        instrumentalLink.download = progressData.instrumental_filename || 'instrumental.wav';
-        
+        const instrumentalFilename = progressData.instrumental_filename || 'instrumental.wav';
+        const instrumentalDownloadUrl = `/download/output/${instrumentalFilename}`;
+        const instrumentalLink = window.createDownloadLink ?
+            window.createDownloadLink(instrumentalDownloadUrl, '🎹 Download Instrumental', 'Download instrumental stem', 'btn btn-info', instrumentalFilename) :
+            (() => {
+                const link = document.createElement('a');
+                link.href = instrumentalDownloadUrl;
+                link.className = 'btn btn-info';
+                link.innerHTML = '🎹 Download Instrumental';
+                link.download = instrumentalFilename;
+                return link;
+            })();
+
         downloadLinksContainer.appendChild(vocalLink);
         downloadLinksContainer.appendChild(instrumentalLink);
         

@@ -1817,9 +1817,13 @@ async def cancel_stem_separation():
     global active_jobs
     
     # Clear any active stem separation jobs (stem jobs use regular job system)
-    for job_id in list(active_jobs.keys()):
-        if "stem" in str(job_id).lower():
-            active_jobs[job_id]["status"] = "cancelled"
+    for job_key in list(active_jobs):
+        if "stem" in str(job_key).lower():
+            # Find the corresponding job_id in processing_progress
+            for job_id, progress_info in processing_progress.items():
+                if progress_info.get("job_key") == job_key:
+                    processing_progress[job_id]["status"] = "cancelled"
+                    break
     
     # Clean up temporary files
     cleanup_directory_contents(UPLOAD_DIR)
@@ -1832,9 +1836,13 @@ async def cancel_preset_creation():
     global active_jobs
     
     # Clear any active preset creation jobs
-    for job_id in list(active_jobs.keys()):
-        if "preset" in str(job_id).lower():
-            active_jobs[job_id]["status"] = "cancelled"
+    for job_key in list(active_jobs):
+        if "preset" in str(job_key).lower():
+            # Find the corresponding job_id in processing_progress
+            for job_id, progress_info in processing_progress.items():
+                if progress_info.get("job_key") == job_key:
+                    processing_progress[job_id]["status"] = "cancelled"
+                    break
     
     # Clean up temporary files
     cleanup_directory_contents(UPLOAD_DIR)

@@ -247,12 +247,16 @@ Object.defineProperty(window, 'previewAudioElement', {
 window.currentPreviewPath = currentPreviewPath;
 
 // Comprehensive cleanup when page unloads
-window.addEventListener('beforeunload', () => {
+window.addEventListener('beforeunload', (event) => {
+    console.log('beforeunload event fired - checking if this is from download');
+    console.log('event type:', event.type);
+    console.log('event target:', event.target);
+
     // Clean up WebSocket connections
     if (webSocketAudioStream) {
         webSocketAudioStream.disconnect();
     }
-    
+
     // Call comprehensive cleanup
     if (window.clearAllProcessing) {
         window.clearAllProcessing();
