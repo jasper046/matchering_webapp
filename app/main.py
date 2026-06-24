@@ -848,6 +848,7 @@ async def process_single(
     target_file: UploadFile = File(...),
     reference_file: Optional[UploadFile] = File(None),
     preset_file: Optional[UploadFile] = File(None),
+    source_preset_file: Optional[UploadFile] = File(None),
     use_stem_separation: bool = Form(False),
     vocal_preset_file: Optional[UploadFile] = File(None),
     instrumental_preset_file: Optional[UploadFile] = File(None),
@@ -872,6 +873,8 @@ async def process_single(
         files_to_preserve.append(reference_file.filename)
     if preset_file:
         files_to_preserve.append(preset_file.filename)
+    if source_preset_file:
+        files_to_preserve.append(source_preset_file.filename)
     if vocal_preset_file:
         files_to_preserve.append(vocal_preset_file.filename)
     if instrumental_preset_file:
@@ -962,6 +965,22 @@ async def process_single(
     processed_filename = f"processed_{uuid.uuid4()}.wav"
     processed_path = os.path.join(OUTPUT_DIR, processed_filename)
 
+    # Save the optional source preset. When provided, its analyzed spectrum drives
+    # the corrective EQ instead of the one auto-detected from the target audio,
+    # making the frequency match deterministic across tracks.
+    source_preset_path = None
+    if source_preset_file:
+        source_preset_path = os.path.join(UPLOAD_DIR, source_preset_file.filename)
+        with open(source_preset_path, "wb") as f:
+            shutil.copyfileobj(source_preset_file.file, f)
+        preset_keys = mg.presets.load_preset(source_preset_path).keys()
+        if "reference_mid_loudest_pieces" not in preset_keys:
+            finish_job(job_id)
+            raise HTTPException(
+                status_code=400,
+                detail="The provided source preset file is not a valid matchering preset.",
+            )
+
     try:
         if reference_file:
             # Step 1: Create preset from reference audio first
@@ -984,7 +1003,8 @@ async def process_single(
             mg.process_with_preset(
                 target=target_wav_path,
                 preset_path=created_preset_path,
-                results=[mg.pcm24(processed_path)]
+                results=[mg.pcm24(processed_path)],
+                source_preset_path=source_preset_path
             )
             
             # Clean up reference file
@@ -1031,7 +1051,8 @@ async def process_single(
             mg.process_with_preset(
                 target=target_wav_path,
                 preset_path=preset_temp_path,
-                results=[mg.pcm24(processed_path)]
+                results=[mg.pcm24(processed_path)],
+                source_preset_path=source_preset_path
             )
             os.remove(preset_temp_path)
 

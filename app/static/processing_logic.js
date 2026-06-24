@@ -84,22 +84,23 @@ function toggleReferenceInput() {
     const presetFileDiv = document.getElementById('preset-file-single-div');
     const vocalPresetDiv = document.getElementById('vocal-preset-file-single-div');
     const instrumentalPresetDiv = document.getElementById('instrumental-preset-file-single-div');
-    
+    const sourcePresetDiv = document.getElementById('source-preset-single-div');
+
     if (!radioReference || !radioPreset) return;
-    
+
     // Hide all divs first
     if (referenceFileDiv) referenceFileDiv.style.display = 'none';
     if (presetFileDiv) presetFileDiv.style.display = 'none';
     if (vocalPresetDiv) vocalPresetDiv.style.display = 'none';
     if (instrumentalPresetDiv) instrumentalPresetDiv.style.display = 'none';
-    
+    if (sourcePresetDiv) sourcePresetDiv.style.display = 'none';
+
+    const stemSeparationEnabled = useStemSeparation && useStemSeparation.checked;
+
     if (radioReference.checked) {
         // Show reference file input
         if (referenceFileDiv) referenceFileDiv.style.display = 'block';
     } else if (radioPreset.checked) {
-        // Check if stem separation is enabled
-        const stemSeparationEnabled = useStemSeparation && useStemSeparation.checked;
-        
         if (stemSeparationEnabled) {
             // Show vocal and instrumental preset inputs
             if (vocalPresetDiv) vocalPresetDiv.style.display = 'block';
@@ -108,6 +109,11 @@ function toggleReferenceInput() {
             // Show single preset input
             if (presetFileDiv) presetFileDiv.style.display = 'block';
         }
+    }
+
+    // Source preset is available in standard (non-stem) mode for both reference and preset modes
+    if (sourcePresetDiv && (radioReference.checked || radioPreset.checked) && !stemSeparationEnabled) {
+        sourcePresetDiv.style.display = 'block';
     }
     
     // Clear any existing preset download data when switching between modes
@@ -437,7 +443,16 @@ window.handleProcessSingleFormSubmit = async (event) => {
             }
         }
     }
-    
+
+    // Optional source preset for deterministic EQ (standard, non-stem mode only)
+    const useSourcePreset = document.getElementById('use-source-preset');
+    if (useSourcePreset && useSourcePreset.checked && !(useStemSeparation && useStemSeparation.checked)) {
+        const sourcePresetFile = document.getElementById('source-preset-file-single');
+        if (sourcePresetFile && sourcePresetFile.files.length > 0) {
+            formData.append('source_preset_file', sourcePresetFile.files[0]);
+        }
+    }
+
     try {
         // Set processing state
         setProcessingState(true);
@@ -703,11 +718,13 @@ window.handleTargetFileSingleChange = () => {
     const presetFileInput = document.getElementById('preset-file-single');
     const vocalPresetInput = document.getElementById('vocal-preset-file-single');
     const instrumentalPresetInput = document.getElementById('instrumental-preset-file-single');
-    
+    const sourcePresetInput = document.getElementById('source-preset-file-single');
+
     if (referenceFileInput) referenceFileInput.value = '';
     if (presetFileInput) presetFileInput.value = '';
     if (vocalPresetInput) vocalPresetInput.value = '';
     if (instrumentalPresetInput) instrumentalPresetInput.value = '';
+    if (sourcePresetInput) sourcePresetInput.value = '';
     
     processSingleStatus.textContent = ''; // Clear status
     if (targetFileSingle.files.length > 0) {
@@ -743,6 +760,7 @@ window.handleTargetFileSingleChange = () => {
         document.getElementById('preset-file-single-div').style.display = 'none';
         document.getElementById('vocal-preset-file-single-div').style.display = 'none';
         document.getElementById('instrumental-preset-file-single-div').style.display = 'none';
+        document.getElementById('source-preset-single-div').style.display = 'none';
     }
     window.checkProcessButtonVisibility(); // Check visibility after target file changes
     // Hide results section if target file changes
