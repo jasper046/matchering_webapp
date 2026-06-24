@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException, Request, Request, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -445,8 +445,8 @@ def extract_loudest_segment(audio_path: str, segment_duration: float = 30.0, sam
     return segment_path
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root():
-    return templates.TemplateResponse("index.html", {"request": {}})
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/api/system_info")
 async def get_system_info():
