@@ -84,7 +84,6 @@ function toggleReferenceInput() {
     const presetFileDiv = document.getElementById('preset-file-single-div');
     const vocalPresetDiv = document.getElementById('vocal-preset-file-single-div');
     const instrumentalPresetDiv = document.getElementById('instrumental-preset-file-single-div');
-    const sourcePresetDiv = document.getElementById('source-preset-single-div');
 
     if (!radioReference || !radioPreset) return;
 
@@ -93,7 +92,6 @@ function toggleReferenceInput() {
     if (presetFileDiv) presetFileDiv.style.display = 'none';
     if (vocalPresetDiv) vocalPresetDiv.style.display = 'none';
     if (instrumentalPresetDiv) instrumentalPresetDiv.style.display = 'none';
-    if (sourcePresetDiv) sourcePresetDiv.style.display = 'none';
 
     const stemSeparationEnabled = useStemSeparation && useStemSeparation.checked;
 
@@ -111,10 +109,8 @@ function toggleReferenceInput() {
         }
     }
 
-    // Source preset is available in standard (non-stem) mode for both reference and preset modes
-    if (sourcePresetDiv && (radioReference.checked || radioPreset.checked) && !stemSeparationEnabled) {
-        sourcePresetDiv.style.display = 'block';
-    }
+    // The source analysis option (measure vs. source preset) follows the same stem state
+    window.toggleSourceAnalysisInput();
     
     // Clear any existing preset download data when switching between modes
     const processSingleStatus = document.getElementById('process-single-status');
@@ -136,6 +132,33 @@ function toggleReferenceInput() {
     // Update process button visibility
     checkProcessButtonVisibility();
 }
+
+// Show/hide the "Source analysis" option (measure from audio vs. use a source preset).
+// Available in standard (non-stem) mode once a target file is selected.
+function toggleSourceAnalysisInput() {
+    const targetFile = document.getElementById('target-file-single');
+    const useStemSeparation = document.getElementById('use-stem-separation');
+    const selectionDiv = document.getElementById('source-analysis-selection');
+    const radioMeasure = document.getElementById('radioMeasureSource');
+    const radioSourcePreset = document.getElementById('radioSourcePreset');
+    const sourcePresetFileDiv = document.getElementById('source-preset-file-div');
+    const sourcePresetInput = document.getElementById('source-preset-file-single');
+
+    const stemSeparationEnabled = useStemSeparation && useStemSeparation.checked;
+    const hasTarget = targetFile && targetFile.files.length > 0;
+    const available = hasTarget && !stemSeparationEnabled;
+
+    if (selectionDiv) selectionDiv.style.display = available ? 'block' : 'none';
+
+    const usePreset = available && radioSourcePreset && radioSourcePreset.checked;
+    if (sourcePresetFileDiv) sourcePresetFileDiv.style.display = usePreset ? 'block' : 'none';
+
+    // When not using a source preset, clear any selected file so it isn't submitted
+    if (!usePreset && sourcePresetInput) sourcePresetInput.value = '';
+    // When the option is hidden entirely, reset to the default "measure" choice
+    if (!available && radioMeasure) radioMeasure.checked = true;
+}
+window.toggleSourceAnalysisInput = toggleSourceAnalysisInput;
 
 // Simple function to send current parameters to backend (seamless updates)
 // Legacy HTTP parameter update function removed - we now use WebSocket-only updates via unified audio controller
@@ -445,8 +468,8 @@ window.handleProcessSingleFormSubmit = async (event) => {
     }
 
     // Optional source preset for deterministic EQ (standard, non-stem mode only)
-    const useSourcePreset = document.getElementById('use-source-preset');
-    if (useSourcePreset && useSourcePreset.checked && !(useStemSeparation && useStemSeparation.checked)) {
+    const radioSourcePreset = document.getElementById('radioSourcePreset');
+    if (radioSourcePreset && radioSourcePreset.checked && !(useStemSeparation && useStemSeparation.checked)) {
         const sourcePresetFile = document.getElementById('source-preset-file-single');
         if (sourcePresetFile && sourcePresetFile.files.length > 0) {
             formData.append('source_preset_file', sourcePresetFile.files[0]);
@@ -760,7 +783,8 @@ window.handleTargetFileSingleChange = () => {
         document.getElementById('preset-file-single-div').style.display = 'none';
         document.getElementById('vocal-preset-file-single-div').style.display = 'none';
         document.getElementById('instrumental-preset-file-single-div').style.display = 'none';
-        document.getElementById('source-preset-single-div').style.display = 'none';
+        document.getElementById('source-analysis-selection').style.display = 'none';
+        document.getElementById('source-preset-file-div').style.display = 'none';
     }
     window.checkProcessButtonVisibility(); // Check visibility after target file changes
     // Hide results section if target file changes

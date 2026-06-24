@@ -145,19 +145,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('radioReference').addEventListener('change', window.toggleReferenceInput);
     document.getElementById('radioPreset').addEventListener('change', window.toggleReferenceInput);
 
-    const useSourcePreset = document.getElementById('use-source-preset');
-    if (useSourcePreset) {
-        useSourcePreset.addEventListener('change', function() {
-            const sourcePresetFileDiv = document.getElementById('source-preset-file-div');
-            if (sourcePresetFileDiv) {
-                sourcePresetFileDiv.style.display = this.checked ? 'block' : 'none';
-            }
-            if (!this.checked) {
-                const sourcePresetInput = document.getElementById('source-preset-file-single');
-                if (sourcePresetInput) sourcePresetInput.value = '';
-            }
-        });
-    }
+    const radioMeasureSource = document.getElementById('radioMeasureSource');
+    const radioSourcePreset = document.getElementById('radioSourcePreset');
+    if (radioMeasureSource) radioMeasureSource.addEventListener('change', window.toggleSourceAnalysisInput);
+    if (radioSourcePreset) radioSourcePreset.addEventListener('change', window.toggleSourceAnalysisInput);
 
     // Initial call to set state if a file is already selected on page load (unlikely but good practice)
     if (document.getElementById('target-file-single').files.length > 0) {
