@@ -106,6 +106,15 @@ window.handleProcessBatchFormSubmit = async (e) => {
             formData.append('preset_file', presetFile);
         }
 
+        // Optional source preset for deterministic EQ
+        const radioSourcePreset = document.getElementById('batchRadioSourcePreset');
+        if (radioSourcePreset && radioSourcePreset.checked) {
+            const sourcePresetFile = document.getElementById('batch-source-preset-file').files[0];
+            if (sourcePresetFile) {
+                formData.append('source_preset_file', sourcePresetFile);
+            }
+        }
+
         // Add standard blend ratio
         const blendRatio = document.getElementById('batch-blend-ratio').value / 100.0;
         formData.append('blend_ratio', blendRatio);
@@ -419,7 +428,12 @@ function toggleBatchReferenceInput() {
     const instrumentalPresetDiv = document.getElementById('batch-instrumental-preset-file-div');
     const standardBlendDiv = document.getElementById('batch-standard-blend-div');
     const stemControlsDiv = document.getElementById('batch-stem-controls');
-    
+    const sourceAnalysisDiv = document.getElementById('batch-source-analysis-selection');
+
+    // Source analysis option is only available in standard (non-stem) mode
+    if (sourceAnalysisDiv) sourceAnalysisDiv.style.display = isUsingStemSeparation ? 'none' : 'block';
+    window.toggleBatchSourceAnalysisInput();
+
     if (isUsingStemSeparation) {
         // Stem mode: show stem-specific controls
         if (standardPresetDiv) standardPresetDiv.style.display = 'none';
@@ -483,9 +497,27 @@ function toggleBatchReferenceInput() {
     window.checkBatchProcessButtonVisibility();
 };
 
+// Show/hide the batch source preset picker based on the "Source analysis" choice.
+// Only relevant in standard (non-stem) mode.
+function toggleBatchSourceAnalysisInput() {
+    const useStemSeparation = document.getElementById('batch-use-stem-separation');
+    const radioMeasure = document.getElementById('batchRadioMeasureSource');
+    const radioSourcePreset = document.getElementById('batchRadioSourcePreset');
+    const sourcePresetFileDiv = document.getElementById('batch-source-preset-file-div');
+    const sourcePresetInput = document.getElementById('batch-source-preset-file');
+
+    const isUsingStemSeparation = useStemSeparation && useStemSeparation.checked;
+    const usePreset = !isUsingStemSeparation && radioSourcePreset && radioSourcePreset.checked;
+
+    if (sourcePresetFileDiv) sourcePresetFileDiv.style.display = usePreset ? 'block' : 'none';
+    if (!usePreset && sourcePresetInput) sourcePresetInput.value = '';
+    if (isUsingStemSeparation && radioMeasure) radioMeasure.checked = true;
+}
+
 // Export variables and functions that need to be accessed globally
 window.batchLimiterEnabled = true; // Default to enabled
 window.checkBatchProcessButtonVisibility = checkBatchProcessButtonVisibility;
 window.toggleBatchReferenceInput = toggleBatchReferenceInput;
+window.toggleBatchSourceAnalysisInput = toggleBatchSourceAnalysisInput;
 window.clearBatchProcessing = clearBatchProcessing;
 

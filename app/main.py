@@ -1509,7 +1509,8 @@ async def process_batch(
     target_files: List[UploadFile] = File(...),
     blend_ratio: float = Form(1.0),
     apply_limiter: bool = Form(True),
-    master_gain: float = Form(0.0)
+    master_gain: float = Form(0.0),
+    source_preset_file: Optional[UploadFile] = File(None)
 ):
     if not (1 <= len(target_files) <= 20):
         raise HTTPException(status_code=400, detail="Please upload between 1 and 20 target files.")
@@ -1532,6 +1533,8 @@ async def process_batch(
     # Clean up previous processing files at start of batch processing
     files_to_preserve = [preset_file.filename]
     files_to_preserve.extend([f.filename for f in target_files])
+    if source_preset_file:
+        files_to_preserve.append(source_preset_file.filename)
     cleanup_processing_files(files_to_preserve)
 
     batch_jobs[batch_id] = {"status": "pending", "processed_count": 0, "total_count": len(target_files), "output_files": []}
@@ -1539,6 +1542,20 @@ async def process_batch(
     preset_temp_path = os.path.join(UPLOAD_DIR, preset_file.filename)
     with open(preset_temp_path, "wb") as f:
         shutil.copyfileobj(preset_file.file, f)
+
+    # Save the optional source preset. When provided, its analyzed spectrum drives
+    # the corrective EQ instead of the one auto-detected from each target track.
+    source_preset_path = None
+    if source_preset_file:
+        source_preset_path = os.path.join(UPLOAD_DIR, source_preset_file.filename)
+        with open(source_preset_path, "wb") as f:
+            shutil.copyfileobj(source_preset_file.file, f)
+        if "reference_mid_loudest_pieces" not in mg.presets.load_preset(source_preset_path):
+            finish_job(batch_id)
+            raise HTTPException(
+                status_code=400,
+                detail="The provided source preset file is not a valid matchering preset.",
+            )
 
     target_file_paths = []
     for i, target_file in enumerate(target_files):
@@ -1554,7 +1571,8 @@ async def process_batch(
             target_file_paths,
             blend_ratio,
             apply_limiter,
-            master_gain
+            master_gain,
+            source_preset_path
         )
 
     return {"message": "Batch processing started", "batch_id": batch_id}
@@ -1696,7 +1714,7 @@ def _run_stem_batch_processing(
         os.remove(vocal_preset_path)
         os.remove(instrumental_preset_path)
 
-def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float, apply_limiter: bool, master_gain: float):
+def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[str], blend_ratio: float, apply_limiter: bool, master_gain: float, source_preset_path: str = None):
     try:
         # Get preset name for filename
         preset_name = os.path.splitext(os.path.basename(preset_path))[0][:8]  # Cap at 8 chars
@@ -1719,17 +1737,19 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                     mg.process_with_preset(
                         target=target_wav_path,
                         preset_path=preset_path,
-                        results=[mg.pcm24(output_path)]
+                        results=[mg.pcm24(output_path)],
+                        source_preset_path=source_preset_path
                     )
                 else:
                     # Apply master gain by processing to temp file then applying gain
                     temp_processed_filename = f"batch_temp_{uuid.uuid4()}.wav"
                     temp_processed_path = os.path.join(OUTPUT_DIR, temp_processed_filename)
-                    
+
                     mg.process_with_preset(
                         target=target_wav_path,
                         preset_path=preset_path,
-                        results=[mg.pcm24(temp_processed_path)]
+                        results=[mg.pcm24(temp_processed_path)],
+                        source_preset_path=source_preset_path
                     )
                     
                     # Read processed audio and apply master gain
@@ -1751,9 +1771,10 @@ def _run_batch_processing(batch_id: str, preset_path: str, target_paths: List[st
                 mg.process_with_preset(
                     target=target_wav_path,
                     preset_path=preset_path,
-                    results=[mg.pcm24(processed_path)]
+                    results=[mg.pcm24(processed_path)],
+                    source_preset_path=source_preset_path
                 )
-                
+
                 # Then blend original and processed
                 original_audio, sr_orig = sf.read(target_wav_path)
                 processed_audio, sr_proc = sf.read(processed_path)

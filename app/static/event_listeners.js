@@ -175,7 +175,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (batchUseStemSeparation) {
         batchUseStemSeparation.addEventListener('change', window.toggleBatchReferenceInput);
     }
-    
+
+    const batchRadioMeasureSource = document.getElementById('batchRadioMeasureSource');
+    if (batchRadioMeasureSource) {
+        batchRadioMeasureSource.addEventListener('change', window.toggleBatchSourceAnalysisInput);
+    }
+
+    const batchRadioSourcePreset = document.getElementById('batchRadioSourcePreset');
+    if (batchRadioSourcePreset) {
+        batchRadioSourcePreset.addEventListener('change', window.toggleBatchSourceAnalysisInput);
+    }
+
     const batchReferenceFile = document.getElementById('batch-reference-file');
     if (batchReferenceFile) {
         batchReferenceFile.addEventListener('change', () => {

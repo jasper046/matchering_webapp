@@ -335,7 +335,31 @@
                             <label for="batch-preset-file" class="form-label">Preset File (.pkl)</label>
                             <input type="file" class="form-control" id="batch-preset-file" name="preset_file" accept=".pkl" required>
                         </div>
-                        
+
+                        <!-- Source analysis: measure from each source vs. use a source preset -->
+                        <div class="mb-3" id="batch-source-analysis-selection">
+                            <label class="form-label">Source analysis:</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input visually-hidden" type="radio" name="batch_source_analysis_type" id="batchRadioMeasureSource" value="measure" checked>
+                                    <label class="form-check-label radio-button-label" for="batchRadioMeasureSource">Measure from source audio</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input visually-hidden" type="radio" name="batch_source_analysis_type" id="batchRadioSourcePreset" value="preset">
+                                    <label class="form-check-label radio-button-label" for="batchRadioSourcePreset">Use source preset file</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3" id="batch-source-preset-file-div" style="display:none;">
+                            <label for="batch-source-preset-file" class="form-label">Source Preset File (.pkl)</label>
+                            <input type="file" class="form-control" id="batch-source-preset-file" name="source_preset_file" accept=".pkl">
+                            <small class="form-text text-muted">
+                                A preset created from your source material (or representative snippets).
+                                Its frequency spectrum is used to build the corrective EQ instead of
+                                auto-detecting it from each track, giving repeatable results across an album.
+                            </small>
+                        </div>
+
                         <!-- Stem Preset Files (shown when stem separation is enabled) -->
                         <div class="mb-3" id="batch-vocal-preset-file-div" style="display:none;">
                             <label for="batch-vocal-preset-file" class="form-label">Vocal Preset File (.pkl)</label>
